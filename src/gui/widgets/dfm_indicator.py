@@ -165,12 +165,13 @@ class DFMStatusStrip(QFrame):
 
         # 顶行：标题、设置按钮与全局汇总状态
         header_layout = QHBoxLayout()
-        title_lbl = QLabel("🛡 工程装配空间与安全卡控")
+        title_lbl = QLabel("🛡 结构装配与 DFM 制造公差")
         title_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #0284C7;")
         header_layout.addWidget(title_lbl)
 
-        btn_cfg = QPushButton("⚙ 卡控阈值设定")
+        btn_cfg = QPushButton("⚙ 公差与限值设置")
         btn_cfg.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_cfg.setToolTip("点击快速定位至左侧 DFM 装配公差与安全限值配置区")
         btn_cfg.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -191,7 +192,7 @@ class DFMStatusStrip(QFrame):
 
         header_layout.addSpacing(16)
 
-        self.summary_lbl = QLabel("✔ 求解完成 | DFM 检验通过")
+        self.summary_lbl = QLabel("✔ 求解完成 | DFM 尺寸与公差全部合格")
         self.summary_lbl.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.summary_lbl.setStyleSheet("font-size: 11px; font-weight: 600; color: #059669;")
         header_layout.addWidget(self.summary_lbl)
@@ -235,11 +236,11 @@ class DFMStatusStrip(QFrame):
         self.chip_t.setStatus(dfm.temp_passed, dfm.temp_val, dfm.temp_limit, "℃", enabled=is_enabled)
 
         if not is_enabled:
-            self.summary_lbl.setText(f"✔ 求解完成 | R20 = {r20:.3f} Ω | 匝数 = {turns} 匝 | 自由设计模式 (DFM未开启)")
+            self.summary_lbl.setText(f"✔ 求解完成 | R20 = {r20:.3f} Ω | 匝数 = {turns} 匝 | 自由参数模式 (DFM限值未开启)")
             self.summary_lbl.setStyleSheet("font-size: 11px; font-weight: 600; color: #0284C7;")
         elif dfm.all_passed:
-            self.summary_lbl.setText(f"✔ 求解完成 | R20 = {r20:.3f} Ω | 匝数 = {turns} 匝 | DFM 检验全部通过")
+            self.summary_lbl.setText(f"✔ 求解完成 | R20 = {r20:.3f} Ω | 匝数 = {turns} 匝 | DFM 尺寸与公差全部合格")
             self.summary_lbl.setStyleSheet("font-size: 11px; font-weight: 600; color: #059669;")
         else:
-            self.summary_lbl.setText(f"⚠ 警告：存在尺寸干涉或电气超标项，请调校参数！")
+            self.summary_lbl.setText(f"⚠ 警告：存在尺寸干涉或超出设计限值，请调整参数！")
             self.summary_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #DC2626;")

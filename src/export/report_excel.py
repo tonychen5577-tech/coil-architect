@@ -200,37 +200,37 @@ class ExcelReportGenerator:
         write_row_item("有效对流散热表面积", "A_cooling", f"{outputs.total_cooling_area_m2 * 1e6:.2f}", "mm²", "上下端面+内外侧壁")
 
         curr_row += 1
-        # 五、DFM 模具干涉判定
-        write_section("5. DFM 工程装配空间与安全卡控判定 (DFM Verdict)")
+        # 五、DFM 装配公差与制造干涉判定
+        write_section("5. DFM 结构装配与制造公差判定 (DFM Tolerance Verdict)")
         if inputs.coil_type == CoilType.CIRCULAR:
             dfm_items = [
                 ("外径结构空间限制 (OD)", outputs.outer_len, inputs.max_x_len_limit, "mm", outputs.dfm.x_passed, f"上限 ≤ {inputs.max_x_len_limit:.2f} mm"),
                 ("Z向高度空间限制 (F)", outputs.thickness_h, inputs.max_z_h_limit, "mm", outputs.dfm.z_passed, f"上限 ≤ {inputs.max_z_h_limit:.2f} mm"),
-                ("IC 驱动端电压超限", outputs.v_term, inputs.max_v_term_limit, "V", outputs.dfm.voltage_passed, f"上限 ≤ {inputs.max_v_term_limit:.2f} V"),
-                ("漆包线/骨架耐温崩溃", outputs.t_final, inputs.max_temp_limit, "℃", outputs.dfm.temp_passed, f"上限 ≤ {inputs.max_temp_limit:.2f} ℃"),
+                ("驱动端输出电压超限", outputs.v_term, inputs.max_v_term_limit, "V", outputs.dfm.voltage_passed, f"上限 ≤ {inputs.max_v_term_limit:.2f} V"),
+                ("漆包线绝缘耐温超限", outputs.t_final, inputs.max_temp_limit, "℃", outputs.dfm.temp_passed, f"上限 ≤ {inputs.max_temp_limit:.2f} ℃"),
             ]
         elif inputs.coil_type == CoilType.OCTAGONAL:
             dfm_items = [
                 ("对边外跨度空间限制 (OD1)", outputs.oct_od1, inputs.max_x_len_limit, "mm", outputs.dfm.x_passed, f"上限 ≤ {inputs.max_x_len_limit:.2f} mm"),
                 ("对角外跨度空间限制 (OD2)", outputs.oct_od2, inputs.max_y_wid_limit, "mm", outputs.dfm.y_passed, f"上限 ≤ {inputs.max_y_wid_limit:.2f} mm"),
                 ("Z向高度空间限制 (F)", outputs.thickness_h, inputs.max_z_h_limit, "mm", outputs.dfm.z_passed, f"上限 ≤ {inputs.max_z_h_limit:.2f} mm"),
-                ("IC 驱动端电压超限", outputs.v_term, inputs.max_v_term_limit, "V", outputs.dfm.voltage_passed, f"上限 ≤ {inputs.max_v_term_limit:.2f} V"),
-                ("漆包线/骨架耐温崩溃", outputs.t_final, inputs.max_temp_limit, "℃", outputs.dfm.temp_passed, f"上限 ≤ {inputs.max_temp_limit:.2f} ℃"),
+                ("驱动端输出电压超限", outputs.v_term, inputs.max_v_term_limit, "V", outputs.dfm.voltage_passed, f"上限 ≤ {inputs.max_v_term_limit:.2f} V"),
+                ("漆包线绝缘耐温超限", outputs.t_final, inputs.max_temp_limit, "℃", outputs.dfm.temp_passed, f"上限 ≤ {inputs.max_temp_limit:.2f} ℃"),
             ]
         else:
             dfm_items = [
                 ("X向长度空间限制 (OL)", outputs.outer_len, inputs.max_x_len_limit, "mm", outputs.dfm.x_passed, f"上限 ≤ {inputs.max_x_len_limit:.2f} mm"),
                 ("Y向宽度空间限制 (OW)", outputs.outer_wid, inputs.max_y_wid_limit, "mm", outputs.dfm.y_passed, f"上限 ≤ {inputs.max_y_wid_limit:.2f} mm"),
                 ("Z向高度空间限制 (F)", outputs.thickness_h, inputs.max_z_h_limit, "mm", outputs.dfm.z_passed, f"上限 ≤ {inputs.max_z_h_limit:.2f} mm"),
-                ("IC 驱动端电压超限", outputs.v_term, inputs.max_v_term_limit, "V", outputs.dfm.voltage_passed, f"上限 ≤ {inputs.max_v_term_limit:.2f} V"),
-                ("漆包线/骨架耐温崩溃", outputs.t_final, inputs.max_temp_limit, "℃", outputs.dfm.temp_passed, f"上限 ≤ {inputs.max_temp_limit:.2f} ℃"),
+                ("驱动端输出电压超限", outputs.v_term, inputs.max_v_term_limit, "V", outputs.dfm.voltage_passed, f"上限 ≤ {inputs.max_v_term_limit:.2f} V"),
+                ("漆包线绝缘耐温超限", outputs.t_final, inputs.max_temp_limit, "℃", outputs.dfm.temp_passed, f"上限 ≤ {inputs.max_temp_limit:.2f} ℃"),
             ]
         for name, curr_val, limit_val, unit, passed, limit_str in dfm_items:
             c1 = ws.cell(row=curr_row, column=1, value=name)
-            c2 = ws.cell(row=curr_row, column=2, value="DFM-Check")
+            c2 = ws.cell(row=curr_row, column=2, value="DFM 判定")
             c3 = ws.cell(row=curr_row, column=3, value=f"{curr_val:.3f}")
             c4 = ws.cell(row=curr_row, column=4, value=limit_str)
-            c5 = ws.cell(row=curr_row, column=5, value="✓ 合格通过" if passed else "✖ 超标干涉报警")
+            c5 = ws.cell(row=curr_row, column=5, value="✓ 合格通过" if passed else "✖ 超出限值报警")
             c1.font = font_bold
             c3.font = font_bold
             c5.font = font_pass if passed else font_fail

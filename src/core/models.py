@@ -67,13 +67,13 @@ class CoilInputs:
     rated_voltage_v: float = 1.8  # U: 额定工作电压 (Vrms)
     convection_h: float = 25.0    # h: 表面综合对流换热系数 (W/(m²·K))
     
-    # DFM 线圈空间与电气安全卡控阈值 (纯粹线圈物理包络边界 Keep-out Box)
-    dfm_enabled: bool = False     # 是否启用 DFM 模具与空间安全卡控 (默认关闭，避免纯电阻/匝数仿真时误报)
+    # DFM 线圈装配空间与电气安全限值 (线圈物理包络边界 Keep-out Box)
+    dfm_enabled: bool = False     # 是否启用 DFM 装配公差与安全限值检查 (默认关闭，避免纯参数设计时误报)
     max_x_len_limit: float = 7.20 # X 向结构空间上限 (mm，跑道外长 / 圆线圈外径 / 八角形外宽)
     max_y_wid_limit: float = 3.82 # Y 向结构空间上限 (mm，跑道外宽)
     max_z_h_limit: float = 1.05   # Z 向装配限高上限 (mm，线圈成型厚度 F 上限)
-    max_v_term_limit: float = 2.80# IC 驱动端电压上限 (V)
-    max_temp_limit: float = 155.0 # 漆包线耐温等级安全阈值 (℃, 预设120/155/180等级)
+    max_v_term_limit: float = 2.80# 驱动电压上限 (V)
+    max_temp_limit: float = 155.0 # 漆包线耐温等级安全限值 (℃, 预设130/155/180/200级)
 
     # 兼容历史算例字段 (不再参与复杂机壳假设计算)
     zlra_z_adaptive: bool = False
@@ -88,8 +88,8 @@ class CoilInputs:
 
 @dataclass
 class DFMCheckResult:
-    """DFM 结构空间与电气安全卡控结果 (极简纯粹线圈成型尺寸卡控)"""
-    enabled: bool = False         # DFM 卡控总开关状态 (默认关闭)
+    """DFM 结构装配公差与设计限值检查结果 (线圈成型尺寸与公差校验)"""
+    enabled: bool = False         # DFM 限值总开关状态 (默认关闭)
     x_passed: bool = True
     x_val: float = 0.0
     x_limit: float = 7.20

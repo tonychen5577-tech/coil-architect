@@ -94,7 +94,7 @@ class ComparisonDrawer(QFrame):
         ("20℃直流电阻 R20 (Ω)", "output", "_get_r20"),
         ("等效电感 L (μH)", "output", "_get_inductance"),
         ("纯铜填充率 (%)", "output", "_get_cu_fill"),
-        ("DFM 安全卡控", "output", "_get_dfm_status"),
+        ("DFM 制造公差", "output", "_get_dfm_status"),
         ("方案操作", "action", None),
     ]
 
@@ -800,7 +800,7 @@ class ComparisonDrawer(QFrame):
 
     def _get_dfm_status(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
         if not out.dfm or not out.dfm.enabled:
-            return "卡控未开启", "", False, False
+            return "限值未开启", "", False, False
         if out.dfm.all_passed:
             return "✔ 全部合格", "", True, False
         errs = []
@@ -809,7 +809,7 @@ class ComparisonDrawer(QFrame):
         if not out.dfm.z_passed: errs.append("Z")
         if not out.dfm.voltage_passed: errs.append("压")
         if not out.dfm.temp_passed: errs.append("温")
-        return f"⚠ {','.join(errs)}超标", "", False, True
+        return f"⚠ {','.join(errs)}超差", "", False, True
 
     # -------------------------------------------------------------
     # 导出与复制

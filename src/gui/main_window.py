@@ -161,9 +161,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, "sb_perim_in"):
             self.sb_perim_in.setToolTip("【内周长展开 (CAD C_inner)】\n在二维或三维 CAD 软件中沿线圈内腔壁测得的实际内轮廓展开周长 (mm)。")
         if hasattr(self, "sb_perim_outer_len"):
-            self.sb_perim_outer_len.setToolTip("【异形参考外长 (Max Outer X)】\n异形线圈沿长轴方向的最大包络参考尺寸 (mm)，用于装配干涉卡控。")
+            self.sb_perim_outer_len.setToolTip("【异形参考外长 (Max Outer X)】\n异形线圈沿长轴方向的最大包络参考尺寸 (mm)，用于装配干涉与尺寸包络检查。")
         if hasattr(self, "sb_perim_outer_wid"):
-            self.sb_perim_outer_wid.setToolTip("【异形参考外宽 (Max Outer Y)】\n异形线圈沿短轴方向的最大包络参考尺寸 (mm)，用于装配干涉卡控。")
+            self.sb_perim_outer_wid.setToolTip("【异形参考外宽 (Max Outer Y)】\n异形线圈沿短轴方向的最大包络参考尺寸 (mm)，用于装配干涉与尺寸包络检查。")
 
         self.sb_radial_layers.setToolTip("【径向层数】\n线圈壁厚方向紧密排布的线圈层数，支持 0.5 半层（如 18.5 层），用于模拟单层起绕与出线。")
         self.sb_axial_turns.setToolTip("【每层匝数】\n沿线圈高度方向每层紧密排列的导线圈数，决定线圈轴向绕线高度。")
@@ -191,13 +191,13 @@ class MainWindow(QMainWindow):
 
         # 5. 卡片 4: DFM 限值
         if hasattr(self, "chk_dfm_enabled"):
-            self.chk_dfm_enabled.setToolTip("【装配空间与安全卡控】\n开启后，系统将对比尺寸、高度、电压与温度是否超标，并以红绿灯提示。默认关闭为自由设计模式。")
+            self.chk_dfm_enabled.setToolTip("【装配公差与安全限值】\n开启后，系统将自动对比尺寸、高度、电压与温度是否超出公差限值，并在超差时以红灯预警。未开启时处于自由参数模式。")
         self.sb_limit_x.setToolTip("【X向装配限值】\n装配结构允许线圈沿 X 向（长边）的最大尺寸 (mm)。")
         self.sb_limit_y.setToolTip("【Y向装配限值】\n装配结构允许线圈沿 Y 向（短边）的最大尺寸 (mm)。")
         self.sb_limit_z.setToolTip("【Z向装配限高】\n机构空间允许线圈轴向高度/成型厚度的最大尺寸 (mm)。")
-        self.sb_limit_v.setToolTip("【端电压上限】\n驱动芯片 (IC) 输出引脚的最大允许驱动电压 (V)。")
-        self.combo_temp_class.setToolTip("【漆包线耐温等级】\n常用耐温标准：120级 (120℃)、155级 (155℃)、180级 (180℃)。")
-        self.sb_limit_t.setToolTip("【耐温等级上限】\n漆包线绝缘层允许承受的最高长期工作温度 (℃)。")
+        self.sb_limit_v.setToolTip("【驱动电压上限】\n驱动芯片 (IC) 输出引脚的最大允许驱动电压 (V)。")
+        self.combo_temp_class.setToolTip("【漆包线耐温等级】\n常用绝缘耐温标准：130级 (B级 / 130℃)、155级 (F级 / 155℃)、180级 (H级 / 180℃)、200级 (C级 / 200℃)。")
+        self.sb_limit_t.setToolTip("【耐温安全上限】\n漆包线绝缘层允许承受的最高长期工作结温 (℃)。")
 
         # 6. 右侧 16 宫格仿真指标卡片
         self.card_ol.setToolTip("【外廓长度】\n线圈长边方向的最大外尺寸 (mm)。圆线圈模式下即为线圈外径。")
@@ -226,7 +226,7 @@ class MainWindow(QMainWindow):
             self.canvas_widget.tab_macro.setTabToolTip(1, "【2D 截面与限高分析】\n线圈轴向成型厚度与装配外壳限高安全余量分析，排查 Z 向干涉风险。")
             self.canvas_widget.tab_macro.setTabToolTip(2, "【3D 空间斜视】\n三维等轴测立体透视，全面呈现线圈在机构三维空间笼内的装配容差。")
         if hasattr(self, "dfm_strip"):
-            self.dfm_strip.setToolTip("【DFM 模具装配与安全卡控状态带】\n实时卡控包络尺寸、限高、端电压与耐温等级。点击右侧齿轮可快速定位至左侧限值设定区。")
+            self.dfm_strip.setToolTip("【DFM 结构装配与制造公差】\n实时监控线圈外形尺寸、极限厚度、驱动端电压与耐温上限，点击设置按钮可快速定位修改限值。")
         if hasattr(self, "comparison_drawer"):
             self.comparison_drawer.setToolTip("【方案比对抽屉】\n记录手动固化的参数方案并进行横向对比分析，支持基准比对、一键还原与报表导出。")
 
@@ -720,17 +720,17 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(grp_thermal)
 
-        # 卡片 4: 装配空间与安全卡控 (DFM)
+        # 卡片 4: 装配空间与公差约束 (DFM)
         self.grp_dfm = QFrame()
         self.grp_dfm.setProperty("class", "CardFrame")
         layout_dfm = QVBoxLayout(self.grp_dfm)
         layout_dfm.setSpacing(6)
-        lbl_dfm = QLabel("▶ 装配空间与安全卡控 (DFM)")
+        lbl_dfm = QLabel("▶ 装配空间与公差约束 (DFM)")
         lbl_dfm.setProperty("class", "SectionTitle")
         layout_dfm.addWidget(lbl_dfm)
 
-        # DFM 卡限总开关 (默认关闭，避免自由设计/微调匝数电阻时频繁红标报警)
-        self.chk_dfm_enabled = QCheckBox("启用装配空间与安全卡控 (DFM)")
+        # DFM 公差限值总开关 (默认关闭，自由调参不报警)
+        self.chk_dfm_enabled = QCheckBox("启用 DFM 装配公差与限值检查")
         self.chk_dfm_enabled.setChecked(False)
         self.chk_dfm_enabled.setStyleSheet("font-size: 11px; font-weight: 700; color: #0284C7; margin-bottom: 4px;")
         self.chk_dfm_enabled.toggled.connect(self._on_dfm_enabled_toggled)
@@ -742,26 +742,27 @@ class MainWindow(QMainWindow):
         layout_dfm_panel.setContentsMargins(0, 0, 0, 0)
         layout_dfm_panel.setSpacing(6)
 
-        self.sb_limit_x = FloatSliderBox("X向装配限值", "mm", 1.0, 30.0, 7.20, 0.05)
-        self.sb_limit_y = FloatSliderBox("Y向装配限值", "mm", 1.0, 20.0, 3.82, 0.05)
-        self.sb_limit_z = FloatSliderBox("Z向装配限高", "mm", 0.2, 10.0, 1.05, 0.02)
-        self.sb_limit_v = FloatSliderBox("端电压上限", "V", 0.5, 12.0, 2.80, 0.05)
+        self.sb_limit_x = FloatSliderBox("X向装配限值 (Max L)", "mm", 1.0, 30.0, 7.20, 0.05)
+        self.sb_limit_y = FloatSliderBox("Y向装配限值 (Max W)", "mm", 1.0, 20.0, 3.82, 0.05)
+        self.sb_limit_z = FloatSliderBox("Z向装配限高 (Max H)", "mm", 0.2, 10.0, 1.05, 0.02)
+        self.sb_limit_v = FloatSliderBox("驱动电压上限 (Max V)", "V", 0.5, 12.0, 2.80, 0.05)
 
-        # 漆包线耐温等级快捷选择 (预设 120等级 / 155等级 / 180等级)
+        # 漆包线绝缘耐温等级快捷选择
         lbl_temp_class = QLabel("漆包线耐温等级:")
         lbl_temp_class.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
         layout_dfm_panel.addWidget(lbl_temp_class)
 
         self.combo_temp_class = QComboBox()
-        self.combo_temp_class.addItem("120等级 (120℃)", 120.0)
-        self.combo_temp_class.addItem("155等级 (155℃)", 155.0)
-        self.combo_temp_class.addItem("180等级 (180℃)", 180.0)
-        self.combo_temp_class.addItem("自定义耐温等级", None)
-        self.combo_temp_class.setCurrentIndex(1)  # 默认 155等级
+        self.combo_temp_class.addItem("130级 (B级 / 130℃)", 130.0)
+        self.combo_temp_class.addItem("155级 (F级 / 155℃)", 155.0)
+        self.combo_temp_class.addItem("180级 (H级 / 180℃)", 180.0)
+        self.combo_temp_class.addItem("200级 (C级 / 200℃)", 200.0)
+        self.combo_temp_class.addItem("自定义耐温限值", None)
+        self.combo_temp_class.setCurrentIndex(1)  # 默认 155级 (F级)
         self.combo_temp_class.currentIndexChanged.connect(self._on_temp_class_changed)
         layout_dfm_panel.addWidget(self.combo_temp_class)
 
-        self.sb_limit_t = FloatSliderBox("耐温等级上限", "℃", 60.0, 220.0, 155.0, 5.0)
+        self.sb_limit_t = FloatSliderBox("耐温安全上限", "℃", 60.0, 220.0, 155.0, 5.0)
         self.sb_limit_t.valueChanged.connect(self._on_limit_t_slider_changed)
 
         layout_dfm_panel.addWidget(self.sb_limit_x)
@@ -903,9 +904,9 @@ class MainWindow(QMainWindow):
         return scroll
 
     def _scroll_to_dfm(self):
-        """平滑滚动至左侧 DFM 卡控阈值设定区"""
+        """平滑滚动至左侧 DFM 装配公差与设计限值参数区"""
         self.scroll_left.ensureWidgetVisible(self.grp_dfm)
-        self.status_bar.showMessage("已定位至左侧 DFM 模具装配与安全卡控限值设定面板", 3000)
+        self.status_bar.showMessage("已定位至左侧 DFM 装配公差与安全限值配置区", 3000)
 
     def _on_bare_dia_changed(self, bare_dia: float):
         """标称铜裸径变动响应"""
@@ -1716,7 +1717,7 @@ class MainWindow(QMainWindow):
             f"纯铜空间填充率 (Cu Fill),{self.outputs.copper_fill_factor:.2f},%",
             f"线圈净重 (Weight),{self.outputs.weight_g:.4f},g",
             f"平均单匝展开周长 (MLT),{self.outputs.mlt:.3f},mm",
-            f"DFM卡控状态,{ '全部合格' if self.outputs.dfm.all_passed else '存在超标项' }"
+            f"DFM制造公差状态,{ '全部合格' if self.outputs.dfm.all_passed else '存在超差项' }"
         ]
         atomic_write_text(Path(path), "\n".join(lines), encoding="utf-8-sig")
         self.status_bar.showMessage(f"CSV 报表已成功原子持久化导出: {os.path.basename(path)}", 4000)

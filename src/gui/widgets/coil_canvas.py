@@ -186,9 +186,9 @@ class MicroPackingCanvas(QWidget):
         painter.setFont(font_title)
 
         if self.view_mode == "zx":
-            view_title = "Z-X 长向截面 (卡控 X 边界)"
+            view_title = "Z-X 长向剖面 (X向装配公差)"
         elif self.view_mode == "zy":
-            view_title = "Z-Y 宽向截面 (卡控 Y 边界)"
+            view_title = "Z-Y 宽向剖面 (Y向装配公差)"
         else:
             view_title = "单侧微观高倍详图"
 
@@ -1121,7 +1121,7 @@ class MagnetSectionCanvas(QWidget):
             in_dim = max(0.1, self.inputs.inner_len)
             out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_len)
             lim_dim = self.inputs.max_x_len_limit
-            view_title = "圆线圈 2D 径向截面与 DFM 空间卡控 (OD × F)"
+            view_title = "圆线圈 2D 径向剖面与 DFM 装配限值 (OD × F)"
             dim_in_name = "内径 ID"
             dim_out_name = "外径 OD"
             dim_lim_name = "Max_OD"
@@ -1130,7 +1130,7 @@ class MagnetSectionCanvas(QWidget):
                 in_dim = max(0.1, self.inputs.oct_id1)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.oct_od1)
                 lim_dim = self.inputs.max_x_len_limit
-                view_title = "八角形 2D 截面 (对边剖面 ID1/OD1 与限宽卡控)"
+                view_title = "八角形 2D 截面 (对边剖面 ID1/OD1 与限宽公差)"
                 dim_in_name = "对边内跨 ID1"
                 dim_out_name = "对边外跨 OD1"
                 dim_lim_name = "Max_X"
@@ -1138,7 +1138,7 @@ class MagnetSectionCanvas(QWidget):
                 in_dim = max(0.1, self.inputs.oct_id2)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.oct_od2)
                 lim_dim = self.inputs.max_y_wid_limit
-                view_title = "八角形 2D 截面 (45°对角剖面 ID2/OD2 与限宽卡控)"
+                view_title = "八角形 2D 截面 (45°对角剖面 ID2/OD2 与限宽公差)"
                 dim_in_name = "对角内跨 ID2"
                 dim_out_name = "对角外跨 OD2"
                 dim_lim_name = "Max_Y"
@@ -1146,7 +1146,7 @@ class MagnetSectionCanvas(QWidget):
             out_dim = max(1.0, self.outputs.outer_len)
             in_dim = max(0.1, out_dim - 2.0 * e_env)
             lim_dim = self.inputs.max_x_len_limit
-            view_title = "通用异形 2D 截面与 DFM 空间限高卡控"
+            view_title = "通用异形 2D 截面与 DFM 装配限高"
             dim_in_name = "参考内跨"
             dim_out_name = "参考外跨"
             dim_lim_name = "Max_X"
@@ -1155,7 +1155,7 @@ class MagnetSectionCanvas(QWidget):
                 in_dim = max(0.1, self.inputs.inner_len)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_len)
                 lim_dim = self.inputs.max_x_len_limit
-                view_title = "跑道型 2D 截面 (Z-X 长向剖面与 X 限宽卡控)"
+                view_title = "跑道型 2D 截面 (Z-X 长向剖面与 X 向限宽)"
                 dim_in_name = "内长 IL"
                 dim_out_name = "外长 OL"
                 dim_lim_name = "Max_X"
@@ -1163,7 +1163,7 @@ class MagnetSectionCanvas(QWidget):
                 in_dim = max(0.1, self.inputs.inner_wid)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_wid)
                 lim_dim = self.inputs.max_y_wid_limit
-                view_title = "跑道型 2D 截面 (Z-Y 宽向剖面与 Y 限宽卡控)"
+                view_title = "跑道型 2D 截面 (Z-Y 宽向剖面与 Y 向限宽)"
                 dim_in_name = "内宽 IW"
                 dim_out_name = "外宽 OW"
                 dim_lim_name = "Max_Y"
@@ -1552,7 +1552,7 @@ class MagnetSectionCanvas(QWidget):
             line1 = f"线圈成型高度 F: {f_thk:.3f} mm  |  空间限高 Max_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)  |  成型壁厚 E: {e_env:.3f} mm"
             line2 = f"线圈内腔基准: {in_dim:.2f} mm  |  实际外廓: {out_dim:.3f} mm  |  空间上限 {dim_lim_name}: {lim_dim:.2f} mm (余量 Δ: {delta_dim:+.3f} mm)"
         else:
-            line1 = f"【自由设计】成型高度 F: {f_thk:.3f} mm  |  壁厚 E: {e_env:.3f} mm  |  DFM 模具卡控未开启"
+            line1 = f"【自由设计】成型高度 F: {f_thk:.3f} mm  |  壁厚 E: {e_env:.3f} mm  |  DFM 限值检查未开启"
             line2 = f"线圈内腔基准: {in_dim:.2f} mm  |  实际外廓: {out_dim:.3f} mm  |  参考限值 {dim_lim_name}: {lim_dim:.2f} mm"
 
         painter.drawText(QRectF(10, rect_bottom_card.top() + 3, w - 20, 13), Qt.AlignmentFlag.AlignCenter, line1)
