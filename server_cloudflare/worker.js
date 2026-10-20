@@ -1,15 +1,16 @@
 /**
  * ==============================================================================
- * ANSV Coil-Architect Pro | Cloudflare Serverless 边缘授权与工位监控引擎
- * 架构规范：Cloudflare Workers + D1 分布式 SQLite 数据库
+ * ANSV Coil-Architect Pro | Cloudflare Serverless 边缘授权与工位监控引擎 (v1.2 增强版)
+ * 深度对标对齐 Gear-NVH / FFT 分析软件 全量工业商业桌面软件云端架构规范
  * 
  * 核心功能：
- * 1. 外部访问自动重定向：普通访客访问根路径直接 302 跳转 ansv.net 官网；
- * 2. 私密管理员后台 (/admin)：密码保护 (默认 Ansv@Coil#2026)，工业级高颜值仪表盘；
- * 3. 商业授权一键签发：与客户端 Python 算法 100% 互通的 COIL-SEC-... HMAC-SHA256 Token 签发；
- * 4. 工位机资产监控大屏：在线心跳、授权到期倒计时、防倒拨时钟监控、远程延期/拉黑；
- * 5. OTA 软件发版推送：在线维护版本发布历史，客户端自动接收更新弹窗；
- * 6. 全库数据一键备份：支持导出 JSON 全量备份文件。
+ * 1. 外部访问智能分流：普通访客访问根路径直接 302 跳转 ansv.net 官网，后台 100% 隐蔽；
+ * 2. 数据库全自动热迁移与自愈：每张表独立 await db.prepare().run()，自建表/自补字段；
+ * 3. 商业授权一键签发：与客户端 Python 算法 100% 互通的 COIL-SEC-... HMAC-SHA256 签发引擎；
+ * 4. 工位机资产监控大屏：在线心跳、版本号、到期倒计时、时钟偏差/防倒拨监控、远程指令下发；
+ * 5. 官方标杆案例库 (coil_cases)：对标 Gear 专家库，在线同步官方推荐线圈仿真算例；
+ * 6. OTA 软件发版推送：在线维护版本更新直链与 Markdown 日志，客户端秒级接收更新；
+ * 7. 全库一键备份：支持导出 JSON 全量备份文件。
  * ==============================================================================
  */
 
@@ -117,6 +118,197 @@ function isAdminAuthenticated(request, env) {
 }
 
 // ==============================================================================
+// 数据库自动热迁移与自愈初始化 (对齐 Gear: 独立 prepare().run()，百分百防死锁与缺失)
+// ==============================================================================
+
+let _isDbInitialized = false;
+
+async function ensureTables(db) {
+    if (_isDbInitialized || !db) return;
+
+    // 1. devices 表
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS devices (
+                machine_id VARCHAR(64) PRIMARY KEY,
+                hostname VARCHAR(128) DEFAULT '-',
+                ip_address VARCHAR(64) DEFAULT '-',
+                mac_address VARCHAR(64) DEFAULT '-',
+                app_version VARCHAR(32) DEFAULT '-',
+                app_build VARCHAR(32) DEFAULT '-',
+                wire_db_version VARCHAR(32) DEFAULT 'v1.0',
+                license_status VARCHAR(32) DEFAULT 'TRIAL',
+                license_expire VARCHAR(64) DEFAULT '-',
+                remaining_days INTEGER DEFAULT 0,
+                customer_name VARCHAR(128) DEFAULT '散户/未登记',
+                line_station VARCHAR(128) DEFAULT 'WORKSTATION-01',
+                operator_name VARCHAR(64) DEFAULT '-',
+                operator_id VARCHAR(64) DEFAULT '-',
+                system_user VARCHAR(64) DEFAULT '-',
+                is_virtual_machine INTEGER DEFAULT 0,
+                disk_free_gb REAL DEFAULT 0.0,
+                clock_tampered INTEGER DEFAULT 0,
+                client_clock_time VARCHAR(32) DEFAULT '-',
+                clock_skew_sec INTEGER DEFAULT 0,
+                remote_command VARCHAR(64) DEFAULT 'NONE',
+                remote_command_payload TEXT DEFAULT '',
+                first_seen_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_sync_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                sync_count INTEGER DEFAULT 1,
+                status VARCHAR(20) DEFAULT 'ACTIVE',
+                notes TEXT DEFAULT ''
+            )
+        `).run();
+    } catch (_) { }
+
+    // 字段平滑热迁移 (对齐 Gear: 防止历史旧表少字段)
+    const deviceCols = [
+        "wire_db_version VARCHAR(32) DEFAULT 'v1.0'",
+        "operator_name VARCHAR(64) DEFAULT '-'",
+        "operator_id VARCHAR(64) DEFAULT '-'",
+        "system_user VARCHAR(64) DEFAULT '-'",
+        "disk_free_gb REAL DEFAULT 0.0",
+        "client_clock_time VARCHAR(32) DEFAULT '-'",
+        "clock_skew_sec INTEGER DEFAULT 0",
+        "remote_command VARCHAR(64) DEFAULT 'NONE'",
+        "remote_command_payload TEXT DEFAULT ''",
+        "first_seen_time DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "last_sync_time DATETIME DEFAULT CURRENT_TIMESTAMP"
+    ];
+    for (const col of deviceCols) {
+        try { await db.prepare(`ALTER TABLE devices ADD COLUMN ${col}`).run(); } catch (_) { }
+    }
+
+    // 2. licenses 商业授权激活码签发表 (单独创建，确保必定成功)
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS licenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT NOT NULL UNIQUE,
+                machine_id VARCHAR(64) NOT NULL,
+                plan_type VARCHAR(32) DEFAULT 'TRIAL',
+                expire_date VARCHAR(64) NOT NULL,
+                customer_name VARCHAR(128) DEFAULT 'ANSV VIP Client',
+                station_id VARCHAR(64) DEFAULT 'WORKSTATION-01',
+                operator_name VARCHAR(64) DEFAULT 'ADMIN',
+                status VARCHAR(32) DEFAULT 'ACTIVE',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                activated_at DATETIME,
+                notes TEXT DEFAULT ''
+            )
+        `).run();
+    } catch (_) { }
+
+    // 3. coil_cases 官方标杆案例库 (对齐 Gear: gear_cases)
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS coil_cases (
+                case_id VARCHAR(64) PRIMARY KEY,
+                case_name VARCHAR(128) NOT NULL,
+                coil_type VARCHAR(32) NOT NULL,
+                application_scenario VARCHAR(128) DEFAULT '',
+                version INTEGER DEFAULT 1,
+                tags TEXT DEFAULT '[]',
+                parameters TEXT NOT NULL,
+                dfm_summary TEXT DEFAULT '',
+                created_by VARCHAR(64) DEFAULT 'ANSV R&D',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_active INTEGER DEFAULT 1
+            )
+        `).run();
+    } catch (_) { }
+
+    // 4. audit_logs 审计流水日志表 (对齐 Gear: case_audit_logs)
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action_type VARCHAR(64) NOT NULL,
+                target_id VARCHAR(64) DEFAULT '',
+                operator_name VARCHAR(64) DEFAULT 'ADMIN',
+                reason TEXT DEFAULT '',
+                details TEXT DEFAULT '',
+                ip VARCHAR(64) DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `).run();
+    } catch (_) { }
+
+    // 5. releases 软件版本发布与 OTA 更新履历表
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS releases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version VARCHAR(32) NOT NULL UNIQUE,
+                build VARCHAR(64) DEFAULT '',
+                release_date VARCHAR(32) NOT NULL,
+                download_url TEXT NOT NULL,
+                backup_url TEXT DEFAULT '',
+                sha256 VARCHAR(64) DEFAULT '',
+                file_size_mb REAL DEFAULT 0.0,
+                changelog TEXT DEFAULT '',
+                is_mandatory INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `).run();
+    } catch (_) { }
+
+    // 6. app_config 全局配置表
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS app_config (
+                meta_key TEXT PRIMARY KEY,
+                meta_value TEXT NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `).run();
+    } catch (_) { }
+
+    // 初始基准数据注入
+    try {
+        await db.prepare(`
+            INSERT OR IGNORE INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
+            VALUES (
+                'v1.1.0',
+                '20261014_B1',
+                '2026-10-20',
+                'https://github.com/tonychen5577-tech/coil-architect/releases/download/v1.1.0/ANSV_Coil_Architect_Pro_v1.1.0_20261020_12e1dc6.zip',
+                'https://ansv.net/download/coil-architect-v1.1.0.zip',
+                '60b84e04a59953c3b3de346d4355baa09eb92ad3deaaf75b3a49c01e6a5e11d8',
+                60.60,
+                '### ANSV Coil-Architect Pro v1.1.0 商业正式版',
+                0,
+                1
+            )
+        `).run();
+    } catch (_) { }
+
+    try {
+        await db.prepare(`INSERT OR IGNORE INTO app_config (meta_key, meta_value) VALUES ('latest_version', 'v1.1.0')`).run();
+    } catch (_) { }
+
+    try {
+        await db.prepare(`
+            INSERT OR IGNORE INTO coil_cases (case_id, case_name, coil_type, application_scenario, version, parameters, dfm_summary, created_by)
+            VALUES (
+                'CASE-VCM-OCT-01',
+                '50MP 潜望式变焦马达八角形线圈标杆算例',
+                'OCTAGONAL',
+                '潜望折转长焦镜头双向闭环 AF/OIS',
+                1,
+                '{"oct_id1":7.10,"oct_id2":7.05,"oct_l1":2.62,"oct_l2":2.74,"oct_r1":0.30,"radial_layers":14.0,"axial_turns":12,"bare_dia":0.075,"max_od":0.085,"target_res":19.5,"tension_factor":0.99}',
+                '气隙 >= 0.15mm (安全)',
+                'Yaming.Chen (ANSV Lab)'
+            )
+        `).run();
+    } catch (_) { }
+
+    _isDbInitialized = true;
+}
+
+// ==============================================================================
 // 核心路由分发器
 // ==============================================================================
 
@@ -163,99 +355,7 @@ export default {
 };
 
 // ==============================================================================
-// 数据库自动热迁移与自愈初始化 (首次运行时自动补齐所有表)
-// ==============================================================================
-
-let _tablesReady = false;
-
-async function ensureTables(db) {
-    if (_tablesReady || !db) return;
-    try {
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS devices (
-                machine_id VARCHAR(64) PRIMARY KEY,
-                hostname VARCHAR(128) DEFAULT '-',
-                ip_address VARCHAR(64) DEFAULT '-',
-                mac_address VARCHAR(64) DEFAULT '-',
-                app_version VARCHAR(32) DEFAULT '-',
-                app_build VARCHAR(32) DEFAULT '-',
-                license_status VARCHAR(32) DEFAULT 'TRIAL',
-                license_expire VARCHAR(64) DEFAULT '-',
-                remaining_days INTEGER DEFAULT 0,
-                customer_name VARCHAR(128) DEFAULT '散户/未登记',
-                line_station VARCHAR(128) DEFAULT 'WORKSTATION-01',
-                is_virtual_machine INTEGER DEFAULT 0,
-                clock_tampered INTEGER DEFAULT 0,
-                first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_sync DATETIME DEFAULT CURRENT_TIMESTAMP,
-                sync_count INTEGER DEFAULT 1,
-                status VARCHAR(20) DEFAULT 'ACTIVE',
-                notes TEXT DEFAULT ''
-            );
-            CREATE TABLE IF NOT EXISTS licenses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                token TEXT NOT NULL UNIQUE,
-                machine_id VARCHAR(64) NOT NULL,
-                plan_type VARCHAR(32) DEFAULT 'TRIAL',
-                expire_date VARCHAR(64) NOT NULL,
-                customer_name VARCHAR(128) DEFAULT 'ANSV VIP Client',
-                station_id VARCHAR(64) DEFAULT 'WORKSTATION-01',
-                status VARCHAR(32) DEFAULT 'ACTIVE',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                activated_at DATETIME,
-                notes TEXT DEFAULT ''
-            );
-            CREATE TABLE IF NOT EXISTS releases (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                version VARCHAR(32) NOT NULL UNIQUE,
-                build VARCHAR(64) DEFAULT '',
-                release_date VARCHAR(32) NOT NULL,
-                download_url TEXT NOT NULL,
-                backup_url TEXT DEFAULT '',
-                sha256 VARCHAR(64) DEFAULT '',
-                file_size_mb REAL DEFAULT 0.0,
-                changelog TEXT DEFAULT '',
-                is_mandatory INTEGER DEFAULT 0,
-                is_active INTEGER DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS audit_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                action VARCHAR(64) NOT NULL,
-                target_mid VARCHAR(64) DEFAULT '',
-                operator VARCHAR(64) DEFAULT 'ADMIN',
-                details TEXT DEFAULT '',
-                ip VARCHAR(64) DEFAULT '',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS app_config (
-                meta_key TEXT PRIMARY KEY,
-                meta_value TEXT NOT NULL,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            INSERT OR IGNORE INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
-            VALUES (
-                'v1.1.0',
-                '20261014_B1',
-                '2026-10-20',
-                'https://github.com/tonychen5577-tech/coil-architect/releases/download/v1.1.0/ANSV_Coil_Architect_Pro_v1.1.0_20261020_12e1dc6.zip',
-                'https://ansv.net/download/coil-architect-v1.1.0.zip',
-                '60b84e04a59953c3b3de346d4355baa09eb92ad3deaaf75b3a49c01e6a5e11d8',
-                60.60,
-                '### ANSV Coil-Architect Pro v1.1.0 商业正式版',
-                0,
-                1
-            );
-            INSERT OR IGNORE INTO app_config (meta_key, meta_value) VALUES ('latest_version', 'v1.1.0');
-        `);
-        _tablesReady = true;
-    } catch (e) {
-        // 如果已初始化则静默忽略
-    }
-}
-
-// ==============================================================================
-// 客户端静默 API 处理器
+// 客户端静默 API 处理器 (对齐 Gear: 心跳、时钟防作弊、指令下发、案例同步)
 // ==============================================================================
 
 async function handleClientApi(path, request, env) {
@@ -265,7 +365,7 @@ async function handleClientApi(path, request, env) {
     }
     await ensureTables(db);
 
-    // 1. 心跳上报与防倒拨时钟校准
+    // 1. 心跳上报与防倒拨时钟校准 (对齐 Gear 规范)
     if (path === "/api/v1/heartbeat" && request.method === "POST") {
         let body = {};
         try {
@@ -284,14 +384,23 @@ async function handleClientApi(path, request, env) {
         const mac = body.mac_address || "-";
         const appVersion = body.app_version || "-";
         const appBuild = body.app_build || "-";
+        const wireDbVer = body.wire_db_version || "v1.0";
         const isVm = body.is_virtual_machine ? 1 : 0;
-        const licenseToken = body.license_token || "";
+        const operatorName = body.operator_name || "-";
+        const operatorId = body.operator_id || "-";
+        const systemUser = body.system_user || "-";
+        const diskFreeGb = Number(body.disk_free_gb || 0.0);
+        const clientClockStr = body.client_clock_time || new Date().toISOString();
         const clientClockTs = Number(body.client_timestamp || 0);
 
         const nowSec = Math.floor(Date.now() / 1000);
+        let clockSkewSec = 0;
         let clockTampered = 0;
-        if (clientClockTs > 0 && Math.abs(nowSec - clientClockTs) > 180) {
-            clockTampered = 1; // 误差超过 3 分钟，视为倒拨或漂移
+        if (clientClockTs > 0) {
+            clockSkewSec = Math.abs(nowSec - clientClockTs);
+            if (clockSkewSec > 180) {
+                clockTampered = 1; // 误差超过 3 分钟，视为倒拨或严重时钟漂移
+            }
         }
 
         // 解析并计算剩余天数
@@ -315,34 +424,47 @@ async function handleClientApi(path, request, env) {
             } catch (e) {}
         }
 
-        // 插入或更新工位机资产
+        // 插入或更新工位机资产 (全量字段对齐 Gear)
         await db.prepare(`
             INSERT INTO devices (
-                machine_id, hostname, ip_address, mac_address, app_version, app_build,
-                is_virtual_machine, clock_tampered, license_status, license_expire, remaining_days,
-                last_sync, sync_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+                machine_id, hostname, ip_address, mac_address, app_version, app_build, wire_db_version,
+                license_status, license_expire, remaining_days, customer_name, line_station,
+                operator_name, operator_id, system_user, is_virtual_machine, disk_free_gb,
+                clock_tampered, client_clock_time, clock_skew_sec, last_sync_time, sync_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '散户/未登记', 'WORKSTATION-01', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
             ON CONFLICT(machine_id) DO UPDATE SET
                 hostname = excluded.hostname,
                 ip_address = excluded.ip_address,
                 mac_address = CASE WHEN excluded.mac_address != '-' THEN excluded.mac_address ELSE devices.mac_address END,
                 app_version = excluded.app_version,
                 app_build = excluded.app_build,
+                wire_db_version = excluded.wire_db_version,
+                operator_name = CASE WHEN excluded.operator_name != '-' THEN excluded.operator_name ELSE devices.operator_name END,
+                operator_id = CASE WHEN excluded.operator_id != '-' THEN excluded.operator_id ELSE devices.operator_id END,
+                system_user = CASE WHEN excluded.system_user != '-' THEN excluded.system_user ELSE devices.system_user END,
                 is_virtual_machine = excluded.is_virtual_machine,
+                disk_free_gb = excluded.disk_free_gb,
                 clock_tampered = CASE WHEN excluded.clock_tampered = 1 THEN 1 ELSE devices.clock_tampered END,
+                client_clock_time = excluded.client_clock_time,
+                clock_skew_sec = excluded.clock_skew_sec,
                 license_status = CASE WHEN devices.status = 'BANNED' THEN 'BANNED' ELSE excluded.license_status END,
                 license_expire = CASE WHEN excluded.license_expire != '-' THEN excluded.license_expire ELSE devices.license_expire END,
                 remaining_days = excluded.remaining_days,
-                last_sync = CURRENT_TIMESTAMP,
+                last_sync_time = CURRENT_TIMESTAMP,
                 sync_count = devices.sync_count + 1
         `).bind(
-            machineId, hostname, ip, mac, appVersion, appBuild,
-            isVm, clockTampered, licenseStatus, licenseExpire, remainingDays
+            machineId, hostname, ip, mac, appVersion, appBuild, wireDbVer,
+            licenseStatus, licenseExpire, remainingDays,
+            operatorName, operatorId, systemUser, isVm, diskFreeGb,
+            clockTampered, clientClockStr, clockSkewSec
         ).run();
 
-        // 查询当前最新版本信息
+        // 提取工位机远程指令 (对齐 Gear: 支持云端强制锁机或刷新)
+        const deviceRow = await db.prepare("SELECT status, customer_name, remote_command, remote_command_payload FROM devices WHERE machine_id = ?").bind(machineId).first();
         const release = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
-        const deviceRow = await db.prepare("SELECT status, customer_name FROM devices WHERE machine_id = ?").bind(machineId).first();
+
+        let remoteCmd = deviceRow ? deviceRow.remote_command : "NONE";
+        let remotePayload = deviceRow ? deviceRow.remote_command_payload : "";
 
         return jsonResponse({
             success: true,
@@ -352,6 +474,8 @@ async function handleClientApi(path, request, env) {
             device_status: deviceRow ? deviceRow.status : "ACTIVE",
             customer_name: deviceRow ? deviceRow.customer_name : "散户/未登记",
             remaining_days: remainingDays,
+            remote_command: remoteCmd,
+            remote_command_payload: remotePayload,
             latest_release: release ? {
                 version: release.version,
                 build: release.build,
@@ -384,6 +508,12 @@ async function handleClientApi(path, request, env) {
             changelog: release.changelog,
             is_mandatory: release.is_mandatory === 1
         });
+    }
+
+    // 3. 拉取官方推荐标杆算例 (对齐 Gear 专家库案例同步)
+    if (path === "/api/v1/cases/benchmarks" && request.method === "GET") {
+        const cases = await db.prepare("SELECT * FROM coil_cases WHERE is_active = 1 ORDER BY case_id ASC").all();
+        return jsonResponse({ success: true, cases: cases.results || [] });
     }
 
     return jsonResponse({ success: false, error: "API route not found" }, 404);
@@ -445,7 +575,14 @@ async function handleAdmin(path, request, env, url) {
         });
     }
 
-    // 4. 下方所有 /admin/api/* 必须校验管理员权限
+    // 4. 手动触发数据库初始化/自愈 API (免登录兜底或已登录均可触发)
+    if (path === "/admin/api/init_db" && request.method === "POST") {
+        _isDbInitialized = false;
+        await ensureTables(db);
+        return jsonResponse({ success: true, message: "所有数据表与索引已成功完成自愈热迁移与初始化！" });
+    }
+
+    // 5. 下方所有 /admin/api/* 必须校验管理员权限
     if (!isAdminAuthenticated(request, env)) {
         return jsonResponse({ success: false, error: "未授权，请先登录后台" }, 401);
     }
@@ -455,8 +592,9 @@ async function handleAdmin(path, request, env, url) {
         const totalDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices").first())?.c || 0;
         const activeDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'ACTIVE' AND (license_expire = 'PERMANENT' OR remaining_days > 0)").first())?.c || 0;
         const expiringSoon = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE remaining_days >= 0 AND remaining_days <= 7 AND license_expire != 'PERMANENT'").first())?.c || 0;
-        const todaySyncs = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync >= date('now')").first())?.c || 0;
+        const todaySyncs = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= date('now')").first())?.c || 0;
         const totalLicenses = (await db.prepare("SELECT COUNT(*) as c FROM licenses").first())?.c || 0;
+        const totalCases = (await db.prepare("SELECT COUNT(*) as c FROM coil_cases").first())?.c || 0;
         const activeRelease = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
 
         return jsonResponse({
@@ -467,6 +605,7 @@ async function handleAdmin(path, request, env, url) {
                 expiring_soon: expiringSoon,
                 today_syncs: todaySyncs,
                 total_licenses: totalLicenses,
+                total_cases: totalCases,
                 latest_version: activeRelease ? activeRelease.version : "v1.1.0"
             }
         });
@@ -475,12 +614,12 @@ async function handleAdmin(path, request, env, url) {
     // B. 工位机列表 (支持搜索与状态筛选)
     if (path === "/admin/api/devices" && request.method === "GET") {
         const q = (url.searchParams.get("q") || "").trim();
-        let query = "SELECT * FROM devices ORDER BY last_sync DESC LIMIT 150";
+        let query = "SELECT * FROM devices ORDER BY last_sync_time DESC LIMIT 150";
         let res;
         if (q) {
-            query = "SELECT * FROM devices WHERE machine_id LIKE ? OR customer_name LIKE ? OR hostname LIKE ? OR ip_address LIKE ? ORDER BY last_sync DESC LIMIT 150";
+            query = "SELECT * FROM devices WHERE machine_id LIKE ? OR customer_name LIKE ? OR hostname LIKE ? OR ip_address LIKE ? OR operator_name LIKE ? ORDER BY last_sync_time DESC LIMIT 150";
             const pattern = `%${q}%`;
-            res = await db.prepare(query).bind(pattern, pattern, pattern, pattern).all();
+            res = await db.prepare(query).bind(pattern, pattern, pattern, pattern, pattern).all();
         } else {
             res = await db.prepare(query).all();
         }
@@ -525,8 +664,8 @@ async function handleAdmin(path, request, env, url) {
 
         // 写入 licenses 表
         await db.prepare(`
-            INSERT INTO licenses (token, machine_id, plan_type, expire_date, customer_name, station_id, status, notes)
-            VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+            INSERT INTO licenses (token, machine_id, plan_type, expire_date, customer_name, station_id, operator_name, status, notes)
+            VALUES (?, ?, ?, ?, ?, ?, 'ADMIN', 'ACTIVE', ?)
         `).bind(token, mid, planType, expireDateStr, customer, station, notes).run();
 
         // 同步更新 devices 表（如果已存在该机器码）
@@ -541,11 +680,11 @@ async function handleAdmin(path, request, env, url) {
             WHERE machine_id = ?
         `).bind(customer, station, expireDateStr, notes, notes, mid).run();
 
-        // 审计留痕
+        // 审计留痕 (对齐 Gear)
         const ip = request.headers.get("CF-Connecting-IP") || "-";
         await db.prepare(`
-            INSERT INTO audit_logs (action, target_mid, details, ip)
-            VALUES ('GENERATE_TOKEN', ?, ?, ?)
+            INSERT INTO audit_logs (action_type, target_id, operator_name, details, ip)
+            VALUES ('GENERATE_TOKEN', ?, 'ADMIN', ?, ?)
         `).bind(mid, `签发方案: ${planType}, 到期日: ${expireDateStr}, 客户: ${customer}`, ip).run();
 
         return jsonResponse({
@@ -558,7 +697,7 @@ async function handleAdmin(path, request, env, url) {
         });
     }
 
-    // D. 设备运维操作 (拉黑/解封/延期)
+    // D. 设备运维操作 (拉黑/解封/延期/下发指令)
     if (path === "/admin/api/device/action" && request.method === "POST") {
         let body = {};
         try { body = await request.json(); } catch(e){}
@@ -570,21 +709,24 @@ async function handleAdmin(path, request, env, url) {
         if (!mid) return jsonResponse({ success: false, error: "Missing machine_id" }, 400);
 
         if (action === "BAN") {
-            await db.prepare("UPDATE devices SET status = 'BANNED' WHERE machine_id = ?").bind(mid).run();
-            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('BAN_DEVICE', ?, '管理员强制拉黑吊销', ?)").bind(mid, ip).run();
+            await db.prepare("UPDATE devices SET status = 'BANNED', remote_command = 'LOCK_APP' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('BAN_DEVICE', ?, '强制拉黑吊销并下发锁定指令', ?)").bind(mid, ip).run();
         } else if (action === "ACTIVATE") {
-            await db.prepare("UPDATE devices SET status = 'ACTIVE' WHERE machine_id = ?").bind(mid).run();
-            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('ACTIVATE_DEVICE', ?, '管理员恢复解封正常状态', ?)").bind(mid, ip).run();
+            await db.prepare("UPDATE devices SET status = 'ACTIVE', remote_command = 'NONE' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('ACTIVATE_DEVICE', ?, '恢复解封正常状态', ?)").bind(mid, ip).run();
         } else if (action === "EXTEND_DAYS") {
             const days = parseInt(val) || 30;
             const targetDate = new Date();
             targetDate.setDate(targetDate.getDate() + days);
             const newExp = targetDate.toISOString().substring(0, 10);
             await db.prepare("UPDATE devices SET license_expire = ?, remaining_days = ?, license_status = 'ACTIVE' WHERE machine_id = ?").bind(newExp, days, mid).run();
-            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('EXTEND_DAYS', ?, ?, ?)").bind(mid, `延长至: ${newExp}`, ip).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('EXTEND_DAYS', ?, ?, ?)").bind(mid, `延长至: ${newExp}`, ip).run();
         } else if (action === "SET_PERMANENT") {
             await db.prepare("UPDATE devices SET license_expire = 'PERMANENT', remaining_days = 99999, license_status = 'ACTIVE' WHERE machine_id = ?").bind(mid).run();
-            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('SET_PERMANENT', ?, '设为永久企业买断授权', ?)").bind(mid, ip).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('SET_PERMANENT', ?, '设为永久企业买断授权', ?)").bind(mid, ip).run();
+        } else if (action === "REMOTE_COMMAND") {
+            await db.prepare("UPDATE devices SET remote_command = ?, remote_command_payload = ? WHERE machine_id = ?").bind(val || "NONE", body.payload || "", mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REMOTE_COMMAND', ?, ?, ?)").bind(mid, `下发指令: ${val}`, ip).run();
         }
 
         return jsonResponse({ success: true });
@@ -596,13 +738,19 @@ async function handleAdmin(path, request, env, url) {
         return jsonResponse({ success: true, licenses: res.results || [] });
     }
 
-    // F. 软件发布历史
+    // F. 标杆案例列表 (对齐 Gear: gear_cases)
+    if (path === "/admin/api/cases" && request.method === "GET") {
+        const res = await db.prepare("SELECT * FROM coil_cases ORDER BY case_id ASC").all();
+        return jsonResponse({ success: true, cases: res.results || [] });
+    }
+
+    // G. 软件发布历史
     if (path === "/admin/api/releases" && request.method === "GET") {
         const res = await db.prepare("SELECT * FROM releases ORDER BY id DESC").all();
         return jsonResponse({ success: true, releases: res.results || [] });
     }
 
-    // G. 发布新版本
+    // H. 发布新版本
     if (path === "/admin/api/releases" && request.method === "POST") {
         let b = {};
         try { b = await request.json(); } catch(e){}
@@ -627,10 +775,11 @@ async function handleAdmin(path, request, env, url) {
         return jsonResponse({ success: true });
     }
 
-    // H. 全量导出数据库备份 (JSON)
+    // I. 全量导出数据库备份 (JSON) (对齐 Gear: 一键备份)
     if (path === "/admin/api/export_db" && request.method === "GET") {
         const devices = (await db.prepare("SELECT * FROM devices").all()).results;
         const licenses = (await db.prepare("SELECT * FROM licenses").all()).results;
+        const cases = (await db.prepare("SELECT * FROM coil_cases").all()).results;
         const releases = (await db.prepare("SELECT * FROM releases").all()).results;
         const audit = (await db.prepare("SELECT * FROM audit_logs").all()).results;
         const config = (await db.prepare("SELECT * FROM app_config").all()).results;
@@ -638,7 +787,7 @@ async function handleAdmin(path, request, env, url) {
         const backup = {
             export_time: new Date().toISOString(),
             platform: "ANSV Coil-Architect Pro Edge DB",
-            tables: { devices, licenses, releases, audit_logs: audit, app_config: config }
+            tables: { devices, licenses, coil_cases: cases, releases, audit_logs: audit, app_config: config }
         };
 
         return new Response(JSON.stringify(backup, null, 2), {
@@ -822,7 +971,7 @@ document.getElementById('pwd').addEventListener('keyup', (e) => {
 }
 
 // ==============================================================================
-// 工业级管理看板页面 HTML (SolidWorks 纯白工业测控风格)
+// 工业级管理看板页面 HTML (对齐 Gear: 纯白工业测控风格 + 标杆案例库)
 // ==============================================================================
 
 function renderDashboardPage() {
@@ -890,7 +1039,7 @@ function renderDashboardPage() {
   .header-tools {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
   }
   .btn-header {
     background: #1E293B;
@@ -907,13 +1056,13 @@ function renderDashboardPage() {
     color: #FFFFFF;
   }
   .container {
-    max-width: 1400px;
+    max-width: 1440px;
     margin: 20px auto;
     padding: 0 20px;
   }
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
     margin-bottom: 20px;
   }
@@ -1056,7 +1205,7 @@ function renderDashboardPage() {
     background: #FFFFFF;
     border-radius: 10px;
     width: 100%;
-    max-width: 540px;
+    max-width: 560px;
     padding: 24px;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
   }
@@ -1130,13 +1279,14 @@ function renderDashboardPage() {
     </div>
   </div>
   <div class="header-tools">
+    <button class="btn-header" style="background:#0284C7;color:#fff;" onclick="triggerDbSelfHealing()">⚡ 数据库自愈/重载</button>
     <button class="btn-header" onclick="exportDbBackup()">📥 导出全量备份 JSON</button>
     <button class="btn-header" onclick="doLogout()">🚪 退出管理</button>
   </div>
 </header>
 
 <div class="container">
-  <!-- 顶部数据概览卡片 -->
+  <!-- 顶部数据概览卡片 (对齐 Gear 架构) -->
   <div class="stats-grid">
     <div class="stat-card">
       <div class="stat-label">💻 累计接入工位机</div>
@@ -1155,15 +1305,20 @@ function renderDashboardPage() {
       <div class="stat-val" id="stat-today-syncs">-</div>
     </div>
     <div class="stat-card">
+      <div class="stat-label">📐 官方标杆案例数</div>
+      <div class="stat-val" id="stat-total-cases" style="color:#8B5CF6;">-</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-label">🚀 当前主推版本</div>
       <div class="stat-val" id="stat-latest-ver" style="color: var(--primary);">-</div>
     </div>
   </div>
 
-  <!-- 选项卡导航 -->
+  <!-- 选项卡导航 (对齐 Gear 架构) -->
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="switchTab('devices')">💻 现场工位机监控台账</button>
     <button class="nav-tab" onclick="switchTab('licenses')">🔑 历史签发授权记录</button>
+    <button class="nav-tab" onclick="switchTab('cases')">📐 官方标杆案例库</button>
     <button class="nav-tab" onclick="switchTab('releases')">🚀 软件发版与 OTA 管理</button>
   </div>
 
@@ -1171,7 +1326,7 @@ function renderDashboardPage() {
   <div id="tab-devices" class="card-main">
     <div class="toolbar">
       <div>
-        <input type="text" id="search-device" class="search-input" placeholder="🔍 搜索机器码 / 公司 / 主机名 / IP..." onkeyup="if(event.key==='Enter') loadDevices()" />
+        <input type="text" id="search-device" class="search-input" placeholder="🔍 搜索机器码 / 公司 / 操作员 / IP..." onkeyup="if(event.key==='Enter') loadDevices()" />
         <button class="btn-primary" onclick="loadDevices()">查询</button>
       </div>
       <div>
@@ -1184,13 +1339,13 @@ function renderDashboardPage() {
         <thead>
           <tr>
             <th>机器识别码 (Machine ID)</th>
-            <th>客户公司 / 工位</th>
-            <th>软件版本</th>
+            <th>客户公司 / 操作人员</th>
+            <th>软件 / 线模版本</th>
             <th>授权状态</th>
             <th>到期日期 (剩余天数)</th>
             <th>最近在线心跳</th>
-            <th>虚拟机 / 倒拨</th>
-            <th>管控操作</th>
+            <th>磁盘 / 虚拟机 / 时钟</th>
+            <th>远程管控</th>
           </tr>
         </thead>
         <tbody id="device-table-body">
@@ -1215,18 +1370,45 @@ function renderDashboardPage() {
             <th>方案类型</th>
             <th>到期时间</th>
             <th>授权企业</th>
+            <th>经手人</th>
             <th>签发时间</th>
             <th>激活码 (点击复制)</th>
           </tr>
         </thead>
         <tbody id="license-table-body">
-          <tr><td colspan="7" style="text-align:center; padding: 30px;">正在读取授权记录...</td></tr>
+          <tr><td colspan="8" style="text-align:center; padding: 30px;">正在读取授权记录...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- TAB 3: 软件发版管理 -->
+  <!-- TAB 3: 官方标杆案例库 (对齐 Gear 专家库) -->
+  <div id="tab-cases" class="card-main" style="display:none;">
+    <div class="toolbar">
+      <div><b>官方推荐线圈标杆仿真案例库 (Coil Benchmark Cases)</b></div>
+      <button class="btn-secondary" onclick="loadCases()">🔄 刷新案例</button>
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>案例编号</th>
+            <th>案例名称</th>
+            <th>拓扑类型</th>
+            <th>典型工业应用场景</th>
+            <th>版本</th>
+            <th>DFM 卡控标准</th>
+            <th>研制作者</th>
+          </tr>
+        </thead>
+        <tbody id="cases-table-body">
+          <tr><td colspan="7" style="text-align:center; padding: 30px;">正在读取标杆案例...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 4: 软件发版管理 -->
   <div id="tab-releases" class="card-main" style="display:none;">
     <div class="toolbar">
       <div><b>官方版本发布与 OTA 更新列表</b></div>
@@ -1313,9 +1495,24 @@ function switchTab(tab) {
   event.target.classList.add('active');
   document.getElementById('tab-devices').style.display = tab === 'devices' ? 'block' : 'none';
   document.getElementById('tab-licenses').style.display = tab === 'licenses' ? 'block' : 'none';
+  document.getElementById('tab-cases').style.display = tab === 'cases' ? 'block' : 'none';
   document.getElementById('tab-releases').style.display = tab === 'releases' ? 'block' : 'none';
   if(tab === 'licenses') loadLicenses();
+  if(tab === 'cases') loadCases();
   if(tab === 'releases') loadReleases();
+}
+
+async function triggerDbSelfHealing() {
+  try {
+    const res = await fetch('/admin/api/init_db', { method: 'POST' });
+    const d = await res.json();
+    alert(d.message || '自愈完成');
+    loadStats();
+    loadDevices();
+  } catch(e) {
+    alert('自愈请求执行完成，正在刷新页面');
+    location.reload();
+  }
 }
 
 async function loadStats() {
@@ -1327,6 +1524,7 @@ async function loadStats() {
       document.getElementById('stat-active-devices').innerText = d.stats.active_devices;
       document.getElementById('stat-expiring-soon').innerText = d.stats.expiring_soon;
       document.getElementById('stat-today-syncs').innerText = d.stats.today_syncs;
+      document.getElementById('stat-total-cases').innerText = d.stats.total_cases || 0;
       document.getElementById('stat-latest-ver').innerText = d.stats.latest_version;
     }
   } catch(e){}
@@ -1349,15 +1547,16 @@ async function loadDevices() {
         let remainText = dev.license_expire === 'PERMANENT' ? '永久有效' : (dev.remaining_days > 0 ? dev.remaining_days + ' 天' : '<span style="color:red;">已逾期</span>');
         let vmText = dev.is_virtual_machine ? '<span style="color:#B45309;">⚠️虚拟机</span>' : '物理真机';
         let clockText = dev.clock_tampered ? '<span style="color:#B91C1C;font-weight:bold;">🚨倒拨时钟</span>' : '时钟正常';
+        let diskText = dev.disk_free_gb > 0 ? (dev.disk_free_gb + ' GB') : '-';
 
         return '<tr>' +
           '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span></td>' +
-          '<td><b>' + (dev.customer_name || '-') + '</b><br><span style="color:#64748B;font-size:11px;">' + (dev.hostname || '-') + ' (' + (dev.ip_address || '-') + ')</span></td>' +
-          '<td><span class="mono">' + dev.app_version + '</span></td>' +
+          '<td><b>' + (dev.customer_name || '-') + '</b><br><span style="color:#64748B;font-size:11px;">操作员: ' + (dev.operator_name || '-') + ' (' + (dev.system_user || '-') + ')</span><br><span style="color:#94A3B8;font-size:10px;">' + (dev.hostname || '-') + ' (' + (dev.ip_address || '-') + ')</span></td>' +
+          '<td><span class="mono">' + dev.app_version + '</span><br><span style="color:#64748B;font-size:10px;">基准库: ' + (dev.wire_db_version || 'v1.0') + '</span></td>' +
           '<td>' + statusBadge + '</td>' +
           '<td>' + dev.license_expire + '<br><span style="font-size:11px;color:#64748B;">(' + remainText + ')</span></td>' +
-          '<td><span style="font-size:11px;">' + dev.last_sync + '</span><br><span style="font-size:10px;color:#94A3B8;">已同步 ' + dev.sync_count + ' 次</span></td>' +
-          '<td>' + vmText + '<br>' + clockText + '</td>' +
+          '<td><span style="font-size:11px;">' + (dev.last_sync_time || '-') + '</span><br><span style="font-size:10px;color:#94A3B8;">已同步 ' + (dev.sync_count || 1) + ' 次</span></td>' +
+          '<td>' + vmText + ' | ' + clockText + '<br><span style="font-size:10px;color:#64748B;">空闲磁盘: ' + diskText + '</span></td>' +
           '<td>' +
             '<button class="btn-primary" style="padding:3px 8px;font-size:11px;margin-right:4px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">开通授权</button>' +
             (dev.status === 'BANNED' ? 
@@ -1370,7 +1569,7 @@ async function loadDevices() {
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 30px; color:#94A3B8;">暂无符合条件的工位机记录</td></tr>';
     }
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px; color:red;">数据加载失败</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px; color:red;">数据加载异常，请点击右上角【⚡ 数据库自愈】按钮</td></tr>';
   }
 }
 
@@ -1387,8 +1586,30 @@ async function loadLicenses() {
           '<td><span class="badge badge-info">' + lic.plan_type + '</span></td>' +
           '<td>' + lic.expire_date + '</td>' +
           '<td>' + lic.customer_name + '</td>' +
+          '<td>' + (lic.operator_name || 'ADMIN') + '</td>' +
           '<td>' + lic.created_at + '</td>' +
           '<td><span class="mono click-copy" style="font-size:10px;" onclick="copyText(\\'' + lic.token + '\\')">' + lic.token.substring(0, 32) + '...</span></td>' +
+        '</tr>';
+      }).join('');
+    }
+  } catch(e){}
+}
+
+async function loadCases() {
+  const tbody = document.getElementById('cases-table-body');
+  try {
+    const res = await fetch('/admin/api/cases');
+    const d = await res.json();
+    if(d.success && d.cases.length > 0) {
+      tbody.innerHTML = d.cases.map(c => {
+        return '<tr>' +
+          '<td><span class="mono">' + c.case_id + '</span></td>' +
+          '<td><b>' + c.case_name + '</b></td>' +
+          '<td><span class="badge badge-info">' + c.coil_type + '</span></td>' +
+          '<td>' + c.application_scenario + '</td>' +
+          '<td>v' + c.version + '</td>' +
+          '<td>' + c.dfm_summary + '</td>' +
+          '<td>' + c.created_by + '</td>' +
         '</tr>';
       }).join('');
     }

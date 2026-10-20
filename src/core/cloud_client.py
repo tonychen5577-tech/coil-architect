@@ -83,13 +83,22 @@ class CloudClient:
             mid = get_machine_code()
             mac = get_mac_address()
             is_vm = detect_virtual_machine()
-            import socket
+            import socket, getpass, shutil
             hostname = socket.gethostname()
+            system_user = getpass.getuser()
+
+            disk_free_gb = 0.0
+            try:
+                root_drive = "C:" if sys.platform == "win32" else "/"
+                disk_free_gb = round(shutil.disk_usage(root_drive).free / (1024**3), 2)
+            except Exception:
+                pass
 
             # 读取当前本地凭证状态
             ok, msg, lic_payload = LicenseManager.is_system_authorized()
             lic_status = "ACTIVE" if ok else "TRIAL"
             lic_exp = lic_payload.get("exp", "-") if ok else "-"
+            op_name = lic_payload.get("cust", "-") if ok else "-"
 
             payload = {
                 "machine_id": mid,
@@ -97,9 +106,14 @@ class CloudClient:
                 "mac_address": mac,
                 "app_version": APP_VERSION,
                 "app_build": APP_BUILD,
+                "wire_db_version": "v1.0",
+                "operator_name": op_name,
+                "system_user": system_user,
+                "disk_free_gb": disk_free_gb,
                 "is_virtual_machine": is_vm,
                 "license_status": lic_status,
                 "license_expire": lic_exp,
+                "client_clock_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "client_timestamp": int(datetime.now().timestamp())
             }
 

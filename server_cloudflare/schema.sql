@@ -1,28 +1,38 @@
 -- ==============================================================================
--- ANSV Coil-Architect Pro | Cloudflare D1 边缘数据库建表与初始化脚本
+-- ANSV Coil-Architect Pro | Cloudflare D1 边缘数据库建表与初始化脚本 (v1.2 增强版)
+-- 对齐 Gear-NVH / FFT 分析软件 全量工业商业桌面软件云端架构规范
 -- 兼容 Cloudflare D1 (Serverless Distributed SQLite)
 -- ==============================================================================
 
--- 1. 设备接入与唯一硬件机器码资产台账表 (工位机在线监测、授权到期倒计时与防倒拨时钟)
+-- 1. 设备接入与唯一硬件机器码资产表 (工位机在线监测、操作员追踪、授权到期倒计时、时钟防作弊与远程指令)
 CREATE TABLE IF NOT EXISTS devices (
     machine_id VARCHAR(64) PRIMARY KEY,              -- 硬件特征机器码 (如 COIL-609D-64D4-5D11-35E2)
     hostname VARCHAR(128) DEFAULT '-',               -- 电脑主机名
     ip_address VARCHAR(64) DEFAULT '-',              -- 接入外网/内网 IP
     mac_address VARCHAR(64) DEFAULT '-',             -- 物理网卡 MAC 地址
     app_version VARCHAR(32) DEFAULT '-',             -- 客户端运行版本 (如 v1.1.0)
-    app_build VARCHAR(32) DEFAULT '-',               -- 客户端编译指纹
+    app_build VARCHAR(32) DEFAULT '-',               -- 客户端编译构建指纹
+    wire_db_version VARCHAR(32) DEFAULT 'v1.0',      -- 线模与铜线绝缘层材料基准库版本
     license_status VARCHAR(32) DEFAULT 'TRIAL',      -- 授权状态 (TRIAL / ACTIVE / EXPIRED / BANNED)
     license_expire VARCHAR(64) DEFAULT '-',          -- 授权到期日 (YYYY-MM-DD 或 PERMANENT)
     remaining_days INTEGER DEFAULT 0,                -- 剩余有效天数 (负数代表逾期)
     customer_name VARCHAR(128) DEFAULT '散户/未登记', -- 客户企业名称
     line_station VARCHAR(128) DEFAULT 'WORKSTATION-01', -- 所在产线/工位编号
+    operator_name VARCHAR(64) DEFAULT '-',           -- 现场操作人员姓名
+    operator_id VARCHAR(64) DEFAULT '-',             -- 现场操作人员工号
+    system_user VARCHAR(64) DEFAULT '-',             -- Windows 登录操作系统用户名
     is_virtual_machine INTEGER DEFAULT 0,            -- 是否检测到虚拟机环境 (1:是, 0:否)
+    disk_free_gb REAL DEFAULT 0.0,                   -- 运行工位机可用磁盘空间 (GB)
     clock_tampered INTEGER DEFAULT 0,                -- 是否检测到本地倒拨时钟作弊 (1:是, 0:否)
-    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,   -- 首次上线时间
-    last_sync DATETIME DEFAULT CURRENT_TIMESTAMP,    -- 最近心跳同步时间
+    client_clock_time VARCHAR(32) DEFAULT '-',       -- 客户端本地当前时间戳
+    clock_skew_sec INTEGER DEFAULT 0,                -- 客户端与云端原子钟偏差秒数
+    remote_command VARCHAR(64) DEFAULT 'NONE',       -- 云端下发远程指令 (NONE / LOCK_APP / REFRESH_LICENSE)
+    remote_command_payload TEXT DEFAULT '',          -- 远程指令附带参数
+    first_seen_time DATETIME DEFAULT CURRENT_TIMESTAMP, -- 首次上线时间
+    last_sync_time DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 最近心跳同步时间
     sync_count INTEGER DEFAULT 1,                    -- 累计心跳同步次数
     status VARCHAR(20) DEFAULT 'ACTIVE',             -- 运营管控状态 (ACTIVE / BANNED / FROZEN)
-    notes TEXT DEFAULT ''                            -- 管理员备注
+    notes TEXT DEFAULT ''                            -- 管理员商务/工位备注
 );
 
 -- 2. 商业授权激活码签发表 (记录由管理员生成的授权 Token 与激活记录)
@@ -34,13 +44,42 @@ CREATE TABLE IF NOT EXISTS licenses (
     expire_date VARCHAR(64) NOT NULL,                -- 到期时间字符串 (YYYY-MM-DD 或 PERMANENT)
     customer_name VARCHAR(128) DEFAULT 'ANSV VIP Client', -- 授权客户/公司
     station_id VARCHAR(64) DEFAULT 'WORKSTATION-01', -- 工位代号
+    operator_name VARCHAR(64) DEFAULT 'ADMIN',       -- 经手签发人
     status VARCHAR(32) DEFAULT 'ACTIVE',             -- 状态 (ACTIVE:有效, REVOKED:已吊销, EXPIRED:已过期)
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,   -- 签发时间
     activated_at DATETIME,                           -- 客户端首次激活时间
     notes TEXT DEFAULT ''                            -- 商务合作合同/经手人备注
 );
 
--- 3. 软件本体版本发布与 OTA 更新履历表
+-- 3. 官方标杆工程案例与线圈预设库 (对标 Gear-NVH 专家案例库)
+CREATE TABLE IF NOT EXISTS coil_cases (
+    case_id VARCHAR(64) PRIMARY KEY,                 -- 案例唯一编号 (如 CASE-VCM-OCT-01)
+    case_name VARCHAR(128) NOT NULL,                 -- 案例名称 (如 潜望50MP八角形VCM标杆)
+    coil_type VARCHAR(32) NOT NULL,                  -- 线圈拓扑 (OCTAGONAL / RACETRACK / CIRCULAR / RECTANGULAR)
+    application_scenario VARCHAR(128) DEFAULT '',    -- 适用场景 (如 潜望长焦对焦/防抖)
+    version INTEGER DEFAULT 1,                       -- 算例版本号
+    tags TEXT DEFAULT '[]',                          -- JSON 标签列表
+    parameters TEXT NOT NULL,                        -- JSON 完整线圈几何、材料与物理参数
+    dfm_summary TEXT DEFAULT '',                     -- DFM 制造工艺气隙安全卡控指标
+    created_by VARCHAR(64) DEFAULT 'ANSV R&D',       -- 创建人
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_active INTEGER DEFAULT 1
+);
+
+-- 4. 管理员操作与安全审计留痕表 (不可篡改留痕，IATF 16949 / ISO 9001 质量溯源)
+CREATE TABLE IF NOT EXISTS audit_logs (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action_type VARCHAR(64) NOT NULL,                -- 操作类型 (GENERATE_TOKEN, BAN_DEVICE, EXTEND_LICENSE, OTA_PUBLISH)
+    target_id VARCHAR(64) DEFAULT '',                -- 目标机器码或目标对象
+    operator_name VARCHAR(64) DEFAULT 'ADMIN',       -- 操作人
+    reason TEXT DEFAULT '',                          -- 操作原因
+    details TEXT DEFAULT '',                         -- 操作详情明细 (JSON 或参数文本)
+    ip VARCHAR(64) DEFAULT '',                       -- 操作人公网 IP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. 软件本体版本发布与 OTA 更新履历表
 CREATE TABLE IF NOT EXISTS releases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     version VARCHAR(32) NOT NULL UNIQUE,             -- 版本号 (如 v1.1.0)
@@ -56,26 +95,15 @@ CREATE TABLE IF NOT EXISTS releases (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. 管理员操作审计留痕表 (开通授权、续费延期、拉黑吊销记录)
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    action VARCHAR(64) NOT NULL,                     -- 操作行为 (GENERATE_TOKEN, BAN_DEVICE, EXTEND_LICENSE 等)
-    target_mid VARCHAR(64) DEFAULT '',               -- 目标机器码
-    operator VARCHAR(64) DEFAULT 'ADMIN',            -- 操作人
-    details TEXT DEFAULT '',                         -- 操作详情明细
-    ip VARCHAR(64) DEFAULT '',                       -- 管理员 IP
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 5. 系统全局键值配置表 (保存全局通告、主推版本与运营参数)
+-- 6. 系统全局键值配置表 (保存全局通告、主推版本与运营参数)
 CREATE TABLE IF NOT EXISTS app_config (
     meta_key TEXT PRIMARY KEY,
     meta_value TEXT NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 6. 索引优化 (保障百万级查询毫秒响应)
-CREATE INDEX IF NOT EXISTS idx_devices_last_sync ON devices(last_sync);
+-- 7. 索引优化 (保障百万级查询毫秒响应)
+CREATE INDEX IF NOT EXISTS idx_devices_last_sync ON devices(last_sync_time);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
 CREATE INDEX IF NOT EXISTS idx_licenses_mid ON licenses(machine_id);
 CREATE INDEX IF NOT EXISTS idx_licenses_token ON licenses(token);
@@ -103,6 +131,31 @@ VALUES (
 - 🔑 硬件指纹看门狗与 Cython C 机器码全面加固。',
     0,
     1
+);
+
+-- 写入初始官方标杆案例
+INSERT OR REPLACE INTO coil_cases (case_id, case_name, coil_type, application_scenario, version, parameters, dfm_summary, created_by)
+VALUES (
+    'CASE-VCM-OCT-01',
+    '50MP 潜望式变焦马达八角形线圈标杆算例',
+    'OCTAGONAL',
+    '潜望折转长焦镜头双向闭环 AF/OIS',
+    1,
+    '{"oct_id1":7.10,"oct_id2":7.05,"oct_l1":2.62,"oct_l2":2.74,"oct_r1":0.30,"radial_layers":14.0,"axial_turns":12,"bare_dia":0.075,"max_od":0.085,"target_res":19.5,"tension_factor":0.99}',
+    '气隙 >= 0.15mm (安全)',
+    'Yaming.Chen (ANSV Lab)'
+);
+
+INSERT OR REPLACE INTO coil_cases (case_id, case_name, coil_type, application_scenario, version, parameters, dfm_summary, created_by)
+VALUES (
+    'CASE-SENSOR-SHIFT-01',
+    'Sensor-Shift 传感器防抖平面超薄跑道形线圈标杆算例',
+    'RACETRACK',
+    '旗舰手机 CMOS 传感器位移防抖平面驱动',
+    1,
+    '{"inner_len":4.86,"inner_wid":1.50,"radial_layers":12.0,"axial_turns":8,"bare_dia":0.065,"max_od":0.073,"target_res":16.8,"tension_factor":0.985}',
+    '气隙 >= 0.18mm (安全)',
+    'Yaming.Chen (ANSV Lab)'
 );
 
 -- 写入全局配置项
