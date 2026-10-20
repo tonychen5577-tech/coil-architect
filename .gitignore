@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.tmp*
+.hw_cache.json
+logs/
+dist/
+build/
+.pytest_cache/
+.vscode/
