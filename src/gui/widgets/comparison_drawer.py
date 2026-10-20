@@ -390,8 +390,22 @@ class ComparisonDrawer(QFrame):
         baseline = self._get_baseline_snapshot()
         self._render_column(1, "实时微调 (Live) ⚡", inputs, outputs, baseline, is_live=True)
 
+    def _check_auth(self, action_name: str = "方案比对操作") -> bool:
+        """检查授权；未激活时调出激活窗口"""
+        win = self.window()
+        if win and hasattr(win, "check_authorization_or_prompt"):
+            return win.check_authorization_or_prompt(action_name)
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, "check_authorization_or_prompt"):
+                return parent.check_authorization_or_prompt(action_name)
+            parent = parent.parent()
+        return True
+
     def capture_current_scheme(self):
         """核心行动：固化当前方案快照"""
+        if not self._check_auth("固化记录方案快照"):
+            return
         if self._curr_inputs is None or self._curr_outputs is None:
             self.status_message.emit("⚠ 当前尚无计算结果，无法固化方案")
             return
@@ -586,7 +600,7 @@ class ComparisonDrawer(QFrame):
             """)
             btn_restore.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_restore.setToolTip("点击一键将左侧所有参数还原为此方案的所有设置")
-            btn_restore.clicked.connect(lambda _, snap=s: self.restore_requested.emit(snap))
+            btn_restore.clicked.connect(lambda _, snap=s: self._on_restore_clicked(snap))
             h.addWidget(btn_restore)
 
             # 删除按钮
@@ -612,8 +626,16 @@ class ComparisonDrawer(QFrame):
 
         return w
 
+    def _on_restore_clicked(self, snap: SchemeSnapshot):
+        """响应还原方案点击（未激活时拦截弹窗）"""
+        if not self._check_auth("还原历史方案参数"):
+            return
+        self.restore_requested.emit(snap)
+
     def _set_as_baseline(self, target_idx: int):
         """将指定序号的方案设为对比基准"""
+        if not self._check_auth("设置基准方案"):
+            return
         for i, s in enumerate(self.snapshots):
             s.is_baseline = (i == target_idx)
         self._rebuild_table_columns()
@@ -621,6 +643,8 @@ class ComparisonDrawer(QFrame):
 
     def _delete_scheme(self, target_idx: int):
         """移除指定方案"""
+        if not self._check_auth("删除方案快照"):
+            return
         deleted = self.snapshots.pop(target_idx)
         # 若删除了基线且还有方案，把第一个设为基线
         if deleted.is_baseline and self.snapshots:
@@ -630,6 +654,8 @@ class ComparisonDrawer(QFrame):
 
     def clear_all_schemes(self):
         """清空所有方案快照"""
+        if not self._check_auth("清空方案对比"):
+            return
         if not self.snapshots:
             return
         res = QMessageBox.question(
@@ -816,6 +842,8 @@ class ComparisonDrawer(QFrame):
     # -------------------------------------------------------------
     def copy_table_to_clipboard(self):
         """将表格内容组织为 TSV 复制到剪贴板"""
+        if not self._check_auth("复制方案对比表"):
+            return
         rows = self.table.rowCount()
         cols = self.table.columnCount()
         lines = []
@@ -854,6 +882,8 @@ class ComparisonDrawer(QFrame):
 
     def export_excel(self):
         """导出为格式精美的 Excel 工作簿 (.xlsx)"""
+        if not self._check_auth("导出方案比对 Excel 报表"):
+            return
         current_name = self.get_project_name()
         proj_name, ok = QInputDialog.getText(
             self, 
@@ -985,6 +1015,8 @@ class ComparisonDrawer(QFrame):
 
     def export_csv(self):
         """导出为标准 UTF-8 CSV 报表 (.csv)"""
+        if not self._check_auth("导出方案比对 CSV 报表"):
+            return
         current_name = self.get_project_name()
         proj_name, ok = QInputDialog.getText(
             self,

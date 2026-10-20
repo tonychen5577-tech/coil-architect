@@ -7,13 +7,13 @@ import os
 import json
 import math
 from datetime import datetime
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QEvent, QTimer
 from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
     QLabel, QPushButton, QComboBox, QFrame, QSplitter, 
     QScrollArea, QFileDialog, QMessageBox, QStatusBar, QCheckBox,
-    QLineEdit, QInputDialog
+    QLineEdit, QInputDialog, QApplication, QScrollBar
 )
 
 from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType
@@ -33,6 +33,91 @@ from pathlib import Path
 logger = get_logger("MainWindow")
 
 
+class ParamInteractionFilter(QObject):
+    """
+    未激活评估模式操作守卫过滤器：
+    - 允许操作员自由滚动阅读所有参数卡片、查看 2D 轮廓与微观排线剖面、浏览指标卡；
+    - 允许操作员点击【关于系统】与【点击激活】；
+    - 拦截在未激活状态下对参数控件（滑块、输入框、复选框、下拉框）的点击与修改，以及算例导出等业务操作；
+    - 在用户尝试操作时，友好弹出商业授权激活窗口，激活成功即刻解锁，取消则保留原样不破坏界面。
+    """
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self.main_window = main_window
+
+    def eventFilter(self, watched, event):
+        mw = self.main_window
+        # 1. 已授权或未初始化完成时，完全放行
+        if getattr(mw, "is_authorized", False) or not getattr(mw, "_initialization_done", False):
+            return False
+
+        # 2. 正在弹激活窗口时，防重入放行
+        if getattr(mw, "_is_prompting_activation", False):
+            return False
+
+        # 3. 如果点击对象不在 main_window 内部（例如激活弹窗或关于窗口自身），放行
+        try:
+            w_win = watched.window()
+            if w_win is not mw:
+                return False
+        except Exception:
+            return False
+
+        # 4. 允许滚轮和滚动条拖动浏览
+        if isinstance(watched, QScrollBar):
+            return False
+
+        # 允许点击顶部关于按钮和授权按钮
+        if hasattr(mw, "btn_license") and (watched is mw.btn_license or mw.btn_license.isAncestorOf(watched)):
+            return False
+        if hasattr(mw, "btn_about") and (watched is mw.btn_about or mw.btn_about.isAncestorOf(watched)):
+            return False
+
+        # 允许抽屉的折叠/展开按钮和抽屉内部的滚动条
+        if hasattr(mw, "drawer"):
+            if hasattr(mw.drawer, "btn_toggle") and (watched is mw.drawer.btn_toggle or mw.drawer.btn_toggle.isAncestorOf(watched)):
+                return False
+            if hasattr(mw.drawer, "btn_fold") and (watched is mw.drawer.btn_fold or mw.drawer.btn_fold.isAncestorOf(watched)):
+                return False
+
+        # 允许右侧 2D 画布区和 KPI 卡片交互浏览 (缩放、平移画布)
+        if hasattr(mw, "scroll_right") and (watched is mw.scroll_right or mw.scroll_right.isAncestorOf(watched)):
+            return False
+
+        # 5. 判定是否为受控操作区域：
+        is_left_param = hasattr(mw, "scroll_left") and (watched is mw.scroll_left or mw.scroll_left.isAncestorOf(watched))
+        is_top_input = (
+            (hasattr(mw, "combo_presets") and (watched is mw.combo_presets or mw.combo_presets.isAncestorOf(watched))) or
+            (hasattr(mw, "txt_project_name") and (watched is mw.txt_project_name or mw.txt_project_name.isAncestorOf(watched))) or
+            (hasattr(mw, "btn_open") and (watched is mw.btn_open or mw.btn_open.isAncestorOf(watched))) or
+            (hasattr(mw, "btn_save") and (watched is mw.btn_save or mw.btn_save.isAncestorOf(watched))) or
+            (hasattr(mw, "btn_export") and (watched is mw.btn_export or mw.btn_export.isAncestorOf(watched)))
+        )
+        is_drawer_op = hasattr(mw, "drawer") and (watched is mw.drawer or mw.drawer.isAncestorOf(watched))
+
+        if is_left_param or is_top_input or is_drawer_op:
+            evt_type = event.type()
+            # 拦截鼠标点击尝试操作
+            if evt_type == QEvent.Type.MouseButtonPress:
+                QTimer.singleShot(0, lambda: mw.check_authorization_or_prompt("调整参数与工程计算"))
+                return True
+
+            # 拦截键盘输入尝试改动
+            if evt_type == QEvent.Type.KeyPress:
+                key = event.key()
+                # 放行纯导航键（Tab, 方向键等用于焦点移动）
+                if key in (
+                    Qt.Key.Key_Tab, Qt.Key.Key_Backtab,
+                    Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right,
+                    Qt.Key.Key_Shift, Qt.Key.Key_Control, Qt.Key.Key_Alt
+                ):
+                    return False
+                QTimer.singleShot(0, lambda: mw.check_authorization_or_prompt("输入参数"))
+                return True
+
+        return False
+
+
 class MainWindow(QMainWindow):
     """Coil-Architect Pro 主工作站"""
 
@@ -49,6 +134,12 @@ class MainWindow(QMainWindow):
         self.outputs = CoilOutputs()
         self._is_syncing_params = False
 
+        self.is_authorized = False
+        self.lic_data = {}
+        self._initialization_done = False
+        self._is_prompting_activation = False
+        self._current_preset_name = ""
+
         # 连接云端协同信号
         self.signal_cloud_status.connect(self._on_cloud_status_received)
         self.signal_remote_command.connect(self._on_remote_command_received)
@@ -59,6 +150,16 @@ class MainWindow(QMainWindow):
         self._init_ui()
         self._load_preset(self.combo_presets.itemText(0))
         self.run_simulation()
+
+        # 标记系统启动初始化完成（此后所有用户主动操作均受授权拦截守卫保护）
+        self._initialization_done = True
+        self._current_preset_name = self.combo_presets.itemText(0)
+
+        # 全局安装参数操作拦截过滤器 (未激活状态下允许观摩，操作时弹出激活)
+        self._param_interaction_filter = ParamInteractionFilter(self)
+        app_inst = QApplication.instance()
+        if app_inst:
+            app_inst.installEventFilter(self._param_interaction_filter)
 
         # 启动后台授权检测与守护引擎 (每 30 分钟静默检测一次授权服务器)
         try:
@@ -466,40 +567,155 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
         # 算例操作按钮
-        btn_open = QPushButton("📂 载入算例")
-        btn_open.clicked.connect(self._import_project)
-        layout.addWidget(btn_open)
+        self.btn_open = QPushButton("📂 载入算例")
+        self.btn_open.clicked.connect(self._import_project)
+        layout.addWidget(self.btn_open)
 
-        btn_save = QPushButton("💾 保存算例")
-        btn_save.clicked.connect(self._export_project)
-        layout.addWidget(btn_save)
+        self.btn_save = QPushButton("💾 保存算例")
+        self.btn_save.clicked.connect(self._export_project)
+        layout.addWidget(self.btn_save)
 
-        btn_export = QPushButton("📊 导出评审报告 (Excel)")
-        btn_export.clicked.connect(self._export_report)
-        btn_export.setProperty("class", "SuccessBtn")
-        layout.addWidget(btn_export)
+        self.btn_export = QPushButton("📊 导出评审报告 (Excel)")
+        self.btn_export.clicked.connect(self._export_report)
+        self.btn_export.setProperty("class", "SuccessBtn")
+        layout.addWidget(self.btn_export)
 
         layout.addSpacing(10)
 
-        # 商业授权指示灯
-        license_chip = QLabel("🛡 正式商业授权 (ANSV 工业版)")
-        license_chip.setStyleSheet("""
-            background-color: #ECFDF5;
-            color: #059669;
-            border: 1px solid #A7F3D0;
-            border-radius: 4px;
-            padding: 3px 8px;
-            font-size: 11px;
-            font-weight: 700;
-        """)
-        layout.addWidget(license_chip)
+        # 商业授权指示灯 / 点击激活按钮
+        self.btn_license = QPushButton("🛡️ 正式商业授权 (ANSV 工业版)")
+        self.btn_license.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_license.clicked.connect(self._on_license_chip_clicked)
+        layout.addWidget(self.btn_license)
+        self._refresh_license_status()
 
         # 关于系统按钮 (规范 04.二)
-        btn_about = QPushButton("ℹ️ 关于系统")
-        btn_about.clicked.connect(self._show_about_dialog)
-        layout.addWidget(btn_about)
+        self.btn_about = QPushButton("ℹ️ 关于系统")
+        self.btn_about.clicked.connect(self._show_about_dialog)
+        layout.addWidget(self.btn_about)
 
         return bar
+
+    def _refresh_license_status(self):
+        """动态刷新顶部授权指示灯的文本、样式与提示"""
+        from src.core.license_manager import LicenseManager
+        auth_ok, auth_msg, lic_data = LicenseManager.is_system_authorized()
+        self.is_authorized = auth_ok
+        self.lic_data = lic_data
+
+        if not hasattr(self, "btn_license"):
+            return
+
+        if auth_ok:
+            lic_type = lic_data.get("type", "商业版") if lic_data else "商业版"
+            exp_date = lic_data.get("exp_date", "永久有效") if lic_data else "永久有效"
+            self.btn_license.setText(f"🛡️ 正式商业授权 ({lic_type})")
+            self.btn_license.setStyleSheet("""
+                QPushButton {
+                    background-color: #ECFDF5;
+                    color: #059669;
+                    border: 1px solid #A7F3D0;
+                    border-radius: 4px;
+                    padding: 3px 8px;
+                    font-size: 11px;
+                    font-weight: 700;
+                }
+                QPushButton:hover {
+                    background-color: #D1FAE5;
+                    border-color: #6EE7B7;
+                }
+            """)
+            self.btn_license.setToolTip(f"商业授权有效 | 类型: {lic_type}\n有效期至: {exp_date}\n点击可查看授权详情")
+        else:
+            self.btn_license.setText("⚠️ 未激活 (点击激活)")
+            self.btn_license.setStyleSheet("""
+                QPushButton {
+                    background-color: #FEF3C7;
+                    color: #B45309;
+                    border: 1px solid #FCD34D;
+                    border-radius: 4px;
+                    padding: 3px 8px;
+                    font-size: 11px;
+                    font-weight: 700;
+                }
+                QPushButton:hover {
+                    background-color: #FDE68A;
+                    border-color: #F59E0B;
+                }
+            """)
+            self.btn_license.setToolTip("当前处于未激活评估模式\n点击立即输入授权激活码，解锁全部参数调节、方案比对及报表导出功能")
+
+    def _on_license_chip_clicked(self):
+        """点击顶部商业授权指示灯响应"""
+        if getattr(self, "is_authorized", False):
+            lic = getattr(self, "lic_data", {}) or {}
+            lic_type = lic.get("type", "商业版")
+            exp_date = lic.get("exp_date", "永久有效")
+            owner = lic.get("owner", "正式商业用户")
+            QMessageBox.information(
+                self,
+                "商业授权凭证详情",
+                f"🛡️ Coil-Architect Pro 正式商业授权\n\n"
+                f"• 授权类型: {lic_type}\n"
+                f"• 授权主体: {owner}\n"
+                f"• 有效期至: {exp_date}\n"
+                f"• 运行状态: 一机一码硬件数字签名已通过校验\n\n"
+                f"如需变更授权或续订，可联系 ansv.net 官方技术支持。"
+            )
+        else:
+            self.check_authorization_or_prompt("商业授权激活")
+
+    def check_authorization_or_prompt(self, action_name: str = "") -> bool:
+        """
+        检查商业授权状态；若未激活则弹出激活对话框。
+        返回 True 表示已激活，可以继续操作；返回 False 表示未激活或取消激活，应阻断操作。
+        """
+        from src.core.license_manager import LicenseManager
+        auth_ok, auth_msg, lic_data = LicenseManager.is_system_authorized()
+        if auth_ok:
+            if not getattr(self, "is_authorized", False):
+                self._refresh_license_status()
+            return True
+
+        if getattr(self, "_is_prompting_activation", False):
+            return False
+
+        self._is_prompting_activation = True
+        try:
+            msg_suffix = f"【{action_name}】" if action_name else "参数调节与工程计算"
+            if hasattr(self, "status_bar"):
+                self.status_bar.showMessage(f"💡 提示: 执行{msg_suffix}需要商业授权，已为您调出激活窗口...", 3000)
+
+            from src.gui.activation_dialog import ActivationDialog
+            dlg = ActivationDialog(self)
+            dlg.exec()
+
+            # 重新检测授权状态
+            auth_ok_now, auth_msg_now, lic_data_now = LicenseManager.is_system_authorized()
+            self._refresh_license_status()
+
+            if auth_ok_now:
+                if hasattr(self, "status_bar"):
+                    self.status_bar.showMessage("🎉 授权激活成功！所有工业仿真与报表功能已全部解锁。", 5000)
+                return True
+            else:
+                if hasattr(self, "status_bar"):
+                    self.status_bar.showMessage("⚠️ 当前处于未激活评估模式，操作已被拦截。请激活后再试。", 4000)
+                return False
+        finally:
+            self._is_prompting_activation = False
+
+    def closeEvent(self, event):
+        """窗口关闭前安全移除全局事件过滤器与停止心跳"""
+        if hasattr(self, "_param_interaction_filter"):
+            try:
+                from PyQt6.QtWidgets import QApplication
+                app_inst = QApplication.instance()
+                if app_inst:
+                    app_inst.removeEventFilter(self._param_interaction_filter)
+            except Exception:
+                pass
+        super().closeEvent(event)
 
     def get_project_name(self) -> str:
         """获取当前工程项目名称 (去除首尾空格，若未填则保底默认 Coli-Architect)"""
@@ -1359,6 +1575,15 @@ class MainWindow(QMainWindow):
 
     def _load_preset(self, name: str):
         """加载经典工业预设 (含匹配的模具空间限值)"""
+        if getattr(self, "_initialization_done", False):
+            if not self.check_authorization_or_prompt("切换工程预设"):
+                if hasattr(self, "_current_preset_name") and self._current_preset_name:
+                    self.combo_presets.blockSignals(True)
+                    self.combo_presets.setCurrentText(self._current_preset_name)
+                    self.combo_presets.blockSignals(False)
+                return
+            self._current_preset_name = name
+
         if getattr(self, "_is_syncing_params", False):
             return
         self._is_syncing_params = True
@@ -1520,6 +1745,8 @@ class MainWindow(QMainWindow):
 
     def _export_project(self):
         """保存算例配置文件 (.ansv / .json)"""
+        if not self.check_authorization_or_prompt("保存工程算例"):
+            return
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         proj_name = self.get_project_name()
         default_filename = f"{proj_name}_线圈工程算例_{timestamp}.ansv"
@@ -1565,6 +1792,8 @@ class MainWindow(QMainWindow):
 
     def _import_project(self):
         """导入算例配置文件"""
+        if not self.check_authorization_or_prompt("载入工程算例"):
+            return
         path, _ = QFileDialog.getOpenFileName(self, "载入线圈算例", "", "ANSV 算例文件 (*.ansv);;JSON 算例文件 (*.json)")
         if not path or not os.path.exists(path):
             return
@@ -1635,6 +1864,8 @@ class MainWindow(QMainWindow):
 
     def _export_report(self):
         """导出工程评审报表 (支持 Excel .xlsx 或 CSV)"""
+        if not self.check_authorization_or_prompt("导出工程评审报表"):
+            return
         # 1. 弹出项目名称确认输入框，默认带出预设 Coli-Architect
         current_name = self.get_project_name()
         proj_name, ok = QInputDialog.getText(

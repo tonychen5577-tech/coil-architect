@@ -64,21 +64,15 @@ def main():
         splash.show()
         splash.update_progress(15, "正在校验一机一码硬件指纹与数字凭证...")
 
-        # 8. 校验商业授权状态
+        # 8. 校验商业授权状态 (未激活状态正常启动进入工作台预览，操作时再提示激活)
         from src.core.license_manager import LicenseManager
-        from src.gui.activation_dialog import ActivationDialog
 
         auth_ok, auth_msg, lic_data = LicenseManager.is_system_authorized()
         if not auth_ok:
-            splash.close()
-            dlg = ActivationDialog()
-            if dlg.exec() != 1:
-                logger.info("用户取消授权激活，系统安全退出。")
-                sys.exit(0)
-            # 激活成功后重新呈现闪屏以完成模块预热
-            splash = SplashScreen()
-            splash.show()
-            splash.update_progress(35, "授权激活成功，正在装载物理引擎...")
+            logger.info(f"系统处于未激活状态 ({auth_msg})，进入评估预览模式。")
+            splash.update_progress(35, "检测到未激活评估模式，正在准备工作台预览...")
+        else:
+            splash.update_progress(35, "授权凭证验证通过，正在装载物理引擎...")
 
         # 9. 步进式加载系统核心物理引擎
         splash.update_progress(45, "正在装载电磁线圈双核高精度求解器 (Cython加速内核)...")

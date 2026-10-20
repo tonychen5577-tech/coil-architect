@@ -96,7 +96,7 @@ class ActivationDialog(QDialog):
 
         btn_layout.addStretch()
 
-        btn_cancel = QPushButton("退出软件")
+        btn_cancel = QPushButton("暂不激活 (稍后处理)")
         btn_cancel.clicked.connect(self.reject)
         btn_layout.addWidget(btn_cancel)
 
