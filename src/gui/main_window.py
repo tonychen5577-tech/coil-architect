@@ -73,11 +73,13 @@ class ParamInteractionFilter(QObject):
         if hasattr(mw, "btn_about") and (watched is mw.btn_about or mw.btn_about.isAncestorOf(watched)):
             return False
 
-        # 允许抽屉的折叠/展开按钮和抽屉内部的滚动条
+        # 允许抽屉的折叠/展开按钮、弹出大窗按钮和抽屉内部的滚动条
         if hasattr(mw, "drawer"):
             if hasattr(mw.drawer, "btn_toggle") and (watched is mw.drawer.btn_toggle or mw.drawer.btn_toggle.isAncestorOf(watched)):
                 return False
             if hasattr(mw.drawer, "btn_fold") and (watched is mw.drawer.btn_fold or mw.drawer.btn_fold.isAncestorOf(watched)):
+                return False
+            if hasattr(mw.drawer, "btn_popout") and (watched is mw.drawer.btn_popout or mw.drawer.btn_popout.isAncestorOf(watched)):
                 return False
 
         # 允许右侧 2D 画布区和 KPI 卡片交互浏览 (缩放、平移画布)
@@ -1103,6 +1105,7 @@ class MainWindow(QMainWindow):
 
         # 4. 底部方案比对与调参记录抽屉 (纯手动固化与横向对比矩阵)
         self.comparison_drawer = ComparisonDrawer(self)
+        self.drawer = self.comparison_drawer
         self.comparison_drawer.restore_requested.connect(self._restore_scheme_inputs)
         self.comparison_drawer.status_message.connect(lambda msg: self.status_bar.showMessage(msg, 3500))
         layout.addWidget(self.comparison_drawer)
@@ -1744,17 +1747,23 @@ class MainWindow(QMainWindow):
         self.run_simulation()
 
     def _export_project(self):
-        """保存算例配置文件 (.ansv / .json)"""
+        """保存算例工程文件 (.ansvcoil / .ansv / .json)"""
         if not self.check_authorization_or_prompt("保存工程算例"):
             return
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         proj_name = self.get_project_name()
-        default_filename = f"{proj_name}_线圈工程算例_{timestamp}.ansv"
-        path, _ = QFileDialog.getSaveFileName(self, "保存线圈算例", default_filename, "ANSV 算例文件 (*.ansv);;JSON 算例文件 (*.json)")
+        default_filename = f"{proj_name}_线圈工程算例_{timestamp}.ansvcoil"
+        path, _ = QFileDialog.getSaveFileName(
+            self, 
+            "保存线圈算例", 
+            default_filename, 
+            "ANSV 线圈工程算例 (*.ansvcoil);;兼容算例 (*.ansv);;JSON 算例文件 (*.json)"
+        )
         if not path:
             return
         data = {
-            "version": "1.0.0",
+            "version": "1.1.0",
+            "file_type": "ANSV_COIL_PROJECT",
             "project_name": proj_name,
             "inputs": {
                 "coil_type": int(self.inputs.coil_type),
@@ -1790,13 +1799,13 @@ class MainWindow(QMainWindow):
         atomic_write_json(Path(path), data)
         self.status_bar.showMessage(f"算例已成功原子持久化保存至: {os.path.basename(path)}", 4000)
 
-    def _import_project(self):
-        """导入算例配置文件"""
-        if not self.check_authorization_or_prompt("载入工程算例"):
-            return
-        path, _ = QFileDialog.getOpenFileName(self, "载入线圈算例", "", "ANSV 算例文件 (*.ansv);;JSON 算例文件 (*.json)")
+    def load_project_file(self, path: str) -> bool:
+        """
+        统一解析并装载工程算例文件 (.ansvcoil / .ansv / .json)
+        支持界面按钮触发、启动命令行传入与 Windows 双击文件自动载入
+        """
         if not path or not os.path.exists(path):
-            return
+            return False
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -1852,15 +1861,32 @@ class MainWindow(QMainWindow):
             finally:
                 self._is_syncing_params = False
 
-            # 强制同步工艺与几何防呆下限
+            # 强制同步工艺与几何防呆下限并触发求解
             c_type = self.combo_coil_type.currentData() if hasattr(self, "combo_coil_type") else CoilType.RACETRACK
             if c_type in (CoilType.RACETRACK, CoilType.CIRCULAR):
                 self._on_inner_len_changed(self.sb_inner_len.value())
             self._on_bare_dia_changed(self.sb_bare_dia.value())
             self.run_simulation()
-            self.status_bar.showMessage(f"已成功加载算例: {os.path.basename(path)}", 4000)
+            if hasattr(self, "status_bar"):
+                self.status_bar.showMessage(f"已成功加载线圈算例: {os.path.basename(path)}", 4000)
+            return True
         except Exception as e:
-            QMessageBox.critical(self, "读取失败", f"无法解析算例文件: {str(e)}")
+            QMessageBox.critical(self, "读取失败", f"无法解析线圈算例文件:\n{str(e)}")
+            return False
+
+    def _import_project(self):
+        """导入算例工程文件"""
+        if not self.check_authorization_or_prompt("载入工程算例"):
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "载入线圈算例",
+            "",
+            "ANSV 线圈工程算例 (*.ansvcoil *.ansv);;JSON 算例文件 (*.json);;所有文件 (*.*)"
+        )
+        if not path:
+            return
+        self.load_project_file(path)
 
     def _export_report(self):
         """导出工程评审报表 (支持 Excel .xlsx 或 CSV)"""

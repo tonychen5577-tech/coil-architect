@@ -86,6 +86,13 @@ def main():
         splash.update_progress(90, "正在初始化高对比度测控工作台与基准预设库...")
         window = MainWindow()
 
+        # 检查命令行入参，支持 Windows 双击 .ansvcoil 算例直接唤起并自动载入
+        if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
+            target_file = sys.argv[1]
+            if target_file.lower().endswith((".ansvcoil", ".ansv", ".json")):
+                logger.info(f"检测到外部文件打开请求，自动载入算例: {target_file}")
+                window.load_project_file(target_file)
+
         # 12. Win32 原生图标强注入 (规范 04.三: 直接注入 HWND)
         apply_window_icon_to_hwnd(window)
 
@@ -97,6 +104,13 @@ def main():
         try:
             from src.core.cloud_client import CloudClient
             CloudClient.send_heartbeat_async()
+        except Exception:
+            pass
+
+        # 15. 自动维护 Windows .ansvcoil 专属文件类型与图标关联 (静默免打扰)
+        try:
+            from src.utils.file_association import register_ansvcoil_association
+            register_ansvcoil_association()
         except Exception:
             pass
 

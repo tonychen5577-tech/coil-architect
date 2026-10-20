@@ -636,6 +636,28 @@ class AboutDialog(QDialog):
         btn_shortcut.clicked.connect(self._on_create_shortcut_clicked)
         footer_layout.addWidget(btn_shortcut)
 
+        # 按钮 1.5: 🔗 关联 .ansvcoil 算例
+        btn_assoc = QPushButton("🔗 关联 .ansvcoil 算例")
+        btn_assoc.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_assoc.setToolTip("在 Windows 系统中注册 .ansvcoil 专属算例格式与科技感图标，支持双击算例直接唤起工作站")
+        btn_assoc.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #0284C7;
+                border: 1px solid #BAE6FD;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #E0F2FE;
+                border-color: #0284C7;
+            }
+        """)
+        btn_assoc.clicked.connect(self._on_register_association_clicked)
+        footer_layout.addWidget(btn_assoc)
+
         # 按钮 2: 📄 导出诊断日志
         btn_export_logs = QPushButton("📄 导出诊断日志")
         btn_export_logs.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -731,6 +753,28 @@ class AboutDialog(QDialog):
                 self,
                 "桌面快捷方式",
                 f"快捷方式创建未完成：\n{msg}",
+                QMessageBox.StandardButton.Ok
+            )
+
+    def _on_register_association_clicked(self):
+        """用户点击注册 .ansvcoil 文件关联响应"""
+        from src.utils.file_association import register_ansvcoil_association
+        ok, msg = register_ansvcoil_association()
+        if ok:
+            QMessageBox.information(
+                self,
+                "文件关联注册成功",
+                "🎉 已在 Windows 系统中成功注册 .ansvcoil 专属算例文件类型！\n\n"
+                "• 专属图标: 已绑定高科技矢量线圈图标\n"
+                "• 便捷启动: 任何地方双击 .ansvcoil 文件均可秒级调用本系统打开\n"
+                "• 兼容支持: 历史 .ansv 算例依然可随时导入",
+                QMessageBox.StandardButton.Ok
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "文件关联注册失败",
+                f"未能成功注册文件关联：\n{msg}",
                 QMessageBox.StandardButton.Ok
             )
 

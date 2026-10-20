@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
     QInputDialog, QFileDialog, QApplication, QSizePolicy, QMessageBox,
-    QAbstractItemView, QLineEdit
+    QAbstractItemView, QLineEdit, QDialog
 )
 
 from ...core.models import CoilInputs, CoilOutputs, CoilType, WindingMode
@@ -72,6 +72,182 @@ class ComparisonTable(QTableWidget):
         super().wheelEvent(event)
 
 
+class ComparisonPopoutWindow(QDialog):
+    """
+    方案比对矩阵独立大窗口 (Pop-out Mode)
+    - 支持任意拖拽边缘缩放调整窗口大小；
+    - 拥有标准的标题栏最大化按钮 (一键铺满全屏) 与还原；
+    - 拥有独立的任务栏科技图标与专业窗口标题；
+    - 顶部集成完整的方案固化、复制、导出及一键嵌入抽屉按钮；
+    - 窗口关闭时自动无损恢复为嵌入底部抽屉模式。
+    """
+    def __init__(self, drawer, parent=None):
+        super().__init__(parent)
+        self.drawer = drawer
+        self.setWindowTitle("📊 线圈多方案比对与工程评审矩阵 - ANSV Coil-Architect Pro")
+        from ..icon_helper import get_app_icon
+        self.setWindowIcon(get_app_icon())
+
+        # 设置具备最小化、最大化、关闭按钮，独立浮动
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowMinMaxButtonsHint |
+            Qt.WindowType.WindowCloseButtonHint
+        )
+        self.resize(1200, 700)
+        self.setMinimumSize(820, 450)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #F8FAFC;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        # 1. 顶部操作工具条
+        self.toolbar_frame = QFrame()
+        self.toolbar_frame.setStyleSheet("""
+            QFrame {
+                background-color: #FFFFFF;
+                border: 1px solid #CBD5E1;
+                border-radius: 6px;
+            }
+        """)
+        tb_layout = QHBoxLayout(self.toolbar_frame)
+        tb_layout.setContentsMargins(10, 6, 10, 6)
+        tb_layout.setSpacing(8)
+
+        lbl_title = QLabel("📊 多方案横向比对与工程评审矩阵")
+        lbl_title.setStyleSheet("font-size: 13px; font-weight: 800; color: #0284C7;")
+        tb_layout.addWidget(lbl_title)
+
+        self.lbl_pop_count = QLabel(drawer.lbl_count.text() if hasattr(drawer, "lbl_count") else "(已固化 0 组)")
+        self.lbl_pop_count.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B;")
+        tb_layout.addWidget(self.lbl_pop_count)
+
+        tb_layout.addStretch()
+
+        btn_cap = QPushButton("📌 固化当前方案")
+        btn_cap.setStyleSheet("""
+            QPushButton {
+                background-color: #0284C7;
+                color: #FFFFFF;
+                font-size: 11px;
+                font-weight: 700;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 12px;
+            }
+            QPushButton:hover { background-color: #0369A1; }
+        """)
+        btn_cap.clicked.connect(drawer.capture_current_scheme)
+        tb_layout.addWidget(btn_cap)
+
+        btn_copy = QPushButton("📋 复制对比表")
+        btn_copy.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #334155;
+                font-size: 11px;
+                font-weight: 600;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 4px 10px;
+            }
+            QPushButton:hover { background-color: #F1F5F9; color: #0284C7; border-color: #0284C7; }
+        """)
+        btn_copy.clicked.connect(drawer.copy_table_to_clipboard)
+        tb_layout.addWidget(btn_copy)
+
+        btn_excel = QPushButton("📊 导出 Excel")
+        btn_excel.setStyleSheet("""
+            QPushButton {
+                background-color: #F0FDF4;
+                color: #059669;
+                font-size: 11px;
+                font-weight: 700;
+                border: 1px solid #A7F3D0;
+                border-radius: 4px;
+                padding: 4px 10px;
+            }
+            QPushButton:hover { background-color: #DCFCE7; }
+        """)
+        btn_excel.clicked.connect(drawer.export_excel)
+        tb_layout.addWidget(btn_excel)
+
+        btn_csv = QPushButton("📄 导出 CSV")
+        btn_csv.setStyleSheet("""
+            QPushButton {
+                background-color: #F0F9FF;
+                color: #0284C7;
+                font-size: 11px;
+                font-weight: 700;
+                border: 1px solid #BAE6FD;
+                border-radius: 4px;
+                padding: 4px 10px;
+            }
+            QPushButton:hover { background-color: #E0F2FE; }
+        """)
+        btn_csv.clicked.connect(drawer.export_csv)
+        tb_layout.addWidget(btn_csv)
+
+        btn_clear = QPushButton("🗑 清空")
+        btn_clear.setStyleSheet("""
+            QPushButton {
+                background-color: #FFF1F2;
+                color: #E11D48;
+                font-size: 11px;
+                font-weight: 600;
+                border: 1px solid #FECDD3;
+                border-radius: 4px;
+                padding: 4px 8px;
+            }
+            QPushButton:hover { background-color: #FFE4E6; }
+        """)
+        btn_clear.clicked.connect(drawer.clear_all_schemes)
+        tb_layout.addWidget(btn_clear)
+
+        tb_layout.addSpacing(10)
+
+        # 嵌入底部抽屉按钮
+        btn_dock = QPushButton("⇲ 嵌入底部抽屉")
+        btn_dock.setToolTip("将本评审矩阵窗口重新嵌入到主工作台底部抽屉")
+        btn_dock.setStyleSheet("""
+            QPushButton {
+                background-color: #F1F5F9;
+                color: #0F172A;
+                font-size: 11px;
+                font-weight: 700;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 5px 12px;
+            }
+            QPushButton:hover {
+                background-color: #E2E8F0;
+                color: #0284C7;
+                border-color: #0284C7;
+            }
+        """)
+        btn_dock.clicked.connect(self.close)
+        tb_layout.addWidget(btn_dock)
+
+        layout.addWidget(self.toolbar_frame)
+
+        # 2. 中间承载表格容器
+        self.table_container = QWidget()
+        self.table_layout = QVBoxLayout(self.table_container)
+        self.table_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.table_container, 1)
+
+    def closeEvent(self, event):
+        """窗口关闭时自动安全嵌入回抽屉"""
+        if self.drawer and getattr(self.drawer, "_is_popped_out", False):
+            self.drawer.dock_back()
+        super().closeEvent(event)
+
+
 class ComparisonDrawer(QFrame):
     """底部可折叠方案比对与调参记录抽屉"""
 
@@ -105,6 +281,8 @@ class ComparisonDrawer(QFrame):
         self._curr_inputs: Optional[CoilInputs] = None
         self._curr_outputs: Optional[CoilOutputs] = None
         self._is_expanded = False
+        self._is_popped_out = False
+        self.popout_window: Optional[ComparisonPopoutWindow] = None
 
         self.setStyleSheet("""
             #ComparisonDrawer {
@@ -115,6 +293,7 @@ class ComparisonDrawer(QFrame):
         """)
 
         main_layout = QVBoxLayout(self)
+        self.main_layout = main_layout
         main_layout.setContentsMargins(6, 4, 6, 4)
         main_layout.setSpacing(4)
 
@@ -276,6 +455,28 @@ class ComparisonDrawer(QFrame):
         self.btn_clear.clicked.connect(self.clear_all_schemes)
         h_layout.addWidget(self.btn_clear)
 
+        # 弹出独立大窗按钮
+        self.btn_popout = QPushButton("⛶ 弹出大窗")
+        self.btn_popout.setStyleSheet("""
+            QPushButton {
+                background-color: #EFF6FF;
+                color: #1D4ED8;
+                font-size: 10px;
+                font-weight: 700;
+                border: 1px solid #BFDBFE;
+                border-radius: 4px;
+                padding: 3px 8px;
+            }
+            QPushButton:hover {
+                background-color: #DBEAFE;
+                border-color: #3B82F6;
+            }
+        """)
+        self.btn_popout.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_popout.setToolTip("将方案比对矩阵弹出为独立可缩放窗口，支持全屏最大化与宽屏多方案横向评审")
+        self.btn_popout.clicked.connect(self._on_popout_button_clicked)
+        h_layout.addWidget(self.btn_popout)
+
         # 折叠图标按钮
         self.btn_fold = QPushButton("▲ 展开")
         self.btn_fold.setStyleSheet("""
@@ -366,8 +567,111 @@ class ComparisonDrawer(QFrame):
                 item.setForeground(QColor("#475569"))
             self.table.setItem(row_idx, 0, item)
 
+    def _on_popout_button_clicked(self):
+        """响应弹出/嵌入按钮点击"""
+        if getattr(self, "_is_popped_out", False):
+            self.dock_back()
+        else:
+            self.pop_out()
+
+    def pop_out(self):
+        """弹出独立大窗口模式 (支持拉伸缩放、最大化全屏与宽屏多方案评审)"""
+        if getattr(self, "_is_popped_out", False):
+            if hasattr(self, "popout_window") and self.popout_window:
+                self.popout_window.show()
+                self.popout_window.raise_()
+                self.popout_window.activateWindow()
+            return
+
+        self._is_popped_out = True
+
+        # 1. 实例化独立弹窗
+        self.popout_window = ComparisonPopoutWindow(self, parent=self.window())
+
+        # 2. 将 table 从 content_container 动态移入 popout_window
+        self.table.setParent(self.popout_window.table_container)
+        self.popout_window.table_layout.addWidget(self.table)
+        self.table.setMinimumHeight(350)
+        self.table.setMaximumHeight(16777215)  # 解除 260px 抽屉限高，充满整个弹窗
+
+        # 3. 隐藏抽屉内部内容区，更新抽屉按钮状态
+        self.content_container.setVisible(False)
+        self.btn_popout.setText("⇲ 恢复嵌入")
+        self.btn_popout.setStyleSheet("""
+            QPushButton {
+                background-color: #FEF3C7;
+                color: #B45309;
+                font-size: 10px;
+                font-weight: 700;
+                border: 1px solid #FCD34D;
+                border-radius: 4px;
+                padding: 3px 8px;
+            }
+            QPushButton:hover {
+                background-color: #FDE68A;
+            }
+        """)
+        self.btn_toggle.setText("📊 方案比对已在独立大窗展开 [点击恢复嵌入]")
+
+        # 4. 显示并激活弹窗
+        self.popout_window.show()
+        self.popout_window.raise_()
+        self.popout_window.activateWindow()
+        self.status_message.emit("⛶ 方案比对矩阵已弹出为独立窗口，可自由调整尺寸或点击右上角最大化全屏评审！")
+
+    def dock_back(self):
+        """收回嵌入底部抽屉模式"""
+        if not getattr(self, "_is_popped_out", False):
+            return
+
+        self._is_popped_out = False
+
+        # 1. 将 table 移回 content_container
+        content_layout = self.content_container.layout()
+        self.table.setParent(self.content_container)
+        content_layout.addWidget(self.table)
+        self.table.setMinimumHeight(170)
+        self.table.setMaximumHeight(260)  # 恢复抽屉限高
+
+        # 2. 恢复抽屉按钮文本与样式
+        self.btn_popout.setText("⛶ 弹出大窗")
+        self.btn_popout.setStyleSheet("""
+            QPushButton {
+                background-color: #EFF6FF;
+                color: #1D4ED8;
+                font-size: 10px;
+                font-weight: 700;
+                border: 1px solid #BFDBFE;
+                border-radius: 4px;
+                padding: 3px 8px;
+            }
+            QPushButton:hover {
+                background-color: #DBEAFE;
+                border-color: #3B82F6;
+            }
+        """)
+
+        # 3. 展开抽屉
+        self._is_expanded = True
+        self.content_container.setVisible(True)
+        self.btn_toggle.setText("▼ 📊 方案比对抽屉")
+        self.btn_fold.setText("▼ 收起")
+
+        # 4. 关闭并释放弹窗
+        if hasattr(self, "popout_window") and self.popout_window:
+            p = self.popout_window
+            self.popout_window = None
+            p.close()
+
+        self.status_message.emit("⇲ 方案比对矩阵已重新嵌入工作台底部抽屉。")
+
     def toggle_expanded(self):
         """展开或收起比对抽屉"""
+        if getattr(self, "_is_popped_out", False):
+            # 若当前正处于独立窗口模式，点击标题恢复嵌入
+            self.dock_back()
+            return
+
         self._is_expanded = not self._is_expanded
         self.content_container.setVisible(self._is_expanded)
         if self._is_expanded:
@@ -434,6 +738,8 @@ class ComparisonDrawer(QFrame):
             self.set_expanded(True)
 
         self.lbl_count.setText(f"(已固化 {len(self.snapshots)} 组)")
+        if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
+            self.popout_window.lbl_pop_count.setText(self.lbl_count.text())
         self.status_message.emit(f"✓ 成功固化 [{name}]！可随时点击下方 [⏪ 还原] 或指定基准方案")
 
     def _get_baseline_snapshot(self) -> Optional[SchemeSnapshot]:
@@ -650,6 +956,8 @@ class ComparisonDrawer(QFrame):
         if deleted.is_baseline and self.snapshots:
             self.snapshots[0].is_baseline = True
         self._rebuild_table_columns()
+        if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
+            self.popout_window.lbl_pop_count.setText(f"(已固化 {len(self.snapshots)} 组)")
         self.status_message.emit(f"已移除方案 [{deleted.name}]")
 
     def clear_all_schemes(self):
@@ -668,6 +976,8 @@ class ComparisonDrawer(QFrame):
             self.snapshots.clear()
             self._rebuild_table_columns()
             self.lbl_count.setText("(已固化 0 组)")
+            if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
+                self.popout_window.lbl_pop_count.setText("(已固化 0 组)")
             self.status_message.emit("方案比对表已清空")
 
     def _on_header_double_clicked(self, section: int):
