@@ -1739,20 +1739,30 @@ async function loadDevices() {
 }
 
 async function revokeDevice(mid) {
-  if (!confirm('⚠️ 确定要取消工位机 [' + mid + '] 的授权并远程锁机吗？\n\n【远程控制影响说明】：\n1. 云端将立即向该工位机下发 LOCK_APP 锁机指令；\n2. 客户端将在 30 秒心跳周期内自动清空本地许可文件并安全退出，外人无法继续使用！')) {
-    return;
-  }
+  const msg = [
+    '⚠️ 确定要取消工位机 [' + mid + '] 的授权并远程锁机吗？',
+    '',
+    '【远程控制影响说明】：',
+    '1. 云端将立即向该工位机下发 LOCK_APP 锁机指令；',
+    '2. 客户端将在 30 秒心跳周期内自动清空本地许可文件并安全退出，外人无法继续使用！'
+  ].join(String.fromCharCode(10));
+  if (!confirm(msg)) return;
   await deviceAction(mid, 'REVOKE');
 }
 
 async function showRemoteMenu(mid) {
-  const act = prompt('请选择对工位机 [' + mid + '] 执行的远程指令：\n\n' +
-    '1: 延长 30 天使用期\n' +
-    '2: 延长 1 年使用期\n' +
-    '3: 设为永久企业买断版\n' +
-    '4: 远程通知强制刷新标杆案例库 (FORCE_SYNC_CASES)\n' +
-    '5: 彻底拉黑封禁 (BAN)\n\n' +
-    '请输入序号 (1-5):', '1');
+  const promptMsg = [
+    '请选择对工位机 [' + mid + '] 执行的远程指令：',
+    '',
+    '1: 延长 30 天使用期',
+    '2: 延长 1 年使用期',
+    '3: 设为永久企业买断版',
+    '4: 远程通知强制刷新标杆案例库 (FORCE_SYNC_CASES)',
+    '5: 彻底拉黑封禁 (BAN)',
+    '',
+    '请输入序号 (1-5):'
+  ].join(String.fromCharCode(10));
+  const act = prompt(promptMsg, '1');
   if (!act) return;
   if (act === '1') await deviceAction(mid, 'EXTEND_DAYS', 30);
   else if (act === '2') await deviceAction(mid, 'EXTEND_DAYS', 365);
@@ -1794,7 +1804,12 @@ async function loadLicenses() {
 }
 
 async function revokeLicenseToken(token) {
-  if (!confirm('⚠️ 确定要吊销此授权激活码吗？\n\n该激活码绑定的工位机将在下次心跳时直接失效退出！')) return;
+  const msg = [
+    '⚠️ 确定要吊销此授权激活码吗？',
+    '',
+    '该激活码绑定的工位机将在下次心跳时直接失效退出！'
+  ].join(String.fromCharCode(10));
+  if (!confirm(msg)) return;
   try {
     const res = await fetch('/admin/api/license/revoke', {
       method: 'POST',
@@ -1946,22 +1961,39 @@ function copyToken() {
 }
 
 function copyWechatTemplate() {
+  const nl = String.fromCharCode(10);
   const info = currentGeneratedInfo;
   let dateDesc = '';
   if (info.plan_type === 'PERPETUAL_1Y_UPDATE') {
-    dateDesc = '📌 授权类别：👑 标准企业买断版\\n💎 软件使用权限：永久终身授权 (永不过期)\\n📅 免费版本更新与支持期至：' + info.maint_expire + ' (期满后仍可永久使用当前版)';
+    dateDesc = [
+      '📌 授权类别：👑 标准企业买断版',
+      '💎 软件使用权限：永久终身授权 (永不过期)',
+      '📅 免费版本更新与支持期至：' + info.maint_expire + ' (期满后仍可永久使用当前版)'
+    ].join(nl);
   } else if (info.plan_type === 'PERPETUAL_LIFETIME') {
-    dateDesc = '📌 授权类别：👑 尊享企业买断版\\n💎 软件使用权限：永久终身授权 + 终身免维护费免费升级';
+    dateDesc = [
+      '📌 授权类别：👑 尊享企业买断版',
+      '💎 软件使用权限：永久终身授权 + 终身免维护费免费升级'
+    ].join(nl);
   } else {
-    dateDesc = '📌 授权类别：' + (info.plan_label || '商业订阅') + '\\n📅 订阅有效期至：' + info.expire_date + ' (期间享受所有小版本免费升级与技术支持)';
+    dateDesc = [
+      '📌 授权类别：' + (info.plan_label || '商业订阅'),
+      '📅 订阅有效期至：' + info.expire_date + ' (期间享受所有小版本免费升级与技术支持)'
+    ].join(nl);
   }
 
-  const tpl = '您好！您的【ANSV Coil-Architect Pro 电磁线圈多物理场仿真工作站】商业授权激活凭证已生成完毕：\\n\\n' +
-    '🔑 授权激活码：\\n' + currentGeneratedToken + '\\n\\n' +
-    '📌 绑定机器识别码：' + info.machine_id + '\\n' +
-    dateDesc + '\\n' +
-    '🏢 授权企业/工位：' + info.customer_name + '\\n\\n' +
-    '💡 激活步骤：在软件中点击【输入激活码】按钮，直接粘贴上述整段激活码即可完成秒级激活！如有任何工程算例疑问，欢迎随时沟通。';
+  const tpl = [
+    '您好！您的【ANSV Coil-Architect Pro 电磁线圈多物理场仿真工作站】商业授权激活凭证已生成完毕：',
+    '',
+    '🔑 授权激活码：',
+    currentGeneratedToken,
+    '',
+    '📌 绑定机器识别码：' + info.machine_id,
+    dateDesc,
+    '🏢 授权企业/工位：' + info.customer_name,
+    '',
+    '💡 激活步骤：在软件中点击【输入激活码】按钮，直接粘贴上述整段激活码即可完成秒级激活！如有任何工程算例疑问，欢迎随时沟通。'
+  ].join(nl);
   copyText(tpl);
 }
 
