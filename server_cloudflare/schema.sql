@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS devices (
     app_version VARCHAR(32) DEFAULT '-',             -- 客户端运行版本 (如 v1.1.0)
     app_build VARCHAR(32) DEFAULT '-',               -- 客户端编译构建指纹
     wire_db_version VARCHAR(32) DEFAULT 'v1.0',      -- 线模与铜线绝缘层材料基准库版本
+    plan_type VARCHAR(32) DEFAULT 'TRIAL',           -- 当前授权模式 (MONTHLY / QUARTERLY / ANNUAL / PERPETUAL_1Y / PERPETUAL_LIFE)
     license_status VARCHAR(32) DEFAULT 'TRIAL',      -- 授权状态 (TRIAL / ACTIVE / EXPIRED / BANNED)
-    license_expire VARCHAR(64) DEFAULT '-',          -- 授权到期日 (YYYY-MM-DD 或 PERMANENT)
+    license_expire VARCHAR(64) DEFAULT '-',          -- 软件运行权限到期日 (YYYY-MM-DD 或 PERMANENT)
+    maint_expire VARCHAR(64) DEFAULT '-',            -- 版本更新与维护服务到期日 (YYYY-MM-DD 或 PERMANENT)
     remaining_days INTEGER DEFAULT 0,                -- 剩余有效天数 (负数代表逾期)
     customer_name VARCHAR(128) DEFAULT '散户/未登记', -- 客户企业名称
     line_station VARCHAR(128) DEFAULT 'WORKSTATION-01', -- 所在产线/工位编号
@@ -40,8 +42,9 @@ CREATE TABLE IF NOT EXISTS licenses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     token TEXT NOT NULL UNIQUE,                      -- 生成的 COIL-SEC-... 激活码
     machine_id VARCHAR(64) NOT NULL,                 -- 绑定的目标机器码 (*代表通用通配符)
-    plan_type VARCHAR(32) DEFAULT 'TRIAL',           -- 方案类型 (TRIAL_30, QUARTER_90, ANNUAL_365, PERMANENT)
-    expire_date VARCHAR(64) NOT NULL,                -- 到期时间字符串 (YYYY-MM-DD 或 PERMANENT)
+    plan_type VARCHAR(32) DEFAULT 'SUB_ANNUAL_365',  -- 方案类型 (SUB_MONTHLY_30 / SUB_QUARTERLY_90 / SUB_ANNUAL_365 / PERPETUAL_1Y_UPDATE / PERPETUAL_LIFETIME)
+    expire_date VARCHAR(64) NOT NULL,                -- 软件运行权限到期时间 (YYYY-MM-DD 或 PERMANENT)
+    maint_expire VARCHAR(64) DEFAULT 'PERMANENT',    -- 版本更新与维护服务到期日 (YYYY-MM-DD 或 PERMANENT)
     customer_name VARCHAR(128) DEFAULT 'ANSV VIP Client', -- 授权客户/公司
     station_id VARCHAR(64) DEFAULT 'WORKSTATION-01', -- 工位代号
     operator_name VARCHAR(64) DEFAULT 'ADMIN',       -- 经手签发人

@@ -263,10 +263,19 @@ class UpdateDialog(QDialog):
         def do_check():
             try:
                 from src.core.cloud_client import CloudClient
+                from src.core.license_manager import LicenseManager
+                is_auth, _, lic_data = LicenseManager.is_system_authorized()
+                maint_exp = lic_data.get("maint_exp", lic_data.get("exp", "PERMANENT")) if is_auth else "PERMANENT"
+
                 is_newer, release, msg = CloudClient.check_update_sync()
                 if is_newer and release:
-                    self.btn_refresh.setText(f"🚀 发现新版本 {release.get('version')}！")
-                    self.lbl_curr_ver.setText(f"当前版本: {APP_VERSION} <b>(可升级至 {release.get('version')})</b>")
+                    rel_date = release.get("release_date", "2099-12-31")
+                    if maint_exp != "PERMANENT" and rel_date > maint_exp:
+                        self.btn_refresh.setText(f"💎 发现新版 {release.get('version')} (需续订维护期)")
+                        self.lbl_curr_ver.setText(f"当前版本: {APP_VERSION} <span style='color:#B45309;'>(买断维护升级期已于 {maint_exp} 届满)</span>")
+                    else:
+                        self.btn_refresh.setText(f"🚀 发现新版本 {release.get('version')} (可免费升级)！")
+                        self.lbl_curr_ver.setText(f"当前版本: {APP_VERSION} <b>(可升级至 {release.get('version')})</b>")
                 else:
                     self.btn_refresh.setText(f"✔ {msg} (当前已是最新)")
             except Exception:

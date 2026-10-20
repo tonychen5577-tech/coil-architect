@@ -44,10 +44,12 @@ function uint8ArrayToBase64Url(u8) {
     return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function generateCoilToken(machineCode, expireDateStr, customerName, stationId) {
+async function generateCoilToken(machineCode, expireDateStr, maintExpireStr, planType, customerName, stationId) {
     const payload = {
         mid: (machineCode || "").trim().toUpperCase(),
         exp: (expireDateStr || "PERMANENT").trim(),
+        maint_exp: (maintExpireStr || expireDateStr || "PERMANENT").trim(),
+        plan: (planType || "SUB_ANNUAL_365").trim(),
         cust: (customerName || "ANSV VIP Client").trim(),
         stat: (stationId || "WORKSTATION-01").trim(),
         ts: new Date().toISOString().replace("T", " ").substring(0, 19)
@@ -164,6 +166,8 @@ async function ensureTables(db) {
     // 字段平滑热迁移 (对齐 Gear: 防止历史旧表少字段)
     const deviceCols = [
         "wire_db_version VARCHAR(32) DEFAULT 'v1.0'",
+        "plan_type VARCHAR(32) DEFAULT 'TRIAL'",
+        "maint_expire VARCHAR(64) DEFAULT '-'",
         "operator_name VARCHAR(64) DEFAULT '-'",
         "operator_id VARCHAR(64) DEFAULT '-'",
         "system_user VARCHAR(64) DEFAULT '-'",
@@ -186,8 +190,9 @@ async function ensureTables(db) {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 token TEXT NOT NULL UNIQUE,
                 machine_id VARCHAR(64) NOT NULL,
-                plan_type VARCHAR(32) DEFAULT 'TRIAL',
+                plan_type VARCHAR(32) DEFAULT 'SUB_ANNUAL_365',
                 expire_date VARCHAR(64) NOT NULL,
+                maint_expire VARCHAR(64) DEFAULT 'PERMANENT',
                 customer_name VARCHAR(128) DEFAULT 'ANSV VIP Client',
                 station_id VARCHAR(64) DEFAULT 'WORKSTATION-01',
                 operator_name VARCHAR(64) DEFAULT 'ADMIN',
@@ -198,6 +203,9 @@ async function ensureTables(db) {
             )
         `).run();
     } catch (_) { }
+
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN maint_expire VARCHAR(64) DEFAULT 'PERMANENT'").run(); } catch (_) { }
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN plan_type VARCHAR(32) DEFAULT 'SUB_ANNUAL_365'").run(); } catch (_) { }
 
     // 3. coil_cases 官方标杆案例库 (对齐 Gear: gear_cases)
     try {
@@ -631,7 +639,7 @@ async function handleAdmin(path, request, env, url) {
         let body = {};
         try { body = await request.json(); } catch(e){}
         const mid = (body.machine_id || "").trim().toUpperCase();
-        const planType = body.plan_type || "TRIAL_30";
+        const planType = body.plan_type || "SUB_ANNUAL_365";
         const customer = (body.customer_name || "ANSV VIP Client").trim();
         const station = (body.station_id || "WORKSTATION-01").trim();
         const notes = (body.notes || "").trim();
@@ -640,60 +648,92 @@ async function handleAdmin(path, request, env, url) {
             return jsonResponse({ success: false, error: "请输入机器识别码" }, 400);
         }
 
-        // 计算到期时间
+        // 计算到期时间与版本维护升级期
         let expireDateStr = "PERMANENT";
+        let maintExpireStr = "PERMANENT";
+        let planLabel = "商业授权";
         const today = new Date();
+
         if (planType === "TRIAL_7") {
             today.setDate(today.getDate() + 7);
             expireDateStr = today.toISOString().substring(0, 10);
-        } else if (planType === "TRIAL_30") {
+            maintExpireStr = expireDateStr;
+            planLabel = "7 天短期试用版";
+        } else if (planType === "TRIAL_14" || planType === "TRIAL_30") {
+            const days = planType === "TRIAL_14" ? 14 : 30;
+            today.setDate(today.getDate() + days);
+            expireDateStr = today.toISOString().substring(0, 10);
+            maintExpireStr = expireDateStr;
+            planLabel = `${days} 天项目评估版`;
+        } else if (planType === "SUB_MONTHLY_30") {
             today.setDate(today.getDate() + 30);
             expireDateStr = today.toISOString().substring(0, 10);
-        } else if (planType === "QUARTER_90") {
+            maintExpireStr = expireDateStr;
+            planLabel = "按月商业订阅版 (30天)";
+        } else if (planType === "SUB_QUARTERLY_90") {
             today.setDate(today.getDate() + 90);
             expireDateStr = today.toISOString().substring(0, 10);
-        } else if (planType === "ANNUAL_365") {
+            maintExpireStr = expireDateStr;
+            planLabel = "按季度商业订阅版 (90天)";
+        } else if (planType === "SUB_ANNUAL_365") {
             today.setDate(today.getDate() + 365);
             expireDateStr = today.toISOString().substring(0, 10);
-        } else if (planType === "CUSTOM" && body.custom_expire) {
-            expireDateStr = body.custom_expire.trim();
+            maintExpireStr = expireDateStr;
+            planLabel = "按年商业订阅版 (365天 · 全年更新支持)";
+        } else if (planType === "PERPETUAL_1Y_UPDATE") {
+            expireDateStr = "PERMANENT";
+            today.setDate(today.getDate() + 365);
+            maintExpireStr = today.toISOString().substring(0, 10);
+            planLabel = "标准企业买断版 (永久可用 + 1年版本更新与支持)";
+        } else if (planType === "PERPETUAL_LIFETIME") {
+            expireDateStr = "PERMANENT";
+            maintExpireStr = "PERMANENT";
+            planLabel = "尊享企业买断版 (永久可用 + 终身免费版本升级)";
+        } else if (planType === "CUSTOM") {
+            expireDateStr = (body.custom_expire || "").trim() || "PERMANENT";
+            maintExpireStr = (body.custom_maint || expireDateStr).trim();
+            planLabel = "自定义商业授权";
         }
 
-        // 生成加密 Token
-        const token = await generateCoilToken(mid, expireDateStr, customer, station);
+        // 生成加密 Token (含维护到期字段)
+        const token = await generateCoilToken(mid, expireDateStr, maintExpireStr, planType, customer, station);
 
         // 写入 licenses 表
         await db.prepare(`
-            INSERT INTO licenses (token, machine_id, plan_type, expire_date, customer_name, station_id, operator_name, status, notes)
-            VALUES (?, ?, ?, ?, ?, ?, 'ADMIN', 'ACTIVE', ?)
-        `).bind(token, mid, planType, expireDateStr, customer, station, notes).run();
+            INSERT INTO licenses (token, machine_id, plan_type, expire_date, maint_expire, customer_name, station_id, operator_name, status, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'ADMIN', 'ACTIVE', ?)
+        `).bind(token, mid, planType, expireDateStr, maintExpireStr, customer, station, notes).run();
 
         // 同步更新 devices 表（如果已存在该机器码）
         await db.prepare(`
             UPDATE devices SET 
                 customer_name = ?,
                 line_station = ?,
+                plan_type = ?,
                 license_status = 'ACTIVE',
                 license_expire = ?,
+                maint_expire = ?,
                 status = 'ACTIVE',
                 notes = CASE WHEN ? != '' THEN ? ELSE notes END
             WHERE machine_id = ?
-        `).bind(customer, station, expireDateStr, notes, notes, mid).run();
+        `).bind(customer, station, planType, expireDateStr, maintExpireStr, notes, notes, mid).run();
 
         // 审计留痕 (对齐 Gear)
         const ip = request.headers.get("CF-Connecting-IP") || "-";
         await db.prepare(`
             INSERT INTO audit_logs (action_type, target_id, operator_name, details, ip)
             VALUES ('GENERATE_TOKEN', ?, 'ADMIN', ?, ?)
-        `).bind(mid, `签发方案: ${planType}, 到期日: ${expireDateStr}, 客户: ${customer}`, ip).run();
+        `).bind(mid, `方案: ${planLabel}, 权限到期: ${expireDateStr}, 维护到期: ${maintExpireStr}, 客户: ${customer}`, ip).run();
 
         return jsonResponse({
             success: true,
             token,
             machine_id: mid,
             expire_date: expireDateStr,
+            maint_expire: maintExpireStr,
             customer_name: customer,
-            plan_type: planType
+            plan_type: planType,
+            plan_label: planLabel
         });
     }
 
@@ -1443,19 +1483,29 @@ function renderDashboardPage() {
       <input type="text" id="gen-mid" placeholder="例如: COIL-609D-64D4-5D11-35E2" style="font-family:Consolas,monospace;" />
     </div>
     <div class="form-row">
-      <label>授权订阅方案</label>
+      <label>授权订阅方案与商业类别</label>
       <select id="gen-plan" onchange="toggleCustomDate()">
-        <option value="TRIAL_7">🟢 7 天短期试用版</option>
-        <option value="TRIAL_30" selected>🟢 30 天项目评估版</option>
-        <option value="QUARTER_90">🟢 90 天季度商业版</option>
-        <option value="ANNUAL_365">🟢 1 年年度商业版</option>
-        <option value="PERMANENT">🟢 永久企业买断版</option>
-        <option value="CUSTOM">⚙️ 自定义到期日</option>
+        <optgroup label="👑 企业买断制 (Perpetual)">
+          <option value="PERPETUAL_1Y_UPDATE" selected>👑 标准企业买断版 (永久可用 + 赠送1年版本更新与技术支持)</option>
+          <option value="PERPETUAL_LIFETIME">👑 尊享企业买断版 (永久可用 + 终身免维护费免费升级)</option>
+        </optgroup>
+        <optgroup label="🟢 周期订阅制 (Subscription)">
+          <option value="SUB_ANNUAL_365">🟢 按年商业订阅版 (365天 · 含全年小版本升级与工程支持)</option>
+          <option value="SUB_QUARTERLY_90">🟢 按季度商业版 (90天 · 适用于 EVT/DVT 试产攻关)</option>
+          <option value="SUB_MONTHLY_30">🟢 按月商业版 (30天 · 适用于特定项目短期打样)</option>
+        </optgroup>
+        <optgroup label="⚪ 评估与试用 (Trial)">
+          <option value="TRIAL_14">⚪ 14 天项目评估版</option>
+          <option value="TRIAL_7">⚪ 7 天短期试用版</option>
+          <option value="CUSTOM">⚙️ 自定义到期日与维护期</option>
+        </optgroup>
       </select>
     </div>
     <div class="form-row" id="row-custom-date" style="display:none;">
-      <label>指定到期日期 (YYYY-MM-DD)</label>
-      <input type="date" id="gen-custom-date" />
+      <label>指定软件权限到期日 (YYYY-MM-DD 或 PERMANENT)</label>
+      <input type="text" id="gen-custom-date" placeholder="例如: 2027-12-31 或 PERMANENT" />
+      <label style="margin-top:6px;">指定版本维护更新到期日 (YYYY-MM-DD 或 PERMANENT)</label>
+      <input type="text" id="gen-custom-maint" placeholder="例如: 2027-10-20 或 PERMANENT" />
     </div>
     <div class="form-row">
       <label>客户企业 / 机构名称</label>
@@ -1584,7 +1634,7 @@ async function loadLicenses() {
           '<td>' + lic.id + '</td>' +
           '<td><span class="mono">' + lic.machine_id + '</span></td>' +
           '<td><span class="badge badge-info">' + lic.plan_type + '</span></td>' +
-          '<td>' + lic.expire_date + '</td>' +
+          '<td><b>' + lic.expire_date + '</b><br><span style="font-size:10px;color:#64748B;">维护升级至: ' + (lic.maint_expire || lic.expire_date) + '</span></td>' +
           '<td>' + lic.customer_name + '</td>' +
           '<td>' + (lic.operator_name || 'ADMIN') + '</td>' +
           '<td>' + lic.created_at + '</td>' +
@@ -1659,7 +1709,8 @@ async function doGenerateToken() {
   const plan = document.getElementById('gen-plan').value;
   const cust = document.getElementById('gen-cust').value.trim();
   const stat = document.getElementById('gen-stat').value.trim();
-  const customDate = document.getElementById('gen-custom-date').value;
+  const customDate = (document.getElementById('gen-custom-date') ? document.getElementById('gen-custom-date').value : '').trim();
+  const customMaint = (document.getElementById('gen-custom-maint') ? document.getElementById('gen-custom-maint').value : '').trim();
   const notes = document.getElementById('gen-notes').value.trim();
 
   if(!mid) {
@@ -1680,6 +1731,7 @@ async function doGenerateToken() {
         customer_name: cust,
         station_id: stat,
         custom_expire: customDate,
+        custom_maint: customMaint,
         notes: notes
       })
     });
@@ -1729,11 +1781,21 @@ function copyToken() {
 }
 
 function copyWechatTemplate() {
+  const info = currentGeneratedInfo;
+  let dateDesc = '';
+  if (info.plan_type === 'PERPETUAL_1Y_UPDATE') {
+    dateDesc = '📌 授权类别：👑 标准企业买断版\\n💎 软件使用权限：永久终身授权 (永不过期)\\n📅 免费版本更新与支持期至：' + info.maint_expire + ' (期满后仍可永久使用当前版)';
+  } else if (info.plan_type === 'PERPETUAL_LIFETIME') {
+    dateDesc = '📌 授权类别：👑 尊享企业买断版\\n💎 软件使用权限：永久终身授权 + 终身免维护费免费升级';
+  } else {
+    dateDesc = '📌 授权类别：' + (info.plan_label || '商业订阅') + '\\n📅 订阅有效期至：' + info.expire_date + ' (期间享受所有小版本免费升级与技术支持)';
+  }
+
   const tpl = '您好！您的【ANSV Coil-Architect Pro 电磁线圈多物理场仿真工作站】商业授权激活凭证已生成完毕：\\n\\n' +
     '🔑 授权激活码：\\n' + currentGeneratedToken + '\\n\\n' +
-    '📌 绑定机器识别码：' + currentGeneratedInfo.machine_id + '\\n' +
-    '📅 授权有效期至：' + currentGeneratedInfo.expire_date + '\\n' +
-    '🏢 授权企业/工位：' + currentGeneratedInfo.customer_name + '\\n\\n' +
+    '📌 绑定机器识别码：' + info.machine_id + '\\n' +
+    dateDesc + '\\n' +
+    '🏢 授权企业/工位：' + info.customer_name + '\\n\\n' +
     '💡 激活步骤：在软件中点击【输入激活码】按钮，直接粘贴上述整段激活码即可完成秒级激活！如有任何工程算例疑问，欢迎随时沟通。';
   copyText(tpl);
 }
