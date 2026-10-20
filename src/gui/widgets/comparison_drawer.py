@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QWidget,
     QInputDialog, QFileDialog, QApplication, QSizePolicy, QMessageBox,
-    QAbstractItemView
+    QAbstractItemView, QLineEdit
 )
 
 from ...core.models import CoilInputs, CoilOutputs, CoilType, WindingMode
@@ -229,6 +229,29 @@ class ComparisonDrawer(QFrame):
         self.btn_export.setToolTip("导出多方案比对表为格式精美的 Excel 工作簿 (.xlsx)")
         self.btn_export.clicked.connect(self.export_excel)
         h_layout.addWidget(self.btn_export)
+
+        # 导出 CSV 按钮
+        self.btn_export_csv = QPushButton("📄 导出 CSV")
+        self.btn_export_csv.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #0284C7;
+                font-size: 10px;
+                font-weight: 600;
+                border: 1px solid #BAE6FD;
+                border-radius: 4px;
+                padding: 3px 8px;
+            }
+            QPushButton:hover {
+                background-color: #F0F9FF;
+                color: #0369A1;
+                border-color: #0284C7;
+            }
+        """)
+        self.btn_export_csv.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_export_csv.setToolTip("导出多方案比对表为标准 UTF-8 CSV 报表 (.csv)")
+        self.btn_export_csv.clicked.connect(self.export_csv)
+        h_layout.addWidget(self.btn_export_csv)
 
         # 清空按钮
         self.btn_clear = QPushButton("🗑 清空")
@@ -817,10 +840,40 @@ class ComparisonDrawer(QFrame):
         clipboard.setText(tsv_data)
         self.status_message.emit("✓ 方案对比表已成功复制至剪贴板，可直接在 Excel 中粘贴！")
 
+    def get_project_name(self) -> str:
+        """获取所属主窗口的工程项目名称 (默认 Coli-Architect)"""
+        win = self.window()
+        if win and hasattr(win, "get_project_name"):
+            return win.get_project_name()
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, "get_project_name"):
+                return parent.get_project_name()
+            parent = parent.parent()
+        return "Coli-Architect"
+
     def export_excel(self):
         """导出为格式精美的 Excel 工作簿 (.xlsx)"""
+        current_name = self.get_project_name()
+        proj_name, ok = QInputDialog.getText(
+            self, 
+            "导出方案比对表 - 确认项目名称", 
+            "请输入工程项目名称 (将注入文件名与方案对比表):", 
+            QLineEdit.EchoMode.Normal, 
+            current_name
+        )
+        if not ok:
+            return
+        proj_name = proj_name.strip() if proj_name else "Coli-Architect"
+        if not proj_name:
+            proj_name = "Coli-Architect"
+
+        win = self.window()
+        if win and hasattr(win, "txt_project_name"):
+            win.txt_project_name.setText(proj_name)
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = f"线圈多方案对比表_{timestamp}.xlsx"
+        default_filename = f"{proj_name}_线圈多方案对比表_{timestamp}.xlsx"
         path, _ = QFileDialog.getSaveFileName(
             self, "导出方案比对表为 Excel", default_filename, "Excel 工作簿 (*.xlsx)"
         )
@@ -866,10 +919,10 @@ class ComparisonDrawer(QFrame):
             cell_title.alignment = Alignment(horizontal="center", vertical="center")
             ws.row_dimensions[1].height = 36
 
-            # 2. 副标题与导出时间
+            # 2. 副标题、项目名称与导出时间
             ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=cols)
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cell_sub = ws.cell(row=2, column=1, value=f"导出时间: {now_str}  |  官方支持: ansv.net  |  线圈架构师 Pro")
+            cell_sub = ws.cell(row=2, column=1, value=f"工程项目名称: {proj_name}  |  导出时间: {now_str}  |  官方支持: ansv.net  |  线圈架构师 Pro")
             cell_sub.font = font_subtitle
             cell_sub.alignment = Alignment(horizontal="right", vertical="center")
             ws.row_dimensions[2].height = 20
@@ -926,5 +979,73 @@ class ComparisonDrawer(QFrame):
 
             wb.save(path)
             self.status_message.emit(f"✓ 方案对比表已成功导出为 Excel 工作簿: {path}")
+            QMessageBox.information(self, "导出成功", f"方案对比表已成功导出为 Excel 工作簿:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "导出 Excel 失败", f"无法写入 Excel 文件:\n{str(e)}")
+
+    def export_csv(self):
+        """导出为标准 UTF-8 CSV 报表 (.csv)"""
+        current_name = self.get_project_name()
+        proj_name, ok = QInputDialog.getText(
+            self,
+            "导出方案比对表 - 确认项目名称",
+            "请输入工程项目名称 (将注入文件名与 CSV 报表):",
+            QLineEdit.EchoMode.Normal,
+            current_name
+        )
+        if not ok:
+            return
+        proj_name = proj_name.strip() if proj_name else "Coli-Architect"
+        if not proj_name:
+            proj_name = "Coli-Architect"
+
+        win = self.window()
+        if win and hasattr(win, "txt_project_name"):
+            win.txt_project_name.setText(proj_name)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"{proj_name}_线圈多方案对比表_{timestamp}.csv"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "导出方案比对表为 CSV", default_filename, "CSV 报表文件 (*.csv)"
+        )
+        if not path:
+            return
+
+        try:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            rows = self.table.rowCount()
+            cols = self.table.columnCount()
+
+            lines = [
+                "Coil-Architect Pro - 线圈多方案参数与仿真结果对比矩阵",
+                f"工程项目名称,{proj_name}",
+                f"导出时间,{now_str}",
+                "官方支持平台,ansv.net (ANSV 微型执行器与精密传动平台)",
+                ""
+            ]
+
+            # 表头
+            header_vals = []
+            for c in range(cols):
+                header_item = self.table.horizontalHeaderItem(c)
+                val = header_item.text().replace("\n", " ") if header_item else ""
+                header_vals.append(f'"{val}"' if ',' in val else val)
+            lines.append(",".join(header_vals))
+
+            # 数据行 (不包含最后一行的操作按钮)
+            for r in range(rows - 1):
+                row_vals = []
+                for c in range(cols):
+                    item = self.table.item(r, c)
+                    val = item.text() if item else ""
+                    header_col_title = self.table.horizontalHeaderItem(c).text() if self.table.horizontalHeaderItem(c) else ""
+                    row_vals.append(f'"{val}"' if (',' in val or '\n' in val) else val)
+                lines.append(",".join(row_vals))
+
+            with open(path, "w", encoding="utf-8-sig", newline="") as f:
+                f.write("\n".join(lines))
+
+            self.status_message.emit(f"✓ 方案对比表已成功导出为 CSV 报表: {path}")
+            QMessageBox.information(self, "导出成功", f"方案对比表已成功导出为 CSV 报表:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "导出 CSV 失败", f"无法写入 CSV 文件:\n{str(e)}")

@@ -12,7 +12,8 @@ from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
     QLabel, QPushButton, QComboBox, QFrame, QSplitter, 
-    QScrollArea, QFileDialog, QMessageBox, QStatusBar, QCheckBox
+    QScrollArea, QFileDialog, QMessageBox, QStatusBar, QCheckBox,
+    QLineEdit, QInputDialog
 )
 
 from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType
@@ -59,11 +60,11 @@ class MainWindow(QMainWindow):
         self._load_preset(self.combo_presets.itemText(0))
         self.run_simulation()
 
-        # 启动后台实时心跳守护引擎 (对标 Gear: 每 30 秒自动握手并监听远程锁机/更新指令)
+        # 启动后台授权检测与守护引擎 (每 30 分钟静默检测一次授权服务器)
         try:
             from src.core.cloud_client import CloudClient
             CloudClient.start_background_sync(
-                interval_sec=30.0,
+                interval_sec=1800.0,
                 on_status_callback=lambda ok, msg, url: self.signal_cloud_status.emit(ok, msg, url),
                 on_command_callback=lambda cmd, payload: self.signal_remote_command.emit(cmd, payload)
             )
@@ -231,8 +232,8 @@ class MainWindow(QMainWindow):
 
     def _setup_statusbar_copyright(self):
         """配置右下角三行常驻版权信息与云端实时状态 (规范 04.二)"""
-        # 云端在线状态指示与一键同步按钮
-        self.btn_cloud_status = QPushButton("⏳ 云端连接中...")
+        # 授权服务器在线状态指示与快捷检测按钮
+        self.btn_cloud_status = QPushButton("⏳ 授权服务器连接中...")
         self.btn_cloud_status.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -250,7 +251,7 @@ class MainWindow(QMainWindow):
                 border-color: #0284C7;
             }
         """)
-        self.btn_cloud_status.setToolTip("点击立即执行一次云端状态同步与远程指令检测")
+        self.btn_cloud_status.setToolTip("点击立即检测授权服务器连通性与最新商业状态")
         self.btn_cloud_status.clicked.connect(self._on_cloud_status_clicked)
         self.status_bar.addPermanentWidget(self.btn_cloud_status)
 
@@ -279,12 +280,12 @@ class MainWindow(QMainWindow):
         self.status_bar.addPermanentWidget(copyright_widget)
 
     def _on_cloud_status_received(self, ok: bool, msg: str, target: str):
-        """线程安全槽：实时刷新状态栏云端在线状态"""
+        """线程安全槽：刷新状态栏授权服务器连接状态"""
         if not hasattr(self, "btn_cloud_status"):
             return
         if ok:
             domain = target.replace("https://", "").replace("http://", "")
-            self.btn_cloud_status.setText("🟢 云端已连接 | 实时同步")
+            self.btn_cloud_status.setText("🟢 授权服务器已连接")
             self.btn_cloud_status.setStyleSheet("""
                 QPushButton {
                     background-color: #ECFDF5;
@@ -300,9 +301,14 @@ class MainWindow(QMainWindow):
                     background-color: #D1FAE5;
                 }
             """)
-            self.btn_cloud_status.setToolTip(f"云端服务器已联通: {domain}\n实时心跳正常，双向遥控指令通道已激活。\n点击可立即强制刷新一次。")
+            self.btn_cloud_status.setToolTip(
+                f"已连接至官方授权中心: {domain}\n"
+                "✓ 本工位机线圈物理仿真设计数据 100% 留存在本地，绝不上云。\n"
+                "✓ 仅执行商业授权校验与版本检测 (每 30 分钟心跳一次)。\n"
+                "点击可立即测试授权连通性。"
+            )
         else:
-            self.btn_cloud_status.setText("⚪ 本地离线模式")
+            self.btn_cloud_status.setText("⚪ 本地授权模式")
             self.btn_cloud_status.setStyleSheet("""
                 QPushButton {
                     background-color: #F8FAFC;
@@ -318,11 +324,15 @@ class MainWindow(QMainWindow):
                     background-color: #F1F5F9;
                 }
             """)
-            self.btn_cloud_status.setToolTip(f"{msg}\n点击可尝试重新连接云端服务器。")
+            self.btn_cloud_status.setToolTip(
+                f"{msg}\n"
+                "当前线圈仿真全功能不受影响，本地商业授权持续有效。\n"
+                "设计数据 100% 保存在本地，点击可重试连接官方授权服务器。"
+            )
 
     def _on_cloud_status_clicked(self):
-        """点击底部云端状态指示按钮立即触发一次同步"""
-        self.btn_cloud_status.setText("🔄 正在同步中...")
+        """点击底部授权状态指示按钮立即触发一次检测"""
+        self.btn_cloud_status.setText("🔄 授权验证中...")
         from src.core.cloud_client import CloudClient
         CloudClient.trigger_sync_now()
 
@@ -408,6 +418,34 @@ class MainWindow(QMainWindow):
 
         layout.addSpacing(15)
 
+        # 项目名称输入框 (预设: Coli-Architect)
+        lbl_proj = QLabel("🏷️ 项目名称:")
+        lbl_proj.setStyleSheet("font-size: 11px; font-weight: 700; color: #1E293B; margin-left: 2px;")
+        layout.addWidget(lbl_proj)
+
+        self.txt_project_name = QLineEdit("Coli-Architect")
+        self.txt_project_name.setPlaceholderText("预设: Coli-Architect")
+        self.txt_project_name.setToolTip("当前工程项目代号/名称（导出 Excel/CSV 报表与方案比对时将自动注入文件名与表格抬头）")
+        self.txt_project_name.setFixedWidth(150)
+        self.txt_project_name.setStyleSheet("""
+            QLineEdit {
+                background-color: #FFFFFF;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: 600;
+                color: #0F172A;
+            }
+            QLineEdit:focus {
+                border-color: #0284C7;
+                background-color: #F8FAFC;
+            }
+        """)
+        layout.addWidget(self.txt_project_name)
+
+        layout.addSpacing(10)
+
         # 快速预设方案
         lbl_preset = QLabel("工程预设:")
         lbl_preset.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
@@ -462,6 +500,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(btn_about)
 
         return bar
+
+    def get_project_name(self) -> str:
+        """获取当前工程项目名称 (去除首尾空格，若未填则保底默认 Coli-Architect)"""
+        if hasattr(self, "txt_project_name"):
+            val = self.txt_project_name.text().strip()
+            if val:
+                return val
+        return "Coli-Architect"
 
 
     def _create_left_parameter_panel(self) -> QWidget:
@@ -1474,12 +1520,14 @@ class MainWindow(QMainWindow):
     def _export_project(self):
         """保存算例配置文件 (.ansv / .json)"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = f"线圈工程算例_{timestamp}.ansv"
+        proj_name = self.get_project_name()
+        default_filename = f"{proj_name}_线圈工程算例_{timestamp}.ansv"
         path, _ = QFileDialog.getSaveFileName(self, "保存线圈算例", default_filename, "ANSV 算例文件 (*.ansv);;JSON 算例文件 (*.json)")
         if not path:
             return
         data = {
             "version": "1.0.0",
+            "project_name": proj_name,
             "inputs": {
                 "coil_type": int(self.inputs.coil_type),
                 "inner_len": self.inputs.inner_len,
@@ -1523,6 +1571,8 @@ class MainWindow(QMainWindow):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             inp = data.get("inputs", {})
+            if "project_name" in data and hasattr(self, "txt_project_name"):
+                self.txt_project_name.setText(data["project_name"])
             self._is_syncing_params = True
             try:
                 c_type = inp.get("coil_type", 0)
@@ -1584,8 +1634,25 @@ class MainWindow(QMainWindow):
 
     def _export_report(self):
         """导出工程评审报表 (支持 Excel .xlsx 或 CSV)"""
+        # 1. 弹出项目名称确认输入框，默认带出预设 Coli-Architect
+        current_name = self.get_project_name()
+        proj_name, ok = QInputDialog.getText(
+            self, 
+            "导出评审报告 - 确认项目名称", 
+            "请输入工程项目名称 (将注入文件名与报表元数据):", 
+            QLineEdit.EchoMode.Normal, 
+            current_name
+        )
+        if not ok:
+            return
+        proj_name = proj_name.strip() if proj_name else "Coli-Architect"
+        if not proj_name:
+            proj_name = "Coli-Architect"
+        if hasattr(self, "txt_project_name"):
+            self.txt_project_name.setText(proj_name)
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = f"线圈工程评审报告_{timestamp}.xlsx"
+        default_filename = f"{proj_name}_线圈工程评审报告_{timestamp}.xlsx"
         path, sel_filter = QFileDialog.getSaveFileName(
             self, 
             "导出工程评审报告", 
@@ -1599,13 +1666,13 @@ class MainWindow(QMainWindow):
             if not path.lower().endswith(".xlsx"):
                 path += ".xlsx"
             from ..export.report_excel import ExcelReportGenerator
-            ExcelReportGenerator.generate(self.inputs, self.outputs, path)
+            ExcelReportGenerator.generate(self.inputs, self.outputs, path, project_name=proj_name)
             self.status_bar.showMessage(f"Excel 评审报告已成功导出: {os.path.basename(path)}", 4000)
             QMessageBox.information(self, "导出成功", f"线圈多物理场评审报告已导出至:\n{path}")
         else:
-            self._export_csv_file(path)
+            self._export_csv_file(path, project_name=proj_name)
 
-    def _export_csv_file(self, path: str):
+    def _export_csv_file(self, path: str, project_name: str = "Coli-Architect"):
         c_type = self.inputs.coil_type
         if c_type == CoilType.CIRCULAR:
             c_type_name = "圆形线圈 (Circular)"
@@ -1624,8 +1691,12 @@ class MainWindow(QMainWindow):
             dim_row1 = f"实际外廓长度 (OL),{self.outputs.outer_len:.3f},mm"
             dim_row2 = f"实际外廓宽度 (OW),{self.outputs.outer_wid:.3f},mm"
 
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         lines = [
             "Coil-Architect Pro - 工程仿真数据报表",
+            f"工程项目名称,{project_name}",
+            f"评审导出时间,{now_str}",
+            "官方仿真平台,ansv.net (ANSV 微型执行器与精密传动平台)",
             f"线圈拓扑类型,{c_type_name}",
             f"有效成型总匝数 (N),{self.outputs.total_turns},匝",
             dim_row1,

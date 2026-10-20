@@ -16,7 +16,7 @@ class ExcelReportGenerator:
     """Excel 评审报告导出生成器"""
 
     @staticmethod
-    def generate(inputs: CoilInputs, outputs: CoilOutputs, save_path: str) -> str:
+    def generate(inputs: CoilInputs, outputs: CoilOutputs, save_path: str, project_name: str = "Coli-Architect") -> str:
         wb = Workbook()
         ws = wb.active
         ws.title = "线圈工程评审报告"
@@ -52,7 +52,19 @@ class ExcelReportGenerator:
         cell_title.alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[1].height = 36
 
-        # 2. 写入辅助函数
+        # 2. 项目工程名称与元数据栏
+        ws.merge_cells("A2:E2")
+        cell_meta = ws["A2"]
+        from datetime import datetime
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cell_meta.value = f"工程项目名称: {project_name}   |   评审导出时间: {now_str}   |   仿真平台: Coil-Architect Pro (ansv.net)"
+        cell_meta.font = Font(name="Segoe UI", size=9.5, bold=True, color="0369A1")
+        cell_meta.fill = PatternFill(start_color="F0F9FF", end_color="F0F9FF", fill_type="solid")
+        cell_meta.alignment = Alignment(horizontal="center", vertical="center")
+        cell_meta.border = border_box
+        ws.row_dimensions[2].height = 24
+
+        # 3. 写入辅助函数
         curr_row = 3
 
         def write_section(title_text: str):
@@ -101,6 +113,7 @@ class ExcelReportGenerator:
 
         # 一、输入几何与工艺
         write_section("1. 几何尺寸与绕线工艺输入 (Inputs)")
+        write_row_item("工程项目名称", "Project", project_name, "--", "当前仿真归属工程项目代号", is_hl=True)
         if inputs.coil_type == CoilType.CIRCULAR:
             coil_type_str = "圆形线圈 (Circular Coil / VLRA / 喇叭)"
         elif inputs.coil_type == CoilType.OCTAGONAL:

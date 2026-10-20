@@ -627,8 +627,8 @@ async function handleAdmin(path, request, env, url) {
         const activeDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'ACTIVE' AND (license_expire = 'PERMANENT' OR remaining_days > 0)").first())?.c || 0;
         const expiringSoon = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE remaining_days >= 0 AND remaining_days <= 7 AND license_expire != 'PERMANENT'").first())?.c || 0;
         
-        // 核心监控：3分钟内有心跳的实时在线工位机数量
-        const liveOnline = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= datetime('now', '-3 minutes')").first())?.c || 0;
+        // 核心监控：40分钟内有心跳的活跃在线工位机数量 (适配客户端每30分钟心跳周期)
+        const liveOnline = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= datetime('now', '-40 minutes')").first())?.c || 0;
         const todaySyncs = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= date('now')").first())?.c || 0;
         const totalLicenses = (await db.prepare("SELECT COUNT(*) as c FROM licenses").first())?.c || 0;
         const totalCases = (await db.prepare("SELECT COUNT(*) as c FROM coil_cases").first())?.c || 0;
@@ -670,7 +670,7 @@ async function handleAdmin(path, request, env, url) {
                 syncMs = new Date(d.last_sync_time.replace(' ', 'T') + 'Z').getTime();
             }
             const diffSec = syncMs > 0 ? Math.floor(Math.max(0, nowMs - syncMs) / 1000) : 999999;
-            const isOnline = diffSec <= 180; // 3分钟内有心跳判定为实时在线
+            const isOnline = diffSec <= 2400; // 40分钟内有授权心跳判定为活跃在线 (适配每30分钟心跳周期)
             
             // 自动转换为当地北京时间 (UTC+8) 显示
             let bjTimeStr = "-";
@@ -1409,9 +1409,9 @@ function renderDashboardPage() {
   <!-- 顶部数据概览卡片 (对齐 Gear 架构) -->
   <div class="stats-grid">
     <div class="stat-card" style="border-left: 4px solid #10B981; background: #F0FDF4;">
-      <div class="stat-label">🟢 当前实时在线工位机</div>
+      <div class="stat-label">🟢 当前在线活跃工位机</div>
       <div class="stat-val" id="stat-live-online" style="color: #059669; font-size:28px;">-</div>
-      <div style="font-size:10px; color:#059669; margin-top:2px;">心跳间隔 ≤ 3 分钟实时在线</div>
+      <div style="font-size:10px; color:#059669; margin-top:2px;">基于 40 分钟内授权校验握手</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">💻 累计接入工位机</div>

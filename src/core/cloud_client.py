@@ -258,14 +258,15 @@ class CloudClient:
     @classmethod
     def start_background_sync(
         cls, 
-        interval_sec: float = 30.0, 
+        interval_sec: float = 1800.0, 
         on_status_callback: Optional[Callable[[bool, str, str], None]] = None,
         on_command_callback: Optional[Callable[[str, str], None]] = None
     ):
         """
-        启动后台高可用静默心跳遥测与远程指令监听守护线程
-        - 每 interval_sec 秒与 Cloudflare 边缘数据库同步一次；
+        启动后台高可用静默授权检测与远程指令监听守护线程
+        - 每 interval_sec 秒 (默认 1800 秒 / 30 分钟) 与官方授权服务器安全校验一次；
         - 全程守护线程运行，绝对不阻塞任何主线程 GUI 渲染；
+        - 仅做授权状态和版本校验，绝对不上报任何线圈物理设计仿真数据；
         - 离线时自动静默降级，网络恢复时秒级自动重新握手。
         """
         if cls._is_running:
@@ -278,7 +279,7 @@ class CloudClient:
         cls._is_running = True
 
         def _sync_worker_loop():
-            logger.info("云端边缘协同与双向遥控守护引擎已启动 (每 30 秒自动同步)")
+            logger.info("云端授权守护引擎已启动 (每 30 分钟自动检测授权)")
             while not cls._stop_event.is_set():
                 ok, msg, data = cls.send_heartbeat_sync(cls._command_callback)
                 if cls._status_callback:
