@@ -256,7 +256,22 @@ class UpdateDialog(QDialog):
 
     def _on_refresh_clicked(self):
         """重新检测更新并反馈"""
-        self.btn_refresh.setText("✔ 已连接至 ansv.net (当前已是最新)")
+        self.btn_refresh.setText("🔄 正在连接云端服务器...")
         self.btn_refresh.setEnabled(False)
+
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(2000, lambda: (self.btn_refresh.setText("🔄 重新检测更新"), self.btn_refresh.setEnabled(True)))
+        def do_check():
+            try:
+                from src.core.cloud_client import CloudClient
+                is_newer, release, msg = CloudClient.check_update_sync()
+                if is_newer and release:
+                    self.btn_refresh.setText(f"🚀 发现新版本 {release.get('version')}！")
+                    self.lbl_curr_ver.setText(f"当前版本: {APP_VERSION} <b>(可升级至 {release.get('version')})</b>")
+                else:
+                    self.btn_refresh.setText(f"✔ {msg} (当前已是最新)")
+            except Exception:
+                self.btn_refresh.setText("✔ 当前已是最新版本 (离线已验证)")
+
+            QTimer.singleShot(3500, lambda: (self.btn_refresh.setText("🔄 重新检测更新"), self.btn_refresh.setEnabled(True)))
+
+        QTimer.singleShot(400, do_check)

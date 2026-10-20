@@ -1,0 +1,1442 @@
+/**
+ * ==============================================================================
+ * ANSV Coil-Architect Pro | Cloudflare Serverless 边缘授权与工位监控引擎
+ * 架构规范：Cloudflare Workers + D1 分布式 SQLite 数据库
+ * 
+ * 核心功能：
+ * 1. 外部访问自动重定向：普通访客访问根路径直接 302 跳转 ansv.net 官网；
+ * 2. 私密管理员后台 (/admin)：密码保护 (默认 Ansv@Coil#2026)，工业级高颜值仪表盘；
+ * 3. 商业授权一键签发：与客户端 Python 算法 100% 互通的 COIL-SEC-... HMAC-SHA256 Token 签发；
+ * 4. 工位机资产监控大屏：在线心跳、授权到期倒计时、防倒拨时钟监控、远程延期/拉黑；
+ * 5. OTA 软件发版推送：在线维护版本发布历史，客户端自动接收更新弹窗；
+ * 6. 全库数据一键备份：支持导出 JSON 全量备份文件。
+ * ==============================================================================
+ */
+
+// 管理员登录密码 (可在此处修改或在 Cloudflare 环境变量中覆盖)
+const DEFAULT_ADMIN_PASSWORD = "Ansv@Coil#2026";
+
+// 客户端软件静默通信 API Key
+const CLIENT_API_KEY = "COIL-SEC-2026#Ansv_TonyTech_c82P";
+
+// 授权加密主密钥 (必须与客户端 license_manager.py 中的 _SECRET_KEY 保持严格一致)
+const LICENSE_SECRET_KEY = "COIL_ARCHITECT_PRO_ANSV_SECRET_AUTH_KEY_2026_@v1#INDUSTRIAL";
+
+// 会话 Cookie 名称
+const AUTH_COOKIE_NAME = "coil_admin_session";
+const AUTH_COOKIE_VALUE = "COIL_AUTH_VALID_ANSV_2026_SESSION";
+
+// 官方重定向主页
+const OFFICIAL_REDIRECT_URL = "https://ansv.net";
+const GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect";
+
+// ==============================================================================
+// 密码学与 Token 编解码工具 (与 Python 端 100% 互通)
+// ==============================================================================
+
+function uint8ArrayToBase64Url(u8) {
+    let binary = "";
+    const len = u8.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(u8[i]);
+    }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function generateCoilToken(machineCode, expireDateStr, customerName, stationId) {
+    const payload = {
+        mid: (machineCode || "").trim().toUpperCase(),
+        exp: (expireDateStr || "PERMANENT").trim(),
+        cust: (customerName || "ANSV VIP Client").trim(),
+        stat: (stationId || "WORKSTATION-01").trim(),
+        ts: new Date().toISOString().replace("T", " ").substring(0, 19)
+    };
+    const rawJson = JSON.stringify(payload);
+    const rawBytes = new TextEncoder().encode(rawJson);
+    const keyBytes = new TextEncoder().encode(LICENSE_SECRET_KEY);
+
+    const xored = new Uint8Array(rawBytes.length);
+    for (let i = 0; i < rawBytes.length; i++) {
+        xored[i] = rawBytes[i] ^ keyBytes[i % keyBytes.length];
+    }
+
+    const b64Payload = uint8ArrayToBase64Url(xored);
+
+    const cryptoKey = await crypto.subtle.importKey(
+        "raw",
+        keyBytes,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+    );
+    const sigBuf = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(b64Payload));
+    const sigHex = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+    const sig16 = sigHex.substring(0, 16);
+
+    return `COIL-SEC-${b64Payload}.${sig16}`;
+}
+
+// ==============================================================================
+// HTTP 响应与 Cookie 辅助
+// ==============================================================================
+
+function corsHeaders() {
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+    };
+}
+
+function jsonResponse(data, status = 200) {
+    return new Response(JSON.stringify(data), {
+        status,
+        headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            ...corsHeaders(),
+        },
+    });
+}
+
+function parseCookies(request) {
+    const cookieStr = request.headers.get("Cookie") || "";
+    const cookies = {};
+    cookieStr.split(";").forEach(c => {
+        const parts = c.split("=");
+        if (parts.length >= 2) {
+            cookies[parts[0].trim()] = parts.slice(1).join("=").trim();
+        }
+    });
+    return cookies;
+}
+
+function isAdminAuthenticated(request, env) {
+    const cookies = parseCookies(request);
+    const expected = env.ADMIN_AUTH_TOKEN || AUTH_COOKIE_VALUE;
+    return cookies[AUTH_COOKIE_NAME] === expected;
+}
+
+// ==============================================================================
+// 核心路由分发器
+// ==============================================================================
+
+export default {
+    async fetch(request, env, ctx) {
+        if (request.method === "OPTIONS") {
+            return new Response(null, { headers: corsHeaders() });
+        }
+
+        const url = new URL(request.url);
+        const path = url.pathname;
+
+        try {
+            // ------------------------------------------------------------------
+            // 1. 普通访客访问根路径：智能 302 重定向到官方主页，完全隐藏后台
+            // ------------------------------------------------------------------
+            if (path === "/" || path === "") {
+                if (isAdminAuthenticated(request, env)) {
+                    return Response.redirect(`${url.origin}/admin`, 302);
+                }
+                return Response.redirect(OFFICIAL_REDIRECT_URL, 302);
+            }
+
+            // ------------------------------------------------------------------
+            // 2. 客户端静默 API 接口 (/api/v1/...)
+            // ------------------------------------------------------------------
+            if (path.startsWith("/api/v1/")) {
+                return await handleClientApi(path, request, env);
+            }
+
+            // ------------------------------------------------------------------
+            // 3. 管理员后台页面与操作接口 (/admin/...)
+            // ------------------------------------------------------------------
+            if (path.startsWith("/admin")) {
+                return await handleAdmin(path, request, env, url);
+            }
+
+            // 兜底重定向
+            return Response.redirect(OFFICIAL_REDIRECT_URL, 302);
+        } catch (err) {
+            return jsonResponse({ success: false, error: err.message, stack: err.stack }, 500);
+        }
+    }
+};
+
+// ==============================================================================
+// 客户端静默 API 处理器
+// ==============================================================================
+
+async function handleClientApi(path, request, env) {
+    const db = env.DB;
+    if (!db) {
+        return jsonResponse({ success: false, error: "Database binding DB is missing." }, 500);
+    }
+
+    // 1. 心跳上报与防倒拨时钟校准
+    if (path === "/api/v1/heartbeat" && request.method === "POST") {
+        let body = {};
+        try {
+            body = await request.json();
+        } catch (e) {
+            return jsonResponse({ success: false, error: "Invalid JSON" }, 400);
+        }
+
+        const machineId = (body.machine_id || "").trim().toUpperCase();
+        if (!machineId) {
+            return jsonResponse({ success: false, error: "Missing machine_id" }, 400);
+        }
+
+        const hostname = body.hostname || "-";
+        const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "-";
+        const mac = body.mac_address || "-";
+        const appVersion = body.app_version || "-";
+        const appBuild = body.app_build || "-";
+        const isVm = body.is_virtual_machine ? 1 : 0;
+        const licenseToken = body.license_token || "";
+        const clientClockTs = Number(body.client_timestamp || 0);
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        let clockTampered = 0;
+        if (clientClockTs > 0 && Math.abs(nowSec - clientClockTs) > 180) {
+            clockTampered = 1; // 误差超过 3 分钟，视为倒拨或漂移
+        }
+
+        // 解析并计算剩余天数
+        let licenseStatus = "TRIAL";
+        let licenseExpire = body.license_expire || "-";
+        let remainingDays = 0;
+
+        if (licenseExpire === "PERMANENT") {
+            licenseStatus = "ACTIVE";
+            remainingDays = 99999;
+        } else if (licenseExpire && licenseExpire !== "-") {
+            try {
+                const expDate = new Date(licenseExpire + "T23:59:59Z");
+                const diffTime = expDate.getTime() - Date.now();
+                remainingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (remainingDays <= 0) {
+                    licenseStatus = "EXPIRED";
+                } else {
+                    licenseStatus = "ACTIVE";
+                }
+            } catch (e) {}
+        }
+
+        // 插入或更新工位机资产
+        await db.prepare(`
+            INSERT INTO devices (
+                machine_id, hostname, ip_address, mac_address, app_version, app_build,
+                is_virtual_machine, clock_tampered, license_status, license_expire, remaining_days,
+                last_sync, sync_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1)
+            ON CONFLICT(machine_id) DO UPDATE SET
+                hostname = excluded.hostname,
+                ip_address = excluded.ip_address,
+                mac_address = CASE WHEN excluded.mac_address != '-' THEN excluded.mac_address ELSE devices.mac_address END,
+                app_version = excluded.app_version,
+                app_build = excluded.app_build,
+                is_virtual_machine = excluded.is_virtual_machine,
+                clock_tampered = CASE WHEN excluded.clock_tampered = 1 THEN 1 ELSE devices.clock_tampered END,
+                license_status = CASE WHEN devices.status = 'BANNED' THEN 'BANNED' ELSE excluded.license_status END,
+                license_expire = CASE WHEN excluded.license_expire != '-' THEN excluded.license_expire ELSE devices.license_expire END,
+                remaining_days = excluded.remaining_days,
+                last_sync = CURRENT_TIMESTAMP,
+                sync_count = devices.sync_count + 1
+        `).bind(
+            machineId, hostname, ip, mac, appVersion, appBuild,
+            isVm, clockTampered, licenseStatus, licenseExpire, remainingDays
+        ).run();
+
+        // 查询当前最新版本信息
+        const release = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
+        const deviceRow = await db.prepare("SELECT status, customer_name FROM devices WHERE machine_id = ?").bind(machineId).first();
+
+        return jsonResponse({
+            success: true,
+            server_timestamp: nowSec,
+            server_time_str: new Date().toISOString().replace("T", " ").substring(0, 19),
+            clock_tampered: clockTampered === 1,
+            device_status: deviceRow ? deviceRow.status : "ACTIVE",
+            customer_name: deviceRow ? deviceRow.customer_name : "散户/未登记",
+            remaining_days: remainingDays,
+            latest_release: release ? {
+                version: release.version,
+                build: release.build,
+                release_date: release.release_date,
+                download_url: release.download_url,
+                backup_url: release.backup_url,
+                sha256: release.sha256,
+                file_size_mb: release.file_size_mb,
+                changelog: release.changelog,
+                is_mandatory: release.is_mandatory === 1
+            } : null
+        });
+    }
+
+    // 2. 检查版本更新
+    if ((path === "/api/v1/check_update" || path === "/api/v1/update") && (request.method === "GET" || request.method === "POST")) {
+        const release = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
+        if (!release) {
+            return jsonResponse({ success: false, message: "No active release found" });
+        }
+        return jsonResponse({
+            success: true,
+            version: release.version,
+            build: release.build,
+            release_date: release.release_date,
+            download_url: release.download_url,
+            backup_url: release.backup_url,
+            sha256: release.sha256,
+            file_size_mb: release.file_size_mb,
+            changelog: release.changelog,
+            is_mandatory: release.is_mandatory === 1
+        });
+    }
+
+    return jsonResponse({ success: false, error: "API route not found" }, 404);
+}
+
+// ==============================================================================
+// 管理员后台处理器
+// ==============================================================================
+
+async function handleAdmin(path, request, env, url) {
+    const db = env.DB;
+    if (!db) {
+        return new Response("Database binding DB is missing in Worker configuration.", { status: 500 });
+    }
+
+    // 1. 登录验证 API
+    if (path === "/admin/api/login" && request.method === "POST") {
+        let body = {};
+        try { body = await request.json(); } catch(e){}
+        const inputPwd = (body.password || "").trim();
+        const expectedPwd = env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+
+        if (inputPwd === expectedPwd) {
+            const token = env.ADMIN_AUTH_TOKEN || AUTH_COOKIE_VALUE;
+            return new Response(JSON.stringify({ success: true }), {
+                status: 200,
+                headers: {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Set-Cookie": `${AUTH_COOKIE_NAME}=${token}; Path=/; HttpOnly; Max-Age=86400; SameSite=Lax`,
+                    ...corsHeaders()
+                }
+            });
+        }
+        return jsonResponse({ success: false, error: "管理员密码错误" }, 401);
+    }
+
+    // 2. 登出 API
+    if (path === "/admin/api/logout" && request.method === "POST") {
+        return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                "Set-Cookie": `${AUTH_COOKIE_NAME}=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax`,
+                ...corsHeaders()
+            }
+        });
+    }
+
+    // 3. 页面渲染：若未登录则展示登录页，已登录则展示完整管理看板
+    if (path === "/admin" || path === "/admin/") {
+        if (!isAdminAuthenticated(request, env)) {
+            return new Response(renderLoginPage(), {
+                headers: { "Content-Type": "text/html; charset=utf-8" }
+            });
+        }
+        return new Response(renderDashboardPage(), {
+            headers: { "Content-Type": "text/html; charset=utf-8" }
+        });
+    }
+
+    // 4. 下方所有 /admin/api/* 必须校验管理员权限
+    if (!isAdminAuthenticated(request, env)) {
+        return jsonResponse({ success: false, error: "未授权，请先登录后台" }, 401);
+    }
+
+    // A. 仪表盘全景统计指标
+    if (path === "/admin/api/stats" && request.method === "GET") {
+        const totalDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices").first())?.c || 0;
+        const activeDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'ACTIVE' AND (license_expire = 'PERMANENT' OR remaining_days > 0)").first())?.c || 0;
+        const expiringSoon = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE remaining_days >= 0 AND remaining_days <= 7 AND license_expire != 'PERMANENT'").first())?.c || 0;
+        const todaySyncs = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync >= date('now')").first())?.c || 0;
+        const totalLicenses = (await db.prepare("SELECT COUNT(*) as c FROM licenses").first())?.c || 0;
+        const activeRelease = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
+
+        return jsonResponse({
+            success: true,
+            stats: {
+                total_devices: totalDevices,
+                active_devices: activeDevices,
+                expiring_soon: expiringSoon,
+                today_syncs: todaySyncs,
+                total_licenses: totalLicenses,
+                latest_version: activeRelease ? activeRelease.version : "v1.1.0"
+            }
+        });
+    }
+
+    // B. 工位机列表 (支持搜索与状态筛选)
+    if (path === "/admin/api/devices" && request.method === "GET") {
+        const q = (url.searchParams.get("q") || "").trim();
+        let query = "SELECT * FROM devices ORDER BY last_sync DESC LIMIT 150";
+        let res;
+        if (q) {
+            query = "SELECT * FROM devices WHERE machine_id LIKE ? OR customer_name LIKE ? OR hostname LIKE ? OR ip_address LIKE ? ORDER BY last_sync DESC LIMIT 150";
+            const pattern = `%${q}%`;
+            res = await db.prepare(query).bind(pattern, pattern, pattern, pattern).all();
+        } else {
+            res = await db.prepare(query).all();
+        }
+        return jsonResponse({ success: true, devices: res.results || [] });
+    }
+
+    // C. 一键生成商业授权码并写入数据库
+    if (path === "/admin/api/generate_token" && request.method === "POST") {
+        let body = {};
+        try { body = await request.json(); } catch(e){}
+        const mid = (body.machine_id || "").trim().toUpperCase();
+        const planType = body.plan_type || "TRIAL_30";
+        const customer = (body.customer_name || "ANSV VIP Client").trim();
+        const station = (body.station_id || "WORKSTATION-01").trim();
+        const notes = (body.notes || "").trim();
+
+        if (!mid) {
+            return jsonResponse({ success: false, error: "请输入机器识别码" }, 400);
+        }
+
+        // 计算到期时间
+        let expireDateStr = "PERMANENT";
+        const today = new Date();
+        if (planType === "TRIAL_7") {
+            today.setDate(today.getDate() + 7);
+            expireDateStr = today.toISOString().substring(0, 10);
+        } else if (planType === "TRIAL_30") {
+            today.setDate(today.getDate() + 30);
+            expireDateStr = today.toISOString().substring(0, 10);
+        } else if (planType === "QUARTER_90") {
+            today.setDate(today.getDate() + 90);
+            expireDateStr = today.toISOString().substring(0, 10);
+        } else if (planType === "ANNUAL_365") {
+            today.setDate(today.getDate() + 365);
+            expireDateStr = today.toISOString().substring(0, 10);
+        } else if (planType === "CUSTOM" && body.custom_expire) {
+            expireDateStr = body.custom_expire.trim();
+        }
+
+        // 生成加密 Token
+        const token = await generateCoilToken(mid, expireDateStr, customer, station);
+
+        // 写入 licenses 表
+        await db.prepare(`
+            INSERT INTO licenses (token, machine_id, plan_type, expire_date, customer_name, station_id, status, notes)
+            VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+        `).bind(token, mid, planType, expireDateStr, customer, station, notes).run();
+
+        // 同步更新 devices 表（如果已存在该机器码）
+        await db.prepare(`
+            UPDATE devices SET 
+                customer_name = ?,
+                line_station = ?,
+                license_status = 'ACTIVE',
+                license_expire = ?,
+                status = 'ACTIVE',
+                notes = CASE WHEN ? != '' THEN ? ELSE notes END
+            WHERE machine_id = ?
+        `).bind(customer, station, expireDateStr, notes, notes, mid).run();
+
+        // 审计留痕
+        const ip = request.headers.get("CF-Connecting-IP") || "-";
+        await db.prepare(`
+            INSERT INTO audit_logs (action, target_mid, details, ip)
+            VALUES ('GENERATE_TOKEN', ?, ?, ?)
+        `).bind(mid, `签发方案: ${planType}, 到期日: ${expireDateStr}, 客户: ${customer}`, ip).run();
+
+        return jsonResponse({
+            success: true,
+            token,
+            machine_id: mid,
+            expire_date: expireDateStr,
+            customer_name: customer,
+            plan_type: planType
+        });
+    }
+
+    // D. 设备运维操作 (拉黑/解封/延期)
+    if (path === "/admin/api/device/action" && request.method === "POST") {
+        let body = {};
+        try { body = await request.json(); } catch(e){}
+        const mid = (body.machine_id || "").trim();
+        const action = body.action;
+        const val = body.value;
+        const ip = request.headers.get("CF-Connecting-IP") || "-";
+
+        if (!mid) return jsonResponse({ success: false, error: "Missing machine_id" }, 400);
+
+        if (action === "BAN") {
+            await db.prepare("UPDATE devices SET status = 'BANNED' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('BAN_DEVICE', ?, '管理员强制拉黑吊销', ?)").bind(mid, ip).run();
+        } else if (action === "ACTIVATE") {
+            await db.prepare("UPDATE devices SET status = 'ACTIVE' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('ACTIVATE_DEVICE', ?, '管理员恢复解封正常状态', ?)").bind(mid, ip).run();
+        } else if (action === "EXTEND_DAYS") {
+            const days = parseInt(val) || 30;
+            const targetDate = new Date();
+            targetDate.setDate(targetDate.getDate() + days);
+            const newExp = targetDate.toISOString().substring(0, 10);
+            await db.prepare("UPDATE devices SET license_expire = ?, remaining_days = ?, license_status = 'ACTIVE' WHERE machine_id = ?").bind(newExp, days, mid).run();
+            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('EXTEND_DAYS', ?, ?, ?)").bind(mid, `延长至: ${newExp}`, ip).run();
+        } else if (action === "SET_PERMANENT") {
+            await db.prepare("UPDATE devices SET license_expire = 'PERMANENT', remaining_days = 99999, license_status = 'ACTIVE' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action, target_mid, details, ip) VALUES ('SET_PERMANENT', ?, '设为永久企业买断授权', ?)").bind(mid, ip).run();
+        }
+
+        return jsonResponse({ success: true });
+    }
+
+    // E. 历史签发授权码列表
+    if (path === "/admin/api/licenses" && request.method === "GET") {
+        const res = await db.prepare("SELECT * FROM licenses ORDER BY id DESC LIMIT 100").all();
+        return jsonResponse({ success: true, licenses: res.results || [] });
+    }
+
+    // F. 软件发布历史
+    if (path === "/admin/api/releases" && request.method === "GET") {
+        const res = await db.prepare("SELECT * FROM releases ORDER BY id DESC").all();
+        return jsonResponse({ success: true, releases: res.results || [] });
+    }
+
+    // G. 发布新版本
+    if (path === "/admin/api/releases" && request.method === "POST") {
+        let b = {};
+        try { b = await request.json(); } catch(e){}
+        if (!b.version || !b.download_url) {
+            return jsonResponse({ success: false, error: "请填写完整版本号与下载地址" }, 400);
+        }
+        await db.prepare(`
+            INSERT INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        `).bind(
+            b.version.trim(),
+            b.build || "",
+            b.release_date || new Date().toISOString().substring(0, 10),
+            b.download_url.trim(),
+            b.backup_url || "",
+            b.sha256 || "",
+            Number(b.file_size_mb || 0),
+            b.changelog || "",
+            b.is_mandatory ? 1 : 0
+        ).run();
+
+        return jsonResponse({ success: true });
+    }
+
+    // H. 全量导出数据库备份 (JSON)
+    if (path === "/admin/api/export_db" && request.method === "GET") {
+        const devices = (await db.prepare("SELECT * FROM devices").all()).results;
+        const licenses = (await db.prepare("SELECT * FROM licenses").all()).results;
+        const releases = (await db.prepare("SELECT * FROM releases").all()).results;
+        const audit = (await db.prepare("SELECT * FROM audit_logs").all()).results;
+        const config = (await db.prepare("SELECT * FROM app_config").all()).results;
+
+        const backup = {
+            export_time: new Date().toISOString(),
+            platform: "ANSV Coil-Architect Pro Edge DB",
+            tables: { devices, licenses, releases, audit_logs: audit, app_config: config }
+        };
+
+        return new Response(JSON.stringify(backup, null, 2), {
+            headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                "Content-Disposition": `attachment; filename="coil_architect_backup_${new Date().toISOString().substring(0,10)}.json"`
+            }
+        });
+    }
+
+    return jsonResponse({ success: false, error: "Admin route not found" }, 404);
+}
+
+// ==============================================================================
+// 纯白工业风格登录页 HTML
+// ==============================================================================
+
+function renderLoginPage() {
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理员安全登录 — ANSV Coil-Architect Pro</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0F172A;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+    color: #F8FAFC;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 420px;
+    padding: 36px 32px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .logo-box {
+    width: 44px;
+    height: 44px;
+    background: #0284C7;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+  .brand-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #FFFFFF;
+    line-height: 1.2;
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: #94A3B8;
+    margin-top: 3px;
+  }
+  .form-group {
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #CBD5E1;
+    margin-bottom: 8px;
+  }
+  input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    background: #0F172A;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    color: #FFFFFF;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="password"]:focus {
+    border-color: #38BDF8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    background: #0284C7;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover {
+    background: #0369A1;
+  }
+  .error-tip {
+    color: #F87171;
+    font-size: 12px;
+    margin-top: 10px;
+    display: none;
+    text-align: center;
+  }
+  .footer {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 11px;
+    color: #64748B;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">
+    <div class="logo-box">⚡</div>
+    <div>
+      <div class="brand-title">ANSV Coil-Architect Pro</div>
+      <div class="brand-sub">云端授权看门狗与工位监控后台</div>
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="pwd">管理员专属安全密码</label>
+    <input type="password" id="pwd" placeholder="请输入管理密码" autofocus />
+  </div>
+  <button id="btn-login" onclick="doLogin()">安全登录解锁控制台</button>
+  <div id="err" class="error-tip">密码错误，请重试</div>
+  <div class="footer">Actuator Numerical Simulation & Validation | ansv.net</div>
+</div>
+<script>
+async function doLogin() {
+  const pwd = document.getElementById('pwd').value;
+  const btn = document.getElementById('btn-login');
+  const err = document.getElementById('err');
+  if(!pwd) return;
+  btn.disabled = true;
+  btn.innerText = '正在鉴权...';
+  err.style.display = 'none';
+  try {
+    const res = await fetch('/admin/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    });
+    const d = await res.json();
+    if(d.success) {
+      window.location.reload();
+    } else {
+      err.innerText = d.error || '登录失败';
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    err.innerText = '网络连接错误';
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '安全登录解锁控制台';
+  }
+}
+document.getElementById('pwd').addEventListener('keyup', (e) => {
+  if(e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>`;
+}
+
+// ==============================================================================
+// 工业级管理看板页面 HTML (SolidWorks 纯白工业测控风格)
+// ==============================================================================
+
+function renderDashboardPage() {
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ANSV Coil-Architect Pro | 商业授权与工位监控控制台</title>
+<style>
+  :root {
+    --bg-main: #F1F5F9;
+    --card-bg: #FFFFFF;
+    --border: #CBD5E1;
+    --primary: #0284C7;
+    --primary-hover: #0369A1;
+    --text-dark: #0F172A;
+    --text-muted: #64748B;
+    --success: #10B981;
+    --danger: #EF4444;
+    --warning: #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-main);
+    color: var(--text-dark);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  header {
+    background: #0F172A;
+    color: #FFFFFF;
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #0284C7;
+  }
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-logo {
+    width: 32px;
+    height: 32px;
+    background: #0284C7;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  .header-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .header-sub {
+    font-size: 11px;
+    color: #94A3B8;
+  }
+  .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-header {
+    background: #1E293B;
+    border: 1px solid #334155;
+    color: #CBD5E1;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .btn-header:hover {
+    background: #334155;
+    color: #FFFFFF;
+  }
+  .container {
+    max-width: 1400px;
+    margin: 20px auto;
+    padding: 0 20px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .stat-val {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin-top: 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .nav-tabs {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .nav-tab {
+    padding: 10px 18px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .nav-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: rgba(2, 132, 199, 0.04);
+  }
+  .card-main {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .search-input {
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 280px;
+    font-size: 12px;
+    outline: none;
+  }
+  .search-input:focus {
+    border-color: var(--primary);
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: #FFFFFF;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-primary:hover {
+    background: var(--primary-hover);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  th {
+    background: #F8FAFC;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #E2E8F0;
+    color: var(--text-dark);
+  }
+  tr:hover td {
+    background: #F8FAFC;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-success { background: #DCFCE7; color: #15803D; }
+  .badge-warning { background: #FEF3C7; color: #B45309; }
+  .badge-danger { background: #FEE2E2; color: #B91C1C; }
+  .badge-info { background: #E0F2FE; color: #0369A1; }
+  .mono {
+    font-family: Consolas, monospace;
+    font-weight: 600;
+  }
+  .click-copy {
+    cursor: pointer;
+    border-bottom: 1px dashed var(--primary);
+  }
+  .click-copy:hover {
+    color: var(--primary);
+  }
+  /* 模态弹窗 */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-box {
+    background: #FFFFFF;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 540px;
+    padding: 24px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  }
+  .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text-dark);
+  }
+  .form-row {
+    margin-bottom: 14px;
+  }
+  .form-row label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .form-row input, .form-row select, .form-row textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    outline: none;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .btn-secondary {
+    background: #E2E8F0;
+    color: #475569;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .token-result-box {
+    background: #F8FAFC;
+    border: 1px solid var(--primary);
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 14px;
+    display: none;
+  }
+  .token-text {
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    word-break: break-all;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <div class="header-logo">⚡</div>
+    <div>
+      <div class="header-title">ANSV Coil-Architect Pro | 商业授权与工位监控控制台</div>
+      <div class="header-sub">Actuator Numerical Simulation & Validation | 边缘分布式看门狗引擎</div>
+    </div>
+  </div>
+  <div class="header-tools">
+    <button class="btn-header" onclick="exportDbBackup()">📥 导出全量备份 JSON</button>
+    <button class="btn-header" onclick="doLogout()">🚪 退出管理</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- 顶部数据概览卡片 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">💻 累计接入工位机</div>
+      <div class="stat-val" id="stat-total-devices">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🟢 活跃商业授权</div>
+      <div class="stat-val" id="stat-active-devices" style="color: var(--success);">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">⚠️ 7天内即将到期预警</div>
+      <div class="stat-val" id="stat-expiring-soon" style="color: var(--warning);">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🔄 今日在线心跳台数</div>
+      <div class="stat-val" id="stat-today-syncs">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">🚀 当前主推版本</div>
+      <div class="stat-val" id="stat-latest-ver" style="color: var(--primary);">-</div>
+    </div>
+  </div>
+
+  <!-- 选项卡导航 -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('devices')">💻 现场工位机监控台账</button>
+    <button class="nav-tab" onclick="switchTab('licenses')">🔑 历史签发授权记录</button>
+    <button class="nav-tab" onclick="switchTab('releases')">🚀 软件发版与 OTA 管理</button>
+  </div>
+
+  <!-- TAB 1: 工位机台账 -->
+  <div id="tab-devices" class="card-main">
+    <div class="toolbar">
+      <div>
+        <input type="text" id="search-device" class="search-input" placeholder="🔍 搜索机器码 / 公司 / 主机名 / IP..." onkeyup="if(event.key==='Enter') loadDevices()" />
+        <button class="btn-primary" onclick="loadDevices()">查询</button>
+      </div>
+      <div>
+        <button class="btn-primary" style="background:#059669;" onclick="openGenerateModal()">➕ 为客户一键生成激活码</button>
+        <button class="btn-secondary" onclick="loadDevices()">🔄 刷新列表</button>
+      </div>
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>机器识别码 (Machine ID)</th>
+            <th>客户公司 / 工位</th>
+            <th>软件版本</th>
+            <th>授权状态</th>
+            <th>到期日期 (剩余天数)</th>
+            <th>最近在线心跳</th>
+            <th>虚拟机 / 倒拨</th>
+            <th>管控操作</th>
+          </tr>
+        </thead>
+        <tbody id="device-table-body">
+          <tr><td colspan="8" style="text-align:center; padding: 30px;">正在加载工位机资产...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 2: 历史授权码 -->
+  <div id="tab-licenses" class="card-main" style="display:none;">
+    <div class="toolbar">
+      <div><b>已签发加密授权码记录 (最近 100 条)</b></div>
+      <button class="btn-primary" onclick="openGenerateModal()">➕ 签发新授权</button>
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>绑定机器码</th>
+            <th>方案类型</th>
+            <th>到期时间</th>
+            <th>授权企业</th>
+            <th>签发时间</th>
+            <th>激活码 (点击复制)</th>
+          </tr>
+        </thead>
+        <tbody id="license-table-body">
+          <tr><td colspan="7" style="text-align:center; padding: 30px;">正在读取授权记录...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 3: 软件发版管理 -->
+  <div id="tab-releases" class="card-main" style="display:none;">
+    <div class="toolbar">
+      <div><b>官方版本发布与 OTA 更新列表</b></div>
+      <button class="btn-primary" onclick="openReleaseModal()">➕ 登记新版本</button>
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>版本号</th>
+            <th>发布日期</th>
+            <th>构建指纹</th>
+            <th>安装包大小</th>
+            <th>下载链接 (直链)</th>
+            <th>强制升级</th>
+          </tr>
+        </thead>
+        <tbody id="release-table-body">
+          <tr><td colspan="6" style="text-align:center; padding: 30px;">正在读取发布记录...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗 1: 生成激活码 -->
+<div id="modal-gen" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">🔑 为客户一键签发商业授权 Token</div>
+    <div class="form-row">
+      <label>客户机器识别码 (必填)</label>
+      <input type="text" id="gen-mid" placeholder="例如: COIL-609D-64D4-5D11-35E2" style="font-family:Consolas,monospace;" />
+    </div>
+    <div class="form-row">
+      <label>授权订阅方案</label>
+      <select id="gen-plan" onchange="toggleCustomDate()">
+        <option value="TRIAL_7">🟢 7 天短期试用版</option>
+        <option value="TRIAL_30" selected>🟢 30 天项目评估版</option>
+        <option value="QUARTER_90">🟢 90 天季度商业版</option>
+        <option value="ANNUAL_365">🟢 1 年年度商业版</option>
+        <option value="PERMANENT">🟢 永久企业买断版</option>
+        <option value="CUSTOM">⚙️ 自定义到期日</option>
+      </select>
+    </div>
+    <div class="form-row" id="row-custom-date" style="display:none;">
+      <label>指定到期日期 (YYYY-MM-DD)</label>
+      <input type="date" id="gen-custom-date" />
+    </div>
+    <div class="form-row">
+      <label>客户企业 / 机构名称</label>
+      <input type="text" id="gen-cust" placeholder="例如: 苏州XX微型马达研发部" value="ANSV VIP Client" />
+    </div>
+    <div class="form-row">
+      <label>产线 / 工位编号 (可选)</label>
+      <input type="text" id="gen-stat" placeholder="例如: WORKSTATION-01" value="WORKSTATION-01" />
+    </div>
+    <div class="form-row">
+      <label>商务备注 / 合同号 (可选)</label>
+      <input type="text" id="gen-notes" placeholder="内部合同编号或经手人" />
+    </div>
+
+    <div id="gen-result" class="token-result-box">
+      <div style="font-size:12px; font-weight:700; color:var(--primary);">🎉 授权码已成功生成并存入数据库！</div>
+      <div class="token-text" id="token-display"></div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button class="btn-primary" style="flex:1;" onclick="copyToken()">📋 复制完整激活码</button>
+        <button class="btn-secondary" style="flex:1;" onclick="copyWechatTemplate()">💬 复制微信回复模板</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeGenerateModal()">关闭</button>
+      <button class="btn-primary" id="btn-do-gen" onclick="doGenerateToken()">立即生成</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentGeneratedToken = '';
+let currentGeneratedInfo = {};
+
+function switchTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-devices').style.display = tab === 'devices' ? 'block' : 'none';
+  document.getElementById('tab-licenses').style.display = tab === 'licenses' ? 'block' : 'none';
+  document.getElementById('tab-releases').style.display = tab === 'releases' ? 'block' : 'none';
+  if(tab === 'licenses') loadLicenses();
+  if(tab === 'releases') loadReleases();
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch('/admin/api/stats');
+    const d = await res.json();
+    if(d.success) {
+      document.getElementById('stat-total-devices').innerText = d.stats.total_devices;
+      document.getElementById('stat-active-devices').innerText = d.stats.active_devices;
+      document.getElementById('stat-expiring-soon').innerText = d.stats.expiring_soon;
+      document.getElementById('stat-today-syncs').innerText = d.stats.today_syncs;
+      document.getElementById('stat-latest-ver').innerText = d.stats.latest_version;
+    }
+  } catch(e){}
+}
+
+async function loadDevices() {
+  const q = document.getElementById('search-device').value;
+  const tbody = document.getElementById('device-table-body');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px;">正在检索...</td></tr>';
+  try {
+    const res = await fetch('/admin/api/devices?q=' + encodeURIComponent(q));
+    const d = await res.json();
+    if(d.success && d.devices.length > 0) {
+      tbody.innerHTML = d.devices.map(dev => {
+        let statusBadge = '<span class="badge badge-success">正常授权</span>';
+        if(dev.status === 'BANNED') statusBadge = '<span class="badge badge-danger">已拉黑阻断</span>';
+        else if(dev.license_status === 'EXPIRED') statusBadge = '<span class="badge badge-danger">已过期</span>';
+        else if(dev.license_status === 'TRIAL') statusBadge = '<span class="badge badge-warning">免密试用</span>';
+
+        let remainText = dev.license_expire === 'PERMANENT' ? '永久有效' : (dev.remaining_days > 0 ? dev.remaining_days + ' 天' : '<span style="color:red;">已逾期</span>');
+        let vmText = dev.is_virtual_machine ? '<span style="color:#B45309;">⚠️虚拟机</span>' : '物理真机';
+        let clockText = dev.clock_tampered ? '<span style="color:#B91C1C;font-weight:bold;">🚨倒拨时钟</span>' : '时钟正常';
+
+        return '<tr>' +
+          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span></td>' +
+          '<td><b>' + (dev.customer_name || '-') + '</b><br><span style="color:#64748B;font-size:11px;">' + (dev.hostname || '-') + ' (' + (dev.ip_address || '-') + ')</span></td>' +
+          '<td><span class="mono">' + dev.app_version + '</span></td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td>' + dev.license_expire + '<br><span style="font-size:11px;color:#64748B;">(' + remainText + ')</span></td>' +
+          '<td><span style="font-size:11px;">' + dev.last_sync + '</span><br><span style="font-size:10px;color:#94A3B8;">已同步 ' + dev.sync_count + ' 次</span></td>' +
+          '<td>' + vmText + '<br>' + clockText + '</td>' +
+          '<td>' +
+            '<button class="btn-primary" style="padding:3px 8px;font-size:11px;margin-right:4px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">开通授权</button>' +
+            (dev.status === 'BANNED' ? 
+              '<button class="btn-secondary" style="padding:3px 8px;font-size:11px;" onclick="deviceAction(\\'' + dev.machine_id + '\\', \\'ACTIVATE\\')">解封</button>' :
+              '<button class="btn-secondary" style="padding:3px 8px;font-size:11px;color:#EF4444;" onclick="deviceAction(\\'' + dev.machine_id + '\\', \\'BAN\\')">拉黑</button>') +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 30px; color:#94A3B8;">暂无符合条件的工位机记录</td></tr>';
+    }
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px; color:red;">数据加载失败</td></tr>';
+  }
+}
+
+async function loadLicenses() {
+  const tbody = document.getElementById('license-table-body');
+  try {
+    const res = await fetch('/admin/api/licenses');
+    const d = await res.json();
+    if(d.success && d.licenses.length > 0) {
+      tbody.innerHTML = d.licenses.map(lic => {
+        return '<tr>' +
+          '<td>' + lic.id + '</td>' +
+          '<td><span class="mono">' + lic.machine_id + '</span></td>' +
+          '<td><span class="badge badge-info">' + lic.plan_type + '</span></td>' +
+          '<td>' + lic.expire_date + '</td>' +
+          '<td>' + lic.customer_name + '</td>' +
+          '<td>' + lic.created_at + '</td>' +
+          '<td><span class="mono click-copy" style="font-size:10px;" onclick="copyText(\\'' + lic.token + '\\')">' + lic.token.substring(0, 32) + '...</span></td>' +
+        '</tr>';
+      }).join('');
+    }
+  } catch(e){}
+}
+
+async function loadReleases() {
+  const tbody = document.getElementById('release-table-body');
+  try {
+    const res = await fetch('/admin/api/releases');
+    const d = await res.json();
+    if(d.success && d.releases.length > 0) {
+      tbody.innerHTML = d.releases.map(r => {
+        return '<tr>' +
+          '<td><b>' + r.version + '</b></td>' +
+          '<td>' + r.release_date + '</td>' +
+          '<td><span class="mono">' + r.build + '</span></td>' +
+          '<td>' + r.file_size_mb + ' MB</td>' +
+          '<td><a href="' + r.download_url + '" target="_blank" style="color:#0284C7;text-decoration:none;">下载直链 ↗</a></td>' +
+          '<td>' + (r.is_mandatory ? '<span class="badge badge-danger">强制升级</span>' : '<span class="badge badge-info">可选升级</span>') + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+  } catch(e){}
+}
+
+function openGenerateModal() {
+  document.getElementById('modal-gen').style.display = 'flex';
+  document.getElementById('gen-result').style.display = 'none';
+}
+function closeGenerateModal() {
+  document.getElementById('modal-gen').style.display = 'none';
+}
+function quickGenForMid(mid, cust) {
+  openGenerateModal();
+  document.getElementById('gen-mid').value = mid;
+  if(cust && cust !== '散户/未登记') document.getElementById('gen-cust').value = cust;
+}
+
+function toggleCustomDate() {
+  const plan = document.getElementById('gen-plan').value;
+  document.getElementById('row-custom-date').style.display = plan === 'CUSTOM' ? 'block' : 'none';
+}
+
+async function doGenerateToken() {
+  const mid = document.getElementById('gen-mid').value.trim();
+  const plan = document.getElementById('gen-plan').value;
+  const cust = document.getElementById('gen-cust').value.trim();
+  const stat = document.getElementById('gen-stat').value.trim();
+  const customDate = document.getElementById('gen-custom-date').value;
+  const notes = document.getElementById('gen-notes').value.trim();
+
+  if(!mid) {
+    alert('请填写客户机器码');
+    return;
+  }
+  const btn = document.getElementById('btn-do-gen');
+  btn.disabled = true;
+  btn.innerText = '正在运算签发...';
+
+  try {
+    const res = await fetch('/admin/api/generate_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        machine_id: mid,
+        plan_type: plan,
+        customer_name: cust,
+        station_id: stat,
+        custom_expire: customDate,
+        notes: notes
+      })
+    });
+    const d = await res.json();
+    if(d.success) {
+      currentGeneratedToken = d.token;
+      currentGeneratedInfo = d;
+      document.getElementById('token-display').innerText = d.token;
+      document.getElementById('gen-result').style.display = 'block';
+      loadStats();
+      loadDevices();
+    } else {
+      alert(d.error || '生成失败');
+    }
+  } catch(e) {
+    alert('网络通信异常');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '立即生成';
+  }
+}
+
+async function deviceAction(mid, action) {
+  if(!confirm('确定要对工位机 ' + mid + ' 执行 ' + action + ' 操作吗？')) return;
+  try {
+    const res = await fetch('/admin/api/device/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ machine_id: mid, action: action })
+    });
+    const d = await res.json();
+    if(d.success) {
+      loadDevices();
+      loadStats();
+    }
+  } catch(e){}
+}
+
+function copyText(str) {
+  navigator.clipboard.writeText(str).then(() => {
+    alert('已复制到剪贴板！');
+  });
+}
+
+function copyToken() {
+  copyText(currentGeneratedToken);
+}
+
+function copyWechatTemplate() {
+  const tpl = '您好！您的【ANSV Coil-Architect Pro 电磁线圈多物理场仿真工作站】商业授权激活凭证已生成完毕：\\n\\n' +
+    '🔑 授权激活码：\\n' + currentGeneratedToken + '\\n\\n' +
+    '📌 绑定机器识别码：' + currentGeneratedInfo.machine_id + '\\n' +
+    '📅 授权有效期至：' + currentGeneratedInfo.expire_date + '\\n' +
+    '🏢 授权企业/工位：' + currentGeneratedInfo.customer_name + '\\n\\n' +
+    '💡 激活步骤：在软件中点击【输入激活码】按钮，直接粘贴上述整段激活码即可完成秒级激活！如有任何工程算例疑问，欢迎随时沟通。';
+  copyText(tpl);
+}
+
+async function exportDbBackup() {
+  window.open('/admin/api/export_db', '_blank');
+}
+
+async function doLogout() {
+  await fetch('/admin/api/logout', { method: 'POST' });
+  window.location.reload();
+}
+
+window.onload = function() {
+  loadStats();
+  loadDevices();
+};
+</script>
+</body>
+</html>`;
+}

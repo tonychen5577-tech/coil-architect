@@ -99,6 +99,13 @@ def main():
         splash.finish_and_show(window)
         logger.info(f"{APP_TITLE} 启动就绪，进入主交互事件循环。")
 
+        # 14. 异步云端静默心跳与时钟授时 (守护线程，离线/超时绝不阻塞界面)
+        try:
+            from src.core.cloud_client import CloudClient
+            CloudClient.send_heartbeat_async()
+        except Exception:
+            pass
+
         sys.exit(app.exec())
     except Exception as e:
         logger.critical(f"系统启动主循环捕获严重异常: {e}\n{traceback.format_exc()}")
