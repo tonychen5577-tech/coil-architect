@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 from src.version import (
     APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, BUILD_TIME, OFFICIAL_URL, COPYRIGHT_TEXT,
     PLATFORM_NAME, PLATFORM_NAME_EN, PLATFORM_FULL_TITLE, WECHAT_OFFICIAL_ACCOUNT,
-    CORE_ENGINE_AUTHOR, get_git_commit
+    WECHAT_CONTACT_ID, WHATSAPP_CONTACT_ID, CORE_ENGINE_AUTHOR, get_git_commit
 )
 from src.core.license_manager import get_machine_code, get_mac_address, get_station_info
 from src.gui.icon_helper import get_app_icon, get_app_icon_pixmap
@@ -157,7 +157,7 @@ class AboutDialog(QDialog):
         body_layout = QHBoxLayout()
         body_layout.setSpacing(14)
 
-        # === 左侧: 官方微信公众号二维码与工程师 5 大权益 (约 48% 宽度) ===
+        # === 左侧: 官方公众号、微信咨询与 WhatsApp 国际支持 (约 48% 宽度) ===
         left_box = QWidget()
         left_box.setObjectName("leftBox")
         left_box.setStyleSheet("""
@@ -172,13 +172,44 @@ class AboutDialog(QDialog):
         """)
         left_layout = QVBoxLayout(left_box)
         left_layout.setContentsMargins(12, 10, 12, 10)
-        left_layout.setSpacing(8)
+        left_layout.setSpacing(6)
 
-        # 公众号头部卡片 (绿色生态风格)
+        # 1. 顶部分页切换按钮组 (官方公众号 | 工程师微信 | WhatsApp)
+        tab_h = QHBoxLayout()
+        tab_h.setSpacing(4)
+
+        btn_tab_official = QPushButton("📢 官方公众号")
+        btn_tab_wechat = QPushButton("💬 微信技术咨询")
+        btn_tab_whatsapp = QPushButton("🌐 WhatsApp")
+
+        for b in [btn_tab_official, btn_tab_wechat, btn_tab_whatsapp]:
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet("""
+                QPushButton {
+                    background-color: #F1F5F9;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 4px;
+                    color: #475569;
+                    font-size: 10px;
+                    font-weight: 600;
+                    padding: 3px 6px;
+                }
+                QPushButton:hover {
+                    background-color: #E2E8F0;
+                    color: #0F172A;
+                }
+            """)
+
+        tab_h.addWidget(btn_tab_official)
+        tab_h.addWidget(btn_tab_wechat)
+        tab_h.addWidget(btn_tab_whatsapp)
+        left_layout.addLayout(tab_h)
+
+        # 头部卡片标题与动态复制按钮
         wc_header = QHBoxLayout()
         wc_header.setSpacing(6)
         lbl_wc_icon = QLabel("🟢 官方微信公众号")
-        lbl_wc_icon.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #166534;")
+        lbl_wc_icon.setStyleSheet("font-size: 11px; font-weight: 800; color: #166534;")
         wc_header.addWidget(lbl_wc_icon)
         wc_header.addStretch()
 
@@ -199,18 +230,17 @@ class AboutDialog(QDialog):
                 color: #14532D;
             }
         """)
-        btn_copy_wc.clicked.connect(lambda: self._copy_to_clipboard(WECHAT_OFFICIAL_ACCOUNT, btn_copy_wc, "已复制名称"))
         wc_header.addWidget(btn_copy_wc)
         left_layout.addLayout(wc_header)
 
-        # 二维码与公众号名称并排或居中卡片
+        # 二维码与信息卡片
         qr_container = QFrame()
         qr_container.setStyleSheet("""
             QFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #CBD5E1;
                 border-radius: 6px;
-                padding: 6px;
+                padding: 4px;
             }
         """)
         qr_row = QHBoxLayout(qr_container)
@@ -222,44 +252,124 @@ class AboutDialog(QDialog):
         lbl_qr_img.setFixedSize(98, 98)
         lbl_qr_img.setStyleSheet("border: 1px solid #E2E8F0; border-radius: 4px; background: #FFFFFF;")
         lbl_qr_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # 查找二维码路径：优先用户指定路径，备用本地资源路径
-        qr_candidates = [
-            Path(r"C:\Workspace\07_AI_Work\ansv-web\static\images\official-account-qr.jpg"),
-            Path(__file__).resolve().parent.parent.parent / "resources" / "official-account-qr.jpg"
-        ]
-        qr_loaded = False
-        for p in qr_candidates:
-            if p.exists():
-                pix = QPixmap(str(p))
-                if not pix.isNull():
-                    scaled_pix = pix.scaled(94, 94, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                    lbl_qr_img.setPixmap(scaled_pix)
-                    qr_loaded = True
-                    break
-        if not qr_loaded:
-            lbl_qr_img.setText("【二维码图片】")
-            lbl_qr_img.setStyleSheet("font-size: 10px; color: #64748B; border: 1px dashed #CBD5E1;")
-
         qr_row.addWidget(lbl_qr_img)
 
         # 二维码右侧文字说明
         qr_info_v = QVBoxLayout()
         qr_info_v.setSpacing(3)
         lbl_wc_name = QLabel(f"公众号: <b style='color:#15803D;'>{WECHAT_OFFICIAL_ACCOUNT}</b>")
-        lbl_wc_name.setStyleSheet("font-size: 11px; color: #1E293B;")
+        lbl_wc_name.setStyleSheet("font-size: 10.5px; color: #1E293B;")
         lbl_wc_tip = QLabel("手机微信「扫一扫」关注官方公众号")
-        lbl_wc_tip.setStyleSheet("font-size: 9.5px; color: #64748B;")
+        lbl_wc_tip.setWordWrap(True)
+        lbl_wc_tip.setStyleSheet("font-size: 8.5px; color: #64748B;")
         lbl_wc_val = QLabel("关注「ANSV」官方公众号，您可以获取：")
-        lbl_wc_val.setStyleSheet("font-size: 10px; font-weight: 700; color: #0284C7; margin-top: 2px;")
+        lbl_wc_val.setWordWrap(True)
+        lbl_wc_val.setStyleSheet("font-size: 8.5px; font-weight: 700; color: #0284C7; margin-top: 1px;")
 
         qr_info_v.addWidget(lbl_wc_name)
         qr_info_v.addWidget(lbl_wc_tip)
         qr_info_v.addWidget(lbl_wc_val)
         qr_info_v.addStretch()
         qr_row.addLayout(qr_info_v)
-
         left_layout.addWidget(qr_container)
+
+        # 定义多渠道配置
+        res_dir = Path(__file__).resolve().parent.parent.parent / "resources"
+        channels = {
+            "official": {
+                "title": "🟢 官方微信公众号",
+                "title_color": "#166534",
+                "name_html": f"公众号: <b style='color:#15803D;'>{WECHAT_OFFICIAL_ACCOUNT}</b>",
+                "copy_text": WECHAT_OFFICIAL_ACCOUNT,
+                "btn_text": "📋 复制公众号",
+                "tip": "手机微信「扫一扫」关注官方公众号",
+                "val_title": "关注「ANSV」官方公众号，您可以获取：",
+                "qr_paths": [
+                    Path(r"C:\Workspace\07_AI_Work\ansv-web\static\images\official-account-qr.jpg"),
+                    res_dir / "official-account-qr.jpg"
+                ]
+            },
+            "wechat": {
+                "title": "💬 工程师专属微信咨询 (对公/技术)",
+                "title_color": "#0369A1",
+                "name_html": f"微信号: <b style='color:#0284C7;'>{WECHAT_CONTACT_ID}</b>",
+                "copy_text": WECHAT_CONTACT_ID,
+                "btn_text": "📋 复制微信号",
+                "tip": "微信扫码添加工程师微信 (陈亚明 · 微型执行器)",
+                "val_title": "一对一技术支持、商务合作与对公合同发票：",
+                "qr_paths": [
+                    res_dir / "wechat_personal_qr.png"
+                ]
+            },
+            "whatsapp": {
+                "title": "🌐 WhatsApp International Support",
+                "title_color": "#15803D",
+                "name_html": f"WhatsApp: <b style='color:#16A34A;'>{WHATSAPP_CONTACT_ID}</b>",
+                "copy_text": WHATSAPP_CONTACT_ID,
+                "btn_text": "📋 复制 WhatsApp",
+                "tip": "Scan via WhatsApp Camera (Chen Yaming - ANSV)",
+                "val_title": "Global technical support & instant consultation：",
+                "qr_paths": [
+                    res_dir / "whatsapp_qr.png"
+                ]
+            }
+        }
+
+        self._current_channel_copy = WECHAT_OFFICIAL_ACCOUNT
+
+        def switch_channel(key: str):
+            cfg = channels[key]
+            lbl_wc_icon.setText(cfg["title"])
+            lbl_wc_icon.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {cfg['title_color']};")
+            lbl_wc_name.setText(cfg["name_html"])
+            lbl_wc_tip.setText(cfg["tip"])
+            lbl_wc_val.setText(cfg["val_title"])
+            btn_copy_wc.setText(cfg["btn_text"])
+            self._current_channel_copy = cfg["copy_text"]
+
+            # 加载二维码
+            loaded = False
+            for p in cfg["qr_paths"]:
+                if p.exists():
+                    pix = QPixmap(str(p))
+                    if not pix.isNull():
+                        scaled = pix.scaled(94, 94, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                        lbl_qr_img.setPixmap(scaled)
+                        loaded = True
+                        break
+            if not loaded:
+                lbl_qr_img.setText("二维码加载中")
+
+            # 激活状态高亮
+            for b, k in [(btn_tab_official, "official"), (btn_tab_wechat, "wechat"), (btn_tab_whatsapp, "whatsapp")]:
+                if k == key:
+                    b.setStyleSheet("""
+                        background-color: #0284C7;
+                        border: 1px solid #0284C7;
+                        border-radius: 4px;
+                        color: #FFFFFF;
+                        font-size: 10px;
+                        font-weight: 700;
+                        padding: 3px 6px;
+                    """)
+                else:
+                    b.setStyleSheet("""
+                        background-color: #F1F5F9;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        color: #475569;
+                        font-size: 10px;
+                        font-weight: 600;
+                        padding: 3px 6px;
+                    """)
+
+        btn_tab_official.clicked.connect(lambda: switch_channel("official"))
+        btn_tab_wechat.clicked.connect(lambda: switch_channel("wechat"))
+        btn_tab_whatsapp.clicked.connect(lambda: switch_channel("whatsapp"))
+        btn_copy_wc.clicked.connect(lambda: self._copy_to_clipboard(self._current_channel_copy, btn_copy_wc, "已复制"))
+
+        # 默认初始化为官方公众号
+        switch_channel("official")
 
         # 5 大权益说明 (精简版 · 条理清晰)
         benefits_v = QVBoxLayout()
