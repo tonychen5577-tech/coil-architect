@@ -290,13 +290,13 @@ class AboutDialog(QDialog):
                 ]
             },
             "wechat": {
-                "title": "💬 工程师专属微信咨询 (对公/技术)",
+                "title": "💬 工程师专属微信咨询",
                 "title_color": "#0369A1",
                 "name_html": f"微信号: <b style='color:#0284C7;'>{WECHAT_CONTACT_ID}</b>",
                 "copy_text": WECHAT_CONTACT_ID,
                 "btn_text": "📋 复制微信号",
                 "tip": "微信扫码添加工程师微信 (陈亚明 · 微型执行器)",
-                "val_title": "一对一技术支持、商务合作与对公合同发票：",
+                "val_title": "一对一技术支持、算例定制与工程咨询：",
                 "qr_paths": [
                     res_dir / "wechat_personal_qr.png"
                 ]
