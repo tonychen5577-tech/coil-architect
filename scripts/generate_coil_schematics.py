@@ -98,7 +98,7 @@ def draw_octagonal_shape(ax):
 
 def draw_racetrack_shape(ax):
     """2. 跑道形微型线圈 (Racetrack / Oblong Coil)"""
-    ax.set_title("2. 跑道形线圈 (Racetrack / Oblong)\n【适用: 触觉振动马达 LRA / 狭长对称微执行器】", fontsize=11, fontweight="bold", pad=12, color="#0F172A")
+    ax.set_title("2. 跑道形线圈 (Racetrack / Oblong)\n【适用: Sensor-Shift 传感器防抖马达 / 触觉 LRA / 狭长执行器】", fontsize=11, fontweight="bold", pad=12, color="#0F172A")
     ax.set_xlim(-5.5, 5.5)
     ax.set_ylim(-5.5, 5.5)
     ax.set_aspect("equal")
@@ -168,8 +168,8 @@ def draw_circular_shape(ax):
 
 
 def draw_rectangular_shape(ax):
-    """4. 矩形圆角线圈 (Rectangular Coil)"""
-    ax.set_title("4. 矩形圆角线圈 (Rectangular / Corner R)\n【适用: 扁平电磁执行器 / 微型继电器 / 传感器】", fontsize=11, fontweight="bold", pad=12, color="#0F172A")
+    """4. 矩形圆角与异形定制线圈 (Rectangular & Irregular / Perimeter)"""
+    ax.set_title("4. 矩形圆角与多边形异形线圈 (Rectangular & Irregular)\n【适用: 潜望棱镜偏转马达 / 阶梯异形腔体 / CAD展开定制】", fontsize=11, fontweight="bold", pad=12, color="#0F172A")
     ax.set_xlim(-5.5, 5.5)
     ax.set_ylim(-5.5, 5.5)
     ax.set_aspect("equal")
@@ -194,6 +194,8 @@ def draw_rectangular_shape(ax):
     ax.annotate("内圆角 r_corner", xy=(2.0, 1.1), xytext=(3.2, 2.1),
                 arrowprops=dict(arrowstyle="->", color="#059669", lw=1.2),
                 fontsize=9, color="#059669", fontweight="bold")
+    ax.text(0, -4.3, "★ 原生支持中线展开法 & 任意多边形/阶梯异形腔体仿真", color="#B45309", fontsize=8.5, fontweight="bold", ha="center",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="#FEF3C7", edgecolor="#F59E0B", lw=0.8, alpha=0.9))
 
 
 def generate_all():
