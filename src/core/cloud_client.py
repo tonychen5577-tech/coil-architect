@@ -44,14 +44,38 @@ logger = get_logger("CloudClient")
 
 # 默认 Cloudflare 边缘服务器 API 基地址 (主域名 + 备用 workers.dev)
 DEFAULT_CLOUD_BASE_URL = "https://coil.ansv.net"
-FALLBACK_WORKER_URL = "https://coil-architect-cloud.tony-tech.workers.dev"
+FALLBACK_SERVER_URLS = [
+    "https://coil.ansv.net",
+    "https://coil-architect-cloud.tonychen5577.workers.dev",
+    "https://gear.ansv.net"
+]
 
 _CLIENT_API_KEY = "COIL-SEC-2026#Ansv_TonyTech_c82P"
-_DEFAULT_TIMEOUT_SEC = 6.0
+_DEFAULT_TIMEOUT_SEC = 15.0
 _DEFAULT_UA = f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 CoilArchitectPro/{APP_VERSION}"
 
 CONFIG_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "CoilArchitectPro"
 CONFIG_FILE = CONFIG_DIR / "cloud_config.json"
+
+_CACHED_CLIENT_IP = None
+
+
+def get_client_ip() -> str:
+    """尝试获取本机内网 IP 地址 (内存缓存，对标 Gear 标准)"""
+    global _CACHED_CLIENT_IP
+    if _CACHED_CLIENT_IP is not None:
+        return _CACHED_CLIENT_IP
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.3)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        _CACHED_CLIENT_IP = ip
+        return ip
+    except Exception:
+        _CACHED_CLIENT_IP = "127.0.0.1"
+        return "127.0.0.1"
 
 
 def _get_safe_ssl_context() -> ssl.SSLContext:
@@ -82,7 +106,7 @@ def load_cloud_config() -> Dict[str, Any]:
                         if not data.get("server_url"):
                             data["server_url"] = DEFAULT_CLOUD_BASE_URL
                         if not data.get("fallback_urls"):
-                            data["fallback_urls"] = [FALLBACK_WORKER_URL, DEFAULT_CLOUD_BASE_URL]
+                            data["fallback_urls"] = list(FALLBACK_SERVER_URLS)
                         if not data.get("proxy_setting"):
                             data["proxy_setting"] = "auto"
                         return data
@@ -91,7 +115,7 @@ def load_cloud_config() -> Dict[str, Any]:
 
     return {
         "server_url": DEFAULT_CLOUD_BASE_URL,
-        "fallback_urls": [FALLBACK_WORKER_URL, DEFAULT_CLOUD_BASE_URL],
+        "fallback_urls": list(FALLBACK_SERVER_URLS),
         "proxy_setting": "auto",
         "custom_proxy": "",
         "customer_name": "内部研发机构",
@@ -204,7 +228,7 @@ class CloudClient:
         main_url = cfg.get("server_url", DEFAULT_CLOUD_BASE_URL).rstrip("/")
         if main_url not in urls:
             urls.append(main_url)
-        fallbacks = cfg.get("fallback_urls") or [FALLBACK_WORKER_URL, DEFAULT_CLOUD_BASE_URL]
+        fallbacks = cfg.get("fallback_urls") or list(FALLBACK_SERVER_URLS)
         for fb in fallbacks:
             fb_clean = fb.rstrip("/")
             if fb_clean not in urls:
@@ -219,12 +243,18 @@ class CloudClient:
         custom_proxy: Optional[str] = None,
         retry: int = 1
     ) -> Tuple[bool, str]:
-        """测试与数据库服务节点的连通性 (内置超时自动重试与平滑容灾调度)"""
+        """测试与数据库服务节点的连通性 (内置超时自动重试与平滑容灾调度，对标 Gear 标准)"""
         target_base = (test_url or cls.get_server_url()).rstrip("/")
-        probe_endpoints = ["/api/v1/health", "/api/v1/check_update"]
+        # 探针列表：包含 D1 专家案例库、版本更新与健康探针，确保企业内网 100% 连通响应
+        probe_endpoints = [
+            "/api/v1/cases/benchmarks",
+            "/api/v1/check_update",
+            "/api/v1/health"
+        ]
 
         try:
             opener = get_opener(proxy_setting, custom_proxy)
+            last_err = None
             for p in probe_endpoints:
                 url = f"{target_base}{p}"
                 try:
@@ -238,26 +268,40 @@ class CloudClient:
                     with opener.open(req, timeout=_DEFAULT_TIMEOUT_SEC) as resp:
                         if resp.status == 200:
                             raw = resp.read().decode("utf-8", errors="replace")
-                            data = json.loads(raw)
-                            raw_msg = str(data.get("message", "专家数据库协同服务正常运行中"))
-                            return True, f"数据库在线: {raw_msg}"
+                            try:
+                                data = json.loads(raw)
+                                raw_msg = str(data.get("message", "专家数据库运行正常"))
+                            except Exception:
+                                raw_msg = "专家数据库运行正常"
+                            clean_msg = (
+                                raw_msg.replace("Cloudflare 边缘专家库与审计服务正常运行中", "专家知识库与协同审计服务正常运行中")
+                                       .replace("Cloudflare", "云端")
+                                       .replace("cloudflare", "云端")
+                                       .replace("cloudfare", "云端")
+                                       .replace("企业", "")
+                            )
+                            if "正常" in clean_msg or "成功" in clean_msg or "cases" in raw or "version" in raw:
+                                clean_msg = "专家知识库与协同审计服务正常运行中"
+                            return True, f"数据库在线: {clean_msg}"
+                        return False, f"HTTP 状态码: {resp.status}"
                 except urllib.error.HTTPError as e:
-                    if e.code == 404 and p != probe_endpoints[-1]:
+                    if e.code == 401:
+                        return False, "401 鉴权拒绝 (API-Key 不匹配或未授权)"
+                    if e.code == 404:
+                        last_err = e
                         continue
-                    raise
-            return False, "未能获取到数据库有效响应"
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                return False, "401 鉴权拒绝 (API-Key 不匹配或未授权)"
-            return False, f"云端服务拒绝 (HTTP {e.code}): {e.reason}"
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            reason_str = str(getattr(e, "reason", e))
-            # 遇到偶发内网抖动，自动重试 1 次
-            if ("timed out" in reason_str.lower() or "超时" in reason_str) and retry > 0:
-                time.sleep(0.3)
-                return cls.test_connection(test_url=test_url, proxy_setting=proxy_setting, custom_proxy=custom_proxy, retry=retry - 1)
+                    last_err = e
+                except (urllib.error.URLError, TimeoutError, OSError) as e:
+                    last_err = e
+                    if ("timed out" in str(e).lower() or "超时" in str(e)) and retry > 0:
+                        time.sleep(0.3)
+                        return cls.test_connection(test_url=test_url, proxy_setting=proxy_setting, custom_proxy=custom_proxy, retry=retry - 1)
+                    continue
+                except Exception as e:
+                    last_err = e
+                    continue
 
-            # 主节点失败时自动尝试备用容灾节点
+            # 若主节点未通且无指定 test_url，平滑尝试备用容灾节点调度策略
             if not test_url:
                 for alt_url in cls.get_api_urls():
                     if alt_url.rstrip("/") != target_base:
@@ -271,6 +315,19 @@ class CloudClient:
                                 return True, "主节点不可达，已自动切换备用高可用安全镜像节点"
                         except Exception:
                             pass
+
+            if last_err:
+                raise last_err
+            return False, "未能获取到数据库有效响应"
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                return False, "401 鉴权拒绝 (API-Key 不匹配或未授权)"
+            return False, f"云端服务拒绝 (HTTP {e.code}): {e.reason}"
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            reason_str = str(getattr(e, "reason", e))
+            if ("timed out" in reason_str.lower() or "超时" in reason_str) and retry > 0:
+                time.sleep(0.3)
+                return cls.test_connection(test_url=test_url, proxy_setting=proxy_setting, custom_proxy=custom_proxy, retry=retry - 1)
 
             if "10061" in reason_str or "actively refused" in reason_str or "积极拒绝" in reason_str:
                 return False, f"连接被拒绝: 目标端口未开放或后端未启动 ({reason_str})"
@@ -303,6 +360,7 @@ class CloudClient:
         logs.append(f"• 路由代理策略:   {ps} {('(' + cp + ')') if cp else ''}")
         logs.append(f"• 本机工位机器码: {get_machine_code()}")
         logs.append(f"• 本机网卡 MAC:   {get_mac_address()}")
+        logs.append(f"• 本机内网 IP:    {get_client_ip()}")
         logs.append("-" * 65)
 
         # 1. 域名解析
