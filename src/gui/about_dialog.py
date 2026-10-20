@@ -1,350 +1,655 @@
 """
-Coil-Architect Pro - About System Dialog
-16:9 工业宽屏标准“关于系统”对话框
-包含 ANSV 平台全称、通俗易懂的核心特色功能、官方微信公众号联系方式与硬件特征码
+=============================================================================
+Module: src.gui.about_dialog
+Description: ANSV 微型执行器与精密传动仿真验证平台 (Coil-Architect Pro)
+16:9 SolidWorks 纯白工业测控风格“关于系统 (About)”标准对话框
+功能特性：
+1. 完整展示 ANSV 平台全称与 Coil-Architect Pro 工作站定义；
+2. 官方微信公众号真实二维码、专属名称【ANSV微型执行器】与精炼版 5 大工程师权益；
+3. 右侧系统软硬件全景信息（机器码、本机 MAC、授权工位、Git 源码指纹，严格剔除良率）；
+4. 底栏操作按钮：桌面快捷方式生成、一键导出全景诊断日志包、在线检查更新（导入 Git 版本记录）。
+=============================================================================
 """
 
 import sys
-import platform
+import os
+from pathlib import Path
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QFont, QDesktopServices
+from PyQt6.QtGui import (
+    QColor, QFont, QPixmap, QDesktopServices
+)
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QFrame, QApplication, QLineEdit
+    QDialog, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QFrame, QLineEdit,
+    QMessageBox, QApplication, QGraphicsDropShadowEffect
 )
 
-from ..core.license_manager import get_machine_code, LicenseManager
-from .utils import adapt_dialog_geometry
 from src.version import (
-    APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, APP_AUTHOR, OFFICIAL_URL, COPYRIGHT_TEXT,
-    PLATFORM_NAME, PLATFORM_NAME_EN, PLATFORM_FULL_TITLE, WECHAT_OFFICIAL_ACCOUNT
+    APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, BUILD_TIME, OFFICIAL_URL, COPYRIGHT_TEXT,
+    PLATFORM_NAME, PLATFORM_NAME_EN, PLATFORM_FULL_TITLE, WECHAT_OFFICIAL_ACCOUNT,
+    CORE_ENGINE_AUTHOR, get_git_commit
 )
+from src.core.license_manager import get_machine_code, get_mac_address, get_station_info
+from src.gui.icon_helper import get_app_icon, get_app_icon_pixmap
+from src.gui.utils import adapt_dialog_geometry
 
 
 class AboutDialog(QDialog):
-    """16:9 工业级标准关于系统对话框"""
+    """
+    16:9 SolidWorks 纯白工业测控风格系统关于对话框
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"关于 {PLATFORM_NAME}")
-        
-        # 纯净背景与防 QSS 穿透
+        self.setWindowTitle(f"关于系统 — {PLATFORM_NAME}")
+        self.setWindowIcon(get_app_icon())
+        self.setModal(True)
+
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAutoFillBackground(True)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
 
         self.setStyleSheet("""
             QDialog {
-                background-color: #FFFFFF;
-                color: #0F172A;
-            }
-            QLabel {
-                border: none;
-                background: transparent;
+                background-color: #F1F5F9;
+                font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
             }
         """)
 
         self._init_ui()
-        adapt_dialog_geometry(self, target_w=760, target_h=500, min_w=640, min_h=420)
+        adapt_dialog_geometry(self, target_w=790, target_h=530, min_w=700, min_h=460)
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(22, 18, 22, 16)
-        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(10, 10, 10, 10)
 
-        # 1. 顶行：平台统一名称与官网直达按钮
-        top_h = QHBoxLayout()
-        title_box = QVBoxLayout()
-        title_box.setSpacing(3)
-
-        lbl_app = QLabel(f"<span style='color:#0284C7; font-weight:800;'>ANSV</span> 微型执行器与精密传动仿真验证平台 <span style='font-size: 11px; color: #0284C7; font-weight: 700; background:#E0F2FE; padding:2px 6px; border-radius:3px;'>{APP_VERSION}</span>")
-        lbl_app.setTextFormat(Qt.TextFormat.RichText)
-        lbl_app.setStyleSheet("font-size: 16px; font-weight: 800; color: #0F172A;")
-
-        lbl_sub = QLabel("Actuator Numerical Simulation & Validation | 电磁线圈多物理场仿真工作站 (Coil-Architect Pro)")
-        lbl_sub.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 600;")
-        title_box.addWidget(lbl_app)
-        title_box.addWidget(lbl_sub)
-        top_h.addLayout(title_box)
-
-        top_h.addStretch()
-
-        btn_web = QPushButton(f"🌐 官方网站: {OFFICIAL_URL.replace('https://', '')}")
-        btn_web.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_web.setStyleSheet("""
-            QPushButton {
-                background-color: #F8FAFC;
+        # 纯白中心卡片 (SolidWorks 经典工业卡片底色 + 浅柔投影)
+        card = QWidget(self)
+        card.setObjectName("aboutCard")
+        card.setStyleSheet("""
+            #aboutCard {
+                background-color: #FFFFFF;
                 border: 1px solid #CBD5E1;
+                border-radius: 8px;
+            }
+        """)
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(18)
+        shadow.setColor(QColor(15, 23, 42, 35))
+        shadow.setOffset(0, 3)
+        card.setGraphicsEffect(shadow)
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(20, 16, 20, 14)
+        card_layout.setSpacing(10)
+
+        # -------------------------------------------------------------
+        # 1. 顶部 Header (平台名称、版本号与官方网址直达)
+        # -------------------------------------------------------------
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(12)
+
+        icon_label = QLabel()
+        icon_pm = get_app_icon_pixmap(46)
+        if not icon_pm.isNull():
+            icon_label.setPixmap(icon_pm)
+        header_layout.addWidget(icon_label)
+
+        title_vbox = QVBoxLayout()
+        title_vbox.setSpacing(2)
+
+        row_t1 = QHBoxLayout()
+        row_t1.setSpacing(8)
+        lbl_brand = QLabel(PLATFORM_NAME)
+        lbl_brand.setStyleSheet("color: #0F172A; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;")
+        
+        lbl_ver_badge = QLabel(f"{APP_VERSION}")
+        lbl_ver_badge.setStyleSheet("""
+            color: #0284C7;
+            background-color: #E0F2FE;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border: 1px solid #BAE6FD;
+            border-radius: 4px;
+        """)
+        row_t1.addWidget(lbl_brand)
+        row_t1.addWidget(lbl_ver_badge)
+        row_t1.addStretch()
+        title_vbox.addLayout(row_t1)
+
+        lbl_desc = QLabel(f"{PLATFORM_NAME_EN} | 电磁线圈多物理场仿真工作站 ({APP_NAME})")
+        lbl_desc.setStyleSheet("color: #64748B; font-size: 11px; font-weight: 500;")
+        title_vbox.addWidget(lbl_desc)
+
+        header_layout.addLayout(title_vbox)
+        header_layout.addStretch()
+
+        btn_url = QPushButton(f"🌐 官方网址: {OFFICIAL_URL.replace('https://', '')}")
+        btn_url.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_url.setToolTip(f"点击访问官方主页: {OFFICIAL_URL}")
+        btn_url.setStyleSheet("""
+            QPushButton {
                 color: #0284C7;
                 font-size: 11px;
-                font-weight: 700;
+                font-weight: 600;
                 padding: 5px 12px;
+                background-color: #F0F9FF;
+                border: 1px solid #BAE6FD;
                 border-radius: 5px;
             }
             QPushButton:hover {
                 background-color: #E0F2FE;
                 border-color: #0284C7;
-                color: #0369A1;
+            }
+            QPushButton:pressed {
+                background-color: #BAE6FD;
             }
         """)
-        btn_web.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(OFFICIAL_URL)))
-        top_h.addWidget(btn_web, 0, Qt.AlignmentFlag.AlignTop)
+        btn_url.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(OFFICIAL_URL)))
+        header_layout.addWidget(btn_url)
 
-        main_layout.addLayout(top_h)
+        card_layout.addLayout(header_layout)
 
-        # 分割线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("color: #E2E8F0; margin: 0px;")
-        main_layout.addWidget(line)
+        # -------------------------------------------------------------
+        # 2. 中间左右分栏 (左侧公众号与权益，右侧系统规格与特色)
+        # -------------------------------------------------------------
+        body_layout = QHBoxLayout()
+        body_layout.setSpacing(14)
 
-        # 2. 中间双区布局
-        content_h = QHBoxLayout()
-        content_h.setSpacing(16)
-
-        # 左侧：核心特色功能卡片 (通俗易懂 · 实战导向)
-        card_left = QFrame()
-        card_left.setObjectName("cardLeft")
-        card_left.setStyleSheet("""
-            #cardLeft {
+        # === 左侧: 官方微信公众号二维码与工程师 5 大权益 (约 48% 宽度) ===
+        left_box = QWidget()
+        left_box.setObjectName("leftBox")
+        left_box.setStyleSheet("""
+            #leftBox {
                 background-color: #F8FAFC;
                 border: 1px solid #E2E8F0;
-                border-radius: 8px;
+                border-radius: 6px;
             }
             QLabel {
-                border: none;
                 background: transparent;
             }
         """)
-        left_layout = QVBoxLayout(card_left)
-        left_layout.setContentsMargins(14, 12, 14, 12)
+        left_layout = QVBoxLayout(left_box)
+        left_layout.setContentsMargins(12, 10, 12, 10)
         left_layout.setSpacing(8)
 
-        lbl_feat_title = QLabel("💡 软件核心特色功能 (通俗易懂 · 工程实战)")
-        lbl_feat_title.setStyleSheet("font-size: 12px; font-weight: 800; color: #0284C7;")
-        left_layout.addWidget(lbl_feat_title)
-
-        features = [
-            ("📱 八角/跑道/圆形微型线圈全支持", "专为手机镜头马达与音圈电机打造！特别是业界公认难算的“八角形异形线圈”，输入空间和目标阻值，软件秒级自动反推圈数与排线层数，告别盲目试凑。"),
-            ("🎯 真实张力拉伸与微米级排线精算", "打破传统简单估算！真实模拟绕线受拉变细（0.99拉伸系数）与自粘漆膜厚度，计算出的成型高度、外径尺寸与冷/热态电阻，与工厂打样实测高度吻合。"),
-            ("📌 底部方案抽屉（边调边比一键还原）", "微调参数不用来回切换，点击【固化为方案】即可将当前数据存入抽屉横向并排对比；自动计算与基线方案的差值，不满意还可一键原样还原。"),
-            ("🔥 电-热-磁多物理场实时防烧", "拖动参数滑块时，软件实时联动评估通电发热温升、绝缘耐温极限、驱动端压与电感，在线圈开模打样前就把过热与驱动不足隐患排查干净。"),
-            ("📐 ISO 129 国际标准制图规范", "2D 截面图严格遵循机械制图 ISO 129 标准尺寸界线、闭合实心箭头与基准面代号，图样规范直观，与模具厂、结构工程师无缝对接。"),
-            ("📊 一键导出防重名自适应 Excel 报表", "自动按年月日时间戳命名（绝不覆盖历史文件）；导出的 Excel 列宽宽裕排版考究，文字完整显示，彻底告别手动拉伸调宽。")
-        ]
-
-        for title, desc in features:
-            item_box = QVBoxLayout()
-            item_box.setSpacing(1)
-            t_lbl = QLabel(title)
-            t_lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #0F172A;")
-            d_lbl = QLabel(desc)
-            d_lbl.setStyleSheet("font-size: 10px; color: #475569; line-height: 1.3;")
-            d_lbl.setWordWrap(True)
-            item_box.addWidget(t_lbl)
-            item_box.addWidget(d_lbl)
-            left_layout.addLayout(item_box)
-
-        left_layout.addStretch()
-        content_h.addWidget(card_left, stretch=6)
-
-        # 右侧：系统参数与微信公众号技术支持联系卡片
-        right_box = QVBoxLayout()
-        right_box.setSpacing(10)
-
-        # 右上：系统参数与机器特征码
-        card_sys = QFrame()
-        card_sys.setObjectName("cardSys")
-        card_sys.setStyleSheet("""
-            #cardSys {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 8px;
-            }
-            QLabel {
-                border: none;
-                background: transparent;
-            }
-        """)
-        sys_layout = QVBoxLayout(card_sys)
-        sys_layout.setContentsMargins(12, 10, 12, 10)
-        sys_layout.setSpacing(5)
-
-        lbl_ver = QLabel(f"系统版本: {APP_VERSION} (Build {APP_BUILD})")
-        lbl_ver.setStyleSheet("font-size: 11px; font-weight: 700; color: #0F172A;")
-        sys_layout.addWidget(lbl_ver)
-
-        lbl_plat = QLabel(f"归属平台: {PLATFORM_NAME}")
-        lbl_plat.setStyleSheet("font-size: 10px; color: #64748B;")
-        lbl_plat.setWordWrap(True)
-        sys_layout.addWidget(lbl_plat)
-
-        auth_ok, auth_msg, _ = LicenseManager.is_system_authorized()
-        status_color = "#059669" if auth_ok else "#DC2626"
-        status_text = "✔ 正式商业授权 (永久有效)" if auth_ok else f"⚠ {auth_msg}"
-        lbl_status = QLabel(f"授权状态: <span style='color:{status_color}; font-weight:700;'>{status_text}</span>")
-        lbl_status.setTextFormat(Qt.TextFormat.RichText)
-        lbl_status.setStyleSheet("font-size: 11px;")
-        sys_layout.addWidget(lbl_status)
-
-        # 硬件指纹机器码 (一键复制)
-        lbl_mid = QLabel("本机硬件特征码 (Machine Code):")
-        lbl_mid.setStyleSheet("font-size: 10px; font-weight: 700; color: #334155; margin-top: 2px;")
-        sys_layout.addWidget(lbl_mid)
-
-        mid_h = QHBoxLayout()
-        mid_h.setSpacing(4)
-        self.code = get_machine_code()
-        txt_code = QLineEdit(self.code)
-        txt_code.setReadOnly(True)
-        txt_code.setStyleSheet("""
-            background-color: #F8FAFC;
-            font-family: 'Consolas', monospace;
-            font-weight: bold;
-            font-size: 11px;
-            color: #0284C7;
-            padding: 3px 5px;
-            border: 1px solid #CBD5E1;
-            border-radius: 4px;
-        """)
-        mid_h.addWidget(txt_code)
-
-        btn_copy_mid = QPushButton("复制")
-        btn_copy_mid.setFixedWidth(50)
-        btn_copy_mid.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_copy_mid.setStyleSheet("""
-            QPushButton {
-                background-color: #F1F5F9;
-                border: 1px solid #CBD5E1;
-                border-radius: 4px;
-                color: #0F172A;
-                font-size: 10px;
-                font-weight: 600;
-                padding: 3px;
-            }
-            QPushButton:hover {
-                background-color: #E2E8F0;
-                color: #0284C7;
-            }
-        """)
-        btn_copy_mid.clicked.connect(lambda: self._copy_text(self.code, btn_copy_mid, "复制"))
-        mid_h.addWidget(btn_copy_mid)
-        sys_layout.addLayout(mid_h)
-
-        right_box.addWidget(card_sys)
-
-        # 右下：微信公众号技术支持联系卡片
-        card_wechat = QFrame()
-        card_wechat.setObjectName("cardWechat")
-        card_wechat.setStyleSheet("""
-            #cardWechat {
-                background-color: #F0FDF4;
-                border: 1px solid #86EFAC;
-                border-radius: 8px;
-            }
-            QLabel {
-                border: none;
-                background: transparent;
-            }
-        """)
-        wc_layout = QVBoxLayout(card_wechat)
-        wc_layout.setContentsMargins(12, 10, 12, 10)
-        wc_layout.setSpacing(6)
-
-        wc_top_h = QHBoxLayout()
+        # 公众号头部卡片 (绿色生态风格)
+        wc_header = QHBoxLayout()
+        wc_header.setSpacing(6)
         lbl_wc_icon = QLabel("🟢 官方微信公众号")
-        lbl_wc_icon.setStyleSheet("font-size: 11px; font-weight: 800; color: #166534;")
-        wc_top_h.addWidget(lbl_wc_icon)
-        wc_top_h.addStretch()
-        wc_layout.addLayout(wc_top_h)
+        lbl_wc_icon.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #166534;")
+        wc_header.addWidget(lbl_wc_icon)
+        wc_header.addStretch()
 
-        # 公众号名称与复制按钮
-        wc_name_h = QHBoxLayout()
-        wc_name_h.setSpacing(6)
-        txt_wc = QLineEdit(WECHAT_OFFICIAL_ACCOUNT)
-        txt_wc.setReadOnly(True)
-        txt_wc.setStyleSheet("""
-            background-color: #FFFFFF;
-            font-size: 11px;
-            font-weight: 700;
-            color: #15803D;
-            padding: 3px 6px;
-            border: 1px solid #86EFAC;
-            border-radius: 4px;
-        """)
-        wc_name_h.addWidget(txt_wc)
-
-        btn_copy_wc = QPushButton("📋 复制")
-        btn_copy_wc.setFixedWidth(56)
+        btn_copy_wc = QPushButton("📋 复制公众号")
         btn_copy_wc.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_wc.setStyleSheet("""
             QPushButton {
-                background-color: #DCFCE7;
-                border: 1px solid #4ADE80;
-                border-radius: 4px;
-                color: #14532D;
-                font-size: 10px;
-                font-weight: 700;
-                padding: 3px;
+                color: #15803D;
+                font-size: 9.5px;
+                font-weight: 600;
+                padding: 2px 7px;
+                border: 1px solid #86EFAC;
+                border-radius: 3px;
+                background: #F0FDF4;
             }
             QPushButton:hover {
-                background-color: #BBF7D0;
-                border-color: #22C55E;
-                color: #166534;
+                background: #DCFCE7;
+                color: #14532D;
             }
         """)
-        btn_copy_wc.clicked.connect(lambda: self._copy_text(WECHAT_OFFICIAL_ACCOUNT, btn_copy_wc, "📋 复制"))
-        wc_name_h.addWidget(btn_copy_wc)
-        wc_layout.addLayout(wc_name_h)
+        btn_copy_wc.clicked.connect(lambda: self._copy_to_clipboard(WECHAT_OFFICIAL_ACCOUNT, btn_copy_wc, "已复制名称"))
+        wc_header.addWidget(btn_copy_wc)
+        left_layout.addLayout(wc_header)
 
-        lbl_wc_desc = QLabel(
-            "微信搜索关注公众号，获取：\n"
-            "• 微型马达与电磁线圈仿真设计实战专栏\n"
-            "• 工业级真实工程算例库与微调指南\n"
-            "• 软件最新版本发布与工程师一对一答疑"
-        )
-        lbl_wc_desc.setStyleSheet("font-size: 10px; color: #166534; line-height: 1.4;")
-        wc_layout.addWidget(lbl_wc_desc)
+        # 二维码与公众号名称并排或居中卡片
+        qr_container = QFrame()
+        qr_container.setStyleSheet("""
+            QFrame {
+                background-color: #FFFFFF;
+                border: 1px solid #CBD5E1;
+                border-radius: 6px;
+                padding: 6px;
+            }
+        """)
+        qr_row = QHBoxLayout(qr_container)
+        qr_row.setContentsMargins(8, 6, 8, 6)
+        qr_row.setSpacing(10)
 
-        right_box.addWidget(card_wechat)
-        right_box.addStretch()
+        # 二维码图片
+        lbl_qr_img = QLabel()
+        lbl_qr_img.setFixedSize(98, 98)
+        lbl_qr_img.setStyleSheet("border: 1px solid #E2E8F0; border-radius: 4px; background: #FFFFFF;")
+        lbl_qr_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        content_h.addLayout(right_box, stretch=4)
-        main_layout.addLayout(content_h)
+        # 查找二维码路径：优先用户指定路径，备用本地资源路径
+        qr_candidates = [
+            Path(r"C:\Workspace\07_AI_Work\ansv-web\static\images\official-account-qr.jpg"),
+            Path(__file__).resolve().parent.parent.parent / "resources" / "official-account-qr.jpg"
+        ]
+        qr_loaded = False
+        for p in qr_candidates:
+            if p.exists():
+                pix = QPixmap(str(p))
+                if not pix.isNull():
+                    scaled_pix = pix.scaled(94, 94, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    lbl_qr_img.setPixmap(scaled_pix)
+                    qr_loaded = True
+                    break
+        if not qr_loaded:
+            lbl_qr_img.setText("【二维码图片】")
+            lbl_qr_img.setStyleSheet("font-size: 10px; color: #64748B; border: 1px dashed #CBD5E1;")
 
-        # 3. 底栏：版权声明与关闭按钮
-        bottom_h = QHBoxLayout()
-        lbl_copy = QLabel(COPYRIGHT_TEXT)
-        lbl_copy.setStyleSheet("font-size: 10px; color: #94A3B8;")
-        bottom_h.addWidget(lbl_copy)
+        qr_row.addWidget(lbl_qr_img)
 
-        bottom_h.addStretch()
+        # 二维码右侧文字说明
+        qr_info_v = QVBoxLayout()
+        qr_info_v.setSpacing(3)
+        lbl_wc_name = QLabel(f"公众号: <b style='color:#15803D;'>{WECHAT_OFFICIAL_ACCOUNT}</b>")
+        lbl_wc_name.setStyleSheet("font-size: 11px; color: #1E293B;")
+        lbl_wc_tip = QLabel("手机微信「扫一扫」关注官方公众号")
+        lbl_wc_tip.setStyleSheet("font-size: 9.5px; color: #64748B;")
+        lbl_wc_val = QLabel("关注「ANSV」官方公众号，您可以获取：")
+        lbl_wc_val.setStyleSheet("font-size: 10px; font-weight: 700; color: #0284C7; margin-top: 2px;")
 
-        btn_close = QPushButton("关闭")
-        btn_close.setFixedWidth(80)
-        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_close.setStyleSheet("""
+        qr_info_v.addWidget(lbl_wc_name)
+        qr_info_v.addWidget(lbl_wc_tip)
+        qr_info_v.addWidget(lbl_wc_val)
+        qr_info_v.addStretch()
+        qr_row.addLayout(qr_info_v)
+
+        left_layout.addWidget(qr_container)
+
+        # 5 大权益说明 (精简版 · 条理清晰)
+        benefits_v = QVBoxLayout()
+        benefits_v.setSpacing(4)
+
+        benefits = [
+            ("🔬", "硬核技术深度拆解", "LRA / VCM / 传动多物理场仿真（电-磁-热-力）与一线复盘"),
+            ("🛠️", "独家工程工具与算例", "Coil-Architect 线圈解算器、Motor-Insight 动力学工具"),
+            ("⚠️", "量产避坑与失效诊断", "断簧/虚焊/脆断等根因诊断（RCA）与 DFM 工艺红线"),
+            ("📑", "前沿专利与拆解报告", "国内外旗舰硬件执行器结构 Teardown 与专利深度透视"),
+            ("💬", "工程师技术答疑通道", "一对一技术咨询通道、行业交流群与专家同行技术研讨")
+        ]
+
+        for icon, title, desc in benefits:
+            row = QHBoxLayout()
+            row.setSpacing(5)
+            row.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+            ico_lbl = QLabel(icon)
+            ico_lbl.setFixedWidth(16)
+            ico_lbl.setStyleSheet("font-size: 10.5px;")
+            row.addWidget(ico_lbl)
+
+            text_lbl = QLabel(f"<b style='color:#0F172A;'>{title}</b>: <span style='color:#475569;'>{desc}</span>")
+            text_lbl.setWordWrap(True)
+            text_lbl.setStyleSheet("font-size: 9.5px; line-height: 1.3;")
+            row.addWidget(text_lbl, 1)
+
+            benefits_v.addLayout(row)
+
+        left_layout.addLayout(benefits_v)
+        left_layout.addStretch()
+
+        body_layout.addWidget(left_box, 48)
+
+        # === 右侧: 系统规格参数与特色功能卡片 (约 52% 宽度) ===
+        right_box = QWidget()
+        right_box.setObjectName("rightBox")
+        right_box.setStyleSheet("""
+            #rightBox {
+                background-color: #F8FAFC;
+                border: 1px solid #E2E8F0;
+                border-radius: 6px;
+            }
+            QLabel {
+                font-size: 10.5px;
+                color: #334155;
+                background: transparent;
+            }
+        """)
+        right_layout = QVBoxLayout(right_box)
+        right_layout.setContentsMargins(14, 10, 14, 10)
+        right_layout.setSpacing(5)
+
+        def make_row(key_text: str, val_widget_or_text, is_bold=False):
+            row = QHBoxLayout()
+            row.setSpacing(6)
+            k_lbl = QLabel(key_text)
+            k_lbl.setFixedWidth(68)
+            k_lbl.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
+            row.addWidget(k_lbl)
+
+            if isinstance(val_widget_or_text, str):
+                v_lbl = QLabel(val_widget_or_text)
+                v_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                if is_bold:
+                    v_lbl.setStyleSheet("color: #0F172A; font-weight: 700; font-size: 10.5px;")
+                else:
+                    v_lbl.setStyleSheet("color: #1E293B; font-size: 10.5px;")
+                row.addWidget(v_lbl)
+            else:
+                row.addWidget(val_widget_or_text)
+            row.addStretch()
+            return row
+
+        # 1. 软件系统全称
+        right_layout.addLayout(make_row("软件系统:", PLATFORM_NAME, is_bold=True))
+
+        # 2. 软件模块
+        right_layout.addLayout(make_row("工作站模块:", f"{APP_NAME} | 电磁线圈仿真"))
+
+        # 3. 软件版本 (含 Git Hash)
+        git_hash = get_git_commit()
+        row_ver = QHBoxLayout()
+        row_ver.setSpacing(6)
+        k_ver = QLabel("软件版本:")
+        k_ver.setFixedWidth(68)
+        k_ver.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
+        row_ver.addWidget(k_ver)
+        v_ver = QLabel(f"{APP_VERSION}")
+        v_ver.setStyleSheet("color: #0284C7; font-weight: 800; font-size: 11px;")
+        v_build = QLabel(f"(Build {APP_BUILD} · git-{git_hash})")
+        v_build.setStyleSheet("color: #64748B; font-size: 10px;")
+        row_ver.addWidget(v_ver)
+        row_ver.addWidget(v_build)
+        row_ver.addStretch()
+        right_layout.addLayout(row_ver)
+
+        # 4. 构建时间
+        right_layout.addLayout(make_row("构建时间:", BUILD_TIME))
+
+        # 5. 核心架构
+        row_arch = QHBoxLayout()
+        row_arch.setSpacing(6)
+        k_arch = QLabel("核心架构:")
+        k_arch.setFixedWidth(68)
+        k_arch.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
+        row_arch.addWidget(k_arch)
+        v_arch = QLabel(CORE_ENGINE_AUTHOR)
+        v_arch.setStyleSheet("color: #0F172A; font-weight: 600; font-size: 10.5px;")
+        v_site_tag = QLabel("(ansv.net)")
+        v_site_tag.setStyleSheet("color: #0284C7; font-weight: 600; font-size: 10.5px;")
+        row_arch.addWidget(v_arch)
+        row_arch.addWidget(v_site_tag)
+        row_arch.addStretch()
+        right_layout.addLayout(row_arch)
+
+        # 6. 机器码 (COIL-XXXX-XXXX-XXXX-XXXX + 一键复制)
+        mid = get_machine_code()
+        row_mid = QHBoxLayout()
+        row_mid.setSpacing(6)
+        k_mid = QLabel("机器码:")
+        k_mid.setFixedWidth(68)
+        k_mid.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
+        row_mid.addWidget(k_mid)
+        v_mid = QLabel(mid)
+        v_mid.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        v_mid.setStyleSheet("""
+            color: #0369A1; font-family: 'Consolas', monospace; font-size: 10.5px;
+            font-weight: 700; background-color: #E0F2FE; border-radius: 3px;
+            padding: 1px 6px; border: 1px solid #BAE6FD;
+        """)
+        btn_copy_mid = QPushButton("复制机器码")
+        btn_copy_mid.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_copy_mid.setStyleSheet("""
+            QPushButton {
+                color: #0369A1; font-size: 9.5px; font-weight: 600; padding: 1px 6px;
+                border: 1px solid #BAE6FD; border-radius: 3px; background: #FFFFFF;
+            }
+            QPushButton:hover { background: #E0F2FE; color: #0284C7; }
+        """)
+        btn_copy_mid.clicked.connect(lambda: self._copy_to_clipboard(mid, btn_copy_mid, "已复制机器码"))
+        row_mid.addWidget(v_mid)
+        row_mid.addWidget(btn_copy_mid)
+        row_mid.addStretch()
+        right_layout.addLayout(row_mid)
+
+        # 7. 本机 MAC (真实网卡 MAC + 一键复制)
+        mac_addr = get_mac_address()
+        row_mac = QHBoxLayout()
+        row_mac.setSpacing(6)
+        k_mac = QLabel("本机MAC:")
+        k_mac.setFixedWidth(68)
+        k_mac.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
+        row_mac.addWidget(k_mac)
+        v_mac = QLabel(mac_addr)
+        v_mac.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        v_mac.setStyleSheet("""
+            color: #475569; font-family: 'Consolas', monospace; font-size: 10.5px;
+            font-weight: 600; background-color: #F1F5F9; border-radius: 3px;
+            padding: 1px 6px; border: 1px solid #CBD5E1;
+        """)
+        btn_copy_mac = QPushButton("复制MAC")
+        btn_copy_mac.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_copy_mac.setStyleSheet("""
+            QPushButton {
+                color: #475569; font-size: 9.5px; font-weight: 600; padding: 1px 6px;
+                border: 1px solid #CBD5E1; border-radius: 3px; background: #FFFFFF;
+            }
+            QPushButton:hover { background: #F1F5F9; color: #0F172A; }
+        """)
+        btn_copy_mac.clicked.connect(lambda: self._copy_to_clipboard(mac_addr, btn_copy_mac, "已复制MAC"))
+        row_mac.addWidget(v_mac)
+        row_mac.addWidget(btn_copy_mac)
+        row_mac.addStretch()
+        right_layout.addLayout(row_mac)
+
+        # 8. 授权工位 (注意：依照要求，严禁添加测试良率！)
+        st_info = get_station_info()
+        cust_name = st_info.get("customer", "内部核准机构")
+        line_stat = st_info.get("station", "专业研发工作站 (Pro Station)")
+        right_layout.addLayout(make_row("授权工位:", f"{cust_name} · {line_stat}"))
+
+        # 分割线
+        div_line = QFrame()
+        div_line.setFrameShape(QFrame.Shape.HLine)
+        div_line.setStyleSheet("color: #E2E8F0; margin-top: 2px; margin-bottom: 2px;")
+        right_layout.addWidget(div_line)
+
+        # 9. 软件核心特色 (通俗易懂 · 紧凑展示)
+        feat_card = QFrame()
+        feat_card.setStyleSheet("""
+            QFrame {
+                background-color: #FFFFFF;
+                border: 1px solid #E2E8F0;
+                border-radius: 5px;
+                padding: 4px;
+            }
+        """)
+        fc_box = QVBoxLayout(feat_card)
+        fc_box.setContentsMargins(6, 4, 6, 4)
+        fc_box.setSpacing(3)
+
+        lbl_fc_t = QLabel("💡 平台特色功能 (通俗易懂 · 工程实战)")
+        lbl_fc_t.setStyleSheet("font-size: 10px; font-weight: 700; color: #0284C7;")
+        fc_box.addWidget(lbl_fc_t)
+
+        mini_feats = [
+            ("📱 八角/跑道物理拓扑", "精确倒推多层多列漆包线排布与内外边距"),
+            ("🧬 铜线拉伸减径补偿", "微米级真实漆膜与拉细预测，电阻仿真极准"),
+            ("🛡️ 磁钢干涉 DFM 预警", "气隙红线主动诊断，一键 ISO 129 截面标注"),
+            ("📊 多方案微调折叠抽屉", "固化对比无缝切换，Excel 报表列宽自适应")
+        ]
+        for f_title, f_sub in mini_feats:
+            f_row = QHBoxLayout()
+            f_row.setSpacing(4)
+            lbl_k = QLabel(f"• <b>{f_title}</b>:")
+            lbl_k.setStyleSheet("font-size: 9px; color: #1E293B;")
+            lbl_v = QLabel(f_sub)
+            lbl_v.setStyleSheet("font-size: 9px; color: #64748B;")
+            f_row.addWidget(lbl_k)
+            f_row.addWidget(lbl_v)
+            f_row.addStretch()
+            fc_box.addLayout(f_row)
+
+        right_layout.addWidget(feat_card)
+        right_layout.addStretch()
+
+        body_layout.addWidget(right_box, 52)
+        card_layout.addLayout(body_layout)
+
+        # -------------------------------------------------------------
+        # 3. 底部版权声明与功能按钮栏 (完全对齐用户截图要求)
+        # -------------------------------------------------------------
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(0, 4, 0, 0)
+        footer_layout.setSpacing(10)
+
+        lbl_copyright = QLabel("Copyright © 2026 ansv.net & Yaming.Chen. All rights reserved.")
+        lbl_copyright.setStyleSheet("color: #94A3B8; font-size: 10px;")
+        footer_layout.addWidget(lbl_copyright)
+        footer_layout.addStretch()
+
+        # 按钮 1: 🖥️ 桌面快捷方式
+        btn_shortcut = QPushButton("🖥️ 桌面快捷方式")
+        btn_shortcut.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_shortcut.setToolTip("在当前电脑桌面上创建本系统专属高清快捷方式")
+        btn_shortcut.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #475569;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #F0F9FF;
+                border-color: #0284C7;
+                color: #0284C7;
+            }
+        """)
+        btn_shortcut.clicked.connect(self._on_create_shortcut_clicked)
+        footer_layout.addWidget(btn_shortcut)
+
+        # 按钮 2: 📄 导出诊断日志
+        btn_export_logs = QPushButton("📄 导出诊断日志")
+        btn_export_logs.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_export_logs.setToolTip("一键打包全景运行日志与系统体检指纹 (.zip) 供研发快速定位排查")
+        btn_export_logs.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #059669;
+                border: 1px solid #A7F3D0;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #ECFDF5;
+                border-color: #059669;
+            }
+        """)
+        btn_export_logs.clicked.connect(self._on_export_logs_clicked)
+        footer_layout.addWidget(btn_export_logs)
+
+        # 按钮 3: 🚀 检查更新
+        btn_chk_update = QPushButton("🚀 检查更新")
+        btn_chk_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_chk_update.setToolTip("检查软件更新并查看 Git 提交历史记录 (Changelog)")
+        btn_chk_update.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #0284C7;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 4px 12px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #F0F9FF;
+                border-color: #0284C7;
+            }
+        """)
+        btn_chk_update.clicked.connect(self._on_check_update_clicked)
+        footer_layout.addWidget(btn_chk_update)
+
+        # 按钮 4: 确定
+        btn_ok = QPushButton("确定")
+        btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_ok.setStyleSheet("""
             QPushButton {
                 background-color: #0284C7;
                 color: #FFFFFF;
-                font-size: 11px;
-                font-weight: 700;
-                border: none;
+                border: 1px solid #0284C7;
                 border-radius: 4px;
-                padding: 6px 16px;
+                padding: 4px 18px;
+                font-size: 11px;
+                font-weight: 600;
             }
             QPushButton:hover {
                 background-color: #0369A1;
+                border-color: #0369A1;
             }
         """)
-        btn_close.clicked.connect(self.accept)
-        bottom_h.addWidget(btn_close)
+        btn_ok.clicked.connect(self.accept)
+        footer_layout.addWidget(btn_ok)
 
-        main_layout.addLayout(bottom_h)
+        card_layout.addLayout(footer_layout)
+        main_layout.addWidget(card)
 
-    def _copy_text(self, text: str, btn: QPushButton = None, original_text: str = ""):
-        clipboard = QApplication.clipboard()
-        if clipboard:
-            clipboard.setText(text)
-            if btn:
-                btn.setText("✔ 已复制")
+    def _copy_to_clipboard(self, text: str, btn: QPushButton, success_msg: str = "已复制"):
+        """复制文本到系统剪贴板并给按钮微动反馈"""
+        cb = QApplication.clipboard()
+        if cb:
+            cb.setText(text)
+            orig_text = btn.text()
+            btn.setText(f"✓ {success_msg}")
+            btn.setEnabled(False)
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(1500, lambda: (btn.setText(orig_text), btn.setEnabled(True)))
+
+    def _on_create_shortcut_clicked(self):
+        """用户主动创建专属桌面快捷方式"""
+        from src.core.shortcut_helper import create_desktop_shortcut
+        ok, msg = create_desktop_shortcut()
+        if ok:
+            QMessageBox.information(
+                self,
+                "桌面快捷方式",
+                "✅ 桌面快捷方式已成功创建并绑定专属高清图标！\n您可随时从桌面双击直接启动。",
+                QMessageBox.StandardButton.Ok
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "桌面快捷方式",
+                f"快捷方式创建未完成：\n{msg}",
+                QMessageBox.StandardButton.Ok
+            )
+
+    def _on_export_logs_clicked(self):
+        """用户一键导出全景诊断日志包"""
+        from src.utils.logger import export_diagnostic_bundle, open_log_directory
+        try:
+            zip_path = export_diagnostic_bundle()
+            try:
+                QApplication.clipboard().setText(str(zip_path))
+            except Exception:
+                pass
+            msg = QMessageBox(self)
+            msg.setWindowTitle("诊断日志包导出成功")
+            msg.setText(
+                f"✅ 全景诊断日志包已成功生成：\n{zip_path}\n\n"
+                f"💡 文件路径已自动复制到剪贴板。\n"
+                f"您可以直接将该 ZIP 压缩包发送给研发人员排查。"
+            )
+            btn_open_folder = msg.addButton("📂 打开日志所在目录", QMessageBox.ButtonRole.ActionRole)
+            msg.addButton("确定", QMessageBox.ButtonRole.AcceptRole)
+            msg.exec()
+            if msg.clickedButton() == btn_open_folder:
+                open_log_directory()
+        except Exception as e:
+            QMessageBox.critical(self, "导出失败", f"生成诊断日志包失败: {e}")
+
+    def _on_check_update_clicked(self):
+        """唤起检查更新与 Git 版本提交记录窗口"""
+        from src.gui.update_dialog import UpdateDialog
+        dlg = UpdateDialog(self)
+        dlg.exec()

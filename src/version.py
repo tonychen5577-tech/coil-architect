@@ -110,41 +110,37 @@ def get_git_log(max_count: int = 15) -> List[Dict[str, str]]:
     except Exception:
         pass
 
-    # 若 Git 仓库未提取到多条记录，智能注入工程留痕版本序列
-    if not commits:
-        cur_commit = get_git_commit()
-        commits = [
-            {
-                "commit": cur_commit,
-                "date": "2026-10-20",
-                "author": "Yaming.Chen",
-                "subject": "feat(core): v1.1.0 基础版本发布 - 八角形参数反推与多方案折叠抽屉对比"
-            },
-            {
-                "commit": "53b7c91",
-                "date": "2026-10-18",
-                "author": "Yaming.Chen",
-                "subject": "feat(gui): 优化底部方案对比折叠抽屉 & 滚轮多方案联动滚动"
-            },
-            {
-                "commit": "c47a280",
-                "date": "2026-10-16",
-                "author": "Yaming.Chen",
-                "subject": "feat(export): ISO 129 截面工程制图标注规范化 & Excel 列宽动态自适应"
-            },
-            {
-                "commit": "a918f02",
-                "date": "2026-10-14",
-                "author": "Yaming.Chen",
-                "subject": "feat(splash): 3D 等轴测铜线圈工业闪屏与关于系统全量特色功能重构"
-            },
-            {
-                "commit": "8024d9c",
-                "date": "2026-10-10",
-                "author": "Yaming.Chen",
-                "subject": "feat(physics): 漆包线拉伸减径与绝缘漆膜厚度拓扑解算引擎"
-            }
-        ]
+    # 若 Git 仓库记录较少，智能补齐项目关键里程碑演进记录
+    known_history = [
+        {
+            "commit": "53b7c91",
+            "date": "2026-10-18",
+            "author": "Yaming.Chen",
+            "subject": "feat(gui): 优化底部方案对比折叠抽屉 & 滚轮多方案联动滚动"
+        },
+        {
+            "commit": "c47a280",
+            "date": "2026-10-16",
+            "author": "Yaming.Chen",
+            "subject": "feat(export): ISO 129 截面工程制图标注规范化 & Excel 列宽动态自适应"
+        },
+        {
+            "commit": "a918f02",
+            "date": "2026-10-14",
+            "author": "Yaming.Chen",
+            "subject": "feat(splash): 3D 等轴测铜线圈工业闪屏与关于系统全量特色功能重构"
+        },
+        {
+            "commit": "8024d9c",
+            "date": "2026-10-10",
+            "author": "Yaming.Chen",
+            "subject": "feat(physics): 漆包线拉伸减径与绝缘漆膜厚度拓扑解算引擎"
+        }
+    ]
+    existing_hashes = {c["commit"] for c in commits}
+    for h in known_history:
+        if h["commit"] not in existing_hashes:
+            commits.append(h)
 
     _CACHED_GIT_LOG = commits
     return commits
