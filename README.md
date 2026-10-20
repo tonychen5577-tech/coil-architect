@@ -172,7 +172,7 @@ $$d_{\text{eff}} = d_{\text{bare}} \times \sqrt{k_{\text{stretch}}}$$
 
 - **官方网站**：[https://ansv.net](https://ansv.net)
 - **GitHub 官方发布仓库**：[tonychen5577-tech/coil-architect](https://github.com/tonychen5577-tech/coil-architect)
-- **技术咨询邮箱**：`contact@ansv.net`
+- **技术支持与商务合作邮箱**：[support@ansv.net](mailto:support@ansv.net)
 
 ---
 
