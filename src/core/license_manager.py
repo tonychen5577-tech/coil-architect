@@ -349,6 +349,41 @@ class LicenseManager:
         except Exception as e:
             return False, f"写入凭证失败: {str(e)}"
 
+    @classmethod
+    def revoke_local_license(cls, reason: str = "当前工位机授权已被管理员在云端吊销") -> Tuple[bool, str]:
+        """
+        远程或本地吊销授权凭证，安全移除本地许可文件并刷新状态
+        (对标 Gear-NVH 远程锁机与吊销规范)
+        """
+        lic_path = cls.get_license_path()
+        revoked_path = lic_path.with_suffix(".key.revoked")
+        try:
+            if lic_path.exists():
+                try:
+                    if revoked_path.exists():
+                        revoked_path.unlink(missing_ok=True)
+                    lic_path.replace(revoked_path)
+                except Exception:
+                    lic_path.unlink(missing_ok=True)
+
+            global _CACHED_AUTH_RESULT, _LAST_AUTH_CHECK_TS
+            _CACHED_AUTH_RESULT = (False, reason, {})
+            _LAST_AUTH_CHECK_TS = datetime.now().timestamp()
+            return True, "已安全吊销本地授权凭证"
+        except Exception as e:
+            return False, f"吊销异常: {str(e)}"
+
+    @classmethod
+    def get_installed_license_token(cls) -> Optional[str]:
+        """获取当前安装的原始 Token 字符串"""
+        lic_path = cls.get_license_path()
+        if lic_path.exists():
+            try:
+                return lic_path.read_text(encoding="utf-8").strip()
+            except Exception:
+                pass
+        return None
+
 
 # 便捷别名与物理 MAC 地址提取
 get_machine_id = get_machine_code

@@ -471,8 +471,13 @@ async function handleClientApi(path, request, env) {
         const deviceRow = await db.prepare("SELECT status, customer_name, remote_command, remote_command_payload FROM devices WHERE machine_id = ?").bind(machineId).first();
         const release = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
 
-        let remoteCmd = deviceRow ? deviceRow.remote_command : "NONE";
-        let remotePayload = deviceRow ? deviceRow.remote_command_payload : "";
+        let remoteCmd = deviceRow ? (deviceRow.remote_command || "NONE") : "NONE";
+        let remotePayload = deviceRow ? (deviceRow.remote_command_payload || "") : "";
+
+        // 如果设备处于 BANNED 或 REVOKED 状态，强行下发 LOCK_APP 指令 (远程锁机/吊销)
+        if (deviceRow && (deviceRow.status === "BANNED" || deviceRow.license_status === "REVOKED")) {
+            remoteCmd = "LOCK_APP";
+        }
 
         return jsonResponse({
             success: true,
@@ -496,6 +501,20 @@ async function handleClientApi(path, request, env) {
                 is_mandatory: release.is_mandatory === 1
             } : null
         });
+    }
+
+    // 1.1 工位机指令执行回执 (ACK) (对标 Gear 规范)
+    if ((path === "/api/v1/command_ack" || path === "/api/v1/station/command_ack") && request.method === "POST") {
+        let body = {};
+        try { body = await request.json(); } catch(e){}
+        const mid = (body.machine_id || "").trim();
+        const cmd = (body.command || "NONE").trim();
+        const status = (body.status || "OK").trim();
+        if (mid) {
+            await db.prepare("UPDATE devices SET remote_command = 'NONE', remote_command_payload = '' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details) VALUES ('COMMAND_ACK', ?, ?)").bind(mid, `工位机指令回执: ${cmd} -> ${status}`).run();
+        }
+        return jsonResponse({ success: true, message: "ACK received" });
     }
 
     // 2. 检查版本更新
@@ -748,28 +767,52 @@ async function handleAdmin(path, request, env, url) {
 
         if (!mid) return jsonResponse({ success: false, error: "Missing machine_id" }, 400);
 
-        if (action === "BAN") {
-            await db.prepare("UPDATE devices SET status = 'BANNED', remote_command = 'LOCK_APP' WHERE machine_id = ?").bind(mid).run();
+        if (action === "REVOKE" || action === "LOCK_APP") {
+            await db.prepare("UPDATE devices SET license_status = 'REVOKED', remote_command = 'LOCK_APP' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REVOKE_LICENSE', ?, '管理员在网页控制台取消授权，下发远程锁机指令', ?)").bind(mid, ip).run();
+        } else if (action === "BAN") {
+            await db.prepare("UPDATE devices SET status = 'BANNED', license_status = 'REVOKED', remote_command = 'LOCK_APP' WHERE machine_id = ?").bind(mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('BAN_DEVICE', ?, '强制拉黑吊销并下发锁定指令', ?)").bind(mid, ip).run();
-        } else if (action === "ACTIVATE") {
-            await db.prepare("UPDATE devices SET status = 'ACTIVE', remote_command = 'NONE' WHERE machine_id = ?").bind(mid).run();
-            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('ACTIVATE_DEVICE', ?, '恢复解封正常状态', ?)").bind(mid, ip).run();
+        } else if (action === "ACTIVATE" || action === "UNLOCK") {
+            await db.prepare("UPDATE devices SET status = 'ACTIVE', license_status = 'ACTIVE', remote_command = 'NONE' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('ACTIVATE_DEVICE', ?, '解除锁定，恢复正常授权状态', ?)").bind(mid, ip).run();
         } else if (action === "EXTEND_DAYS") {
             const days = parseInt(val) || 30;
             const targetDate = new Date();
             targetDate.setDate(targetDate.getDate() + days);
             const newExp = targetDate.toISOString().substring(0, 10);
-            await db.prepare("UPDATE devices SET license_expire = ?, remaining_days = ?, license_status = 'ACTIVE' WHERE machine_id = ?").bind(newExp, days, mid).run();
+            await db.prepare("UPDATE devices SET license_expire = ?, remaining_days = ?, license_status = 'ACTIVE', remote_command = 'NONE' WHERE machine_id = ?").bind(newExp, days, mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('EXTEND_DAYS', ?, ?, ?)").bind(mid, `延长至: ${newExp}`, ip).run();
         } else if (action === "SET_PERMANENT") {
-            await db.prepare("UPDATE devices SET license_expire = 'PERMANENT', remaining_days = 99999, license_status = 'ACTIVE' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("UPDATE devices SET license_expire = 'PERMANENT', remaining_days = 99999, license_status = 'ACTIVE', remote_command = 'NONE' WHERE machine_id = ?").bind(mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('SET_PERMANENT', ?, '设为永久企业买断授权', ?)").bind(mid, ip).run();
+        } else if (action === "PUSH_TOKEN") {
+            const token = (val || "").trim();
+            await db.prepare("UPDATE devices SET remote_command = 'UPDATE_LICENSE', remote_command_payload = ?, license_status = 'ACTIVE' WHERE machine_id = ?").bind(token, mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('PUSH_TOKEN', ?, '远程推送新授权激活码并通知更新', ?)").bind(mid, ip).run();
         } else if (action === "REMOTE_COMMAND") {
             await db.prepare("UPDATE devices SET remote_command = ?, remote_command_payload = ? WHERE machine_id = ?").bind(val || "NONE", body.payload || "", mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REMOTE_COMMAND', ?, ?, ?)").bind(mid, `下发指令: ${val}`, ip).run();
         }
 
         return jsonResponse({ success: true });
+    }
+
+    // D2. 吊销指定历史激活码 (对标 Gear 规范)
+    if (path === "/admin/api/license/revoke" && request.method === "POST") {
+        let body = {};
+        try { body = await request.json(); } catch(e){}
+        const token = (body.token || "").trim();
+        const ip = request.headers.get("CF-Connecting-IP") || "-";
+        if (!token) return jsonResponse({ success: false, error: "Missing token" }, 400);
+
+        const lic = await db.prepare("SELECT machine_id FROM licenses WHERE token = ?").bind(token).first();
+        await db.prepare("UPDATE licenses SET status = 'REVOKED' WHERE token = ?").bind(token).run();
+        if (lic && lic.machine_id && lic.machine_id !== "*") {
+            await db.prepare("UPDATE devices SET license_status = 'REVOKED', remote_command = 'LOCK_APP' WHERE machine_id = ?").bind(lic.machine_id).run();
+        }
+        await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REVOKE_TOKEN', ?, '管理员在控制台吊销此授权码并下发锁机', ?)").bind(token.substring(0, 32), ip).run();
+        return jsonResponse({ success: true, message: "激活码已成功吊销，对应工位机将在心跳时自动失效退出" });
     }
 
     // E. 历史签发授权码列表
@@ -1413,6 +1456,7 @@ function renderDashboardPage() {
             <th>经手人</th>
             <th>签发时间</th>
             <th>激活码 (点击复制)</th>
+            <th>管控操作</th>
           </tr>
         </thead>
         <tbody id="license-table-body">
@@ -1589,30 +1633,52 @@ async function loadDevices() {
     const d = await res.json();
     if(d.success && d.devices.length > 0) {
       tbody.innerHTML = d.devices.map(dev => {
+        let isOnline = false;
+        if (dev.last_sync_time) {
+          try {
+            const syncTs = new Date(dev.last_sync_time.replace(' ', 'T') + (dev.last_sync_time.endsWith('Z') ? '' : 'Z')).getTime();
+            if (Math.abs(Date.now() - syncTs) < 180000) isOnline = true; // 3分钟内有心跳
+          } catch(e){}
+        }
+        let onlineBadge = isOnline ? 
+          '<span style="color:#059669;font-weight:700;font-size:11px;">🟢 实时在线</span>' : 
+          '<span style="color:#94A3B8;font-size:11px;">⚪ 离线</span>';
+
         let statusBadge = '<span class="badge badge-success">正常授权</span>';
-        if(dev.status === 'BANNED') statusBadge = '<span class="badge badge-danger">已拉黑阻断</span>';
-        else if(dev.license_status === 'EXPIRED') statusBadge = '<span class="badge badge-danger">已过期</span>';
-        else if(dev.license_status === 'TRIAL') statusBadge = '<span class="badge badge-warning">免密试用</span>';
+        if(dev.status === 'BANNED' || dev.license_status === 'REVOKED') {
+          statusBadge = '<span class="badge badge-danger">已取消授权/锁机</span>';
+        } else if(dev.license_status === 'EXPIRED') {
+          statusBadge = '<span class="badge badge-danger">已过期</span>';
+        } else if(dev.license_status === 'TRIAL') {
+          statusBadge = '<span class="badge badge-warning">免密试用</span>';
+        }
 
         let remainText = dev.license_expire === 'PERMANENT' ? '永久有效' : (dev.remaining_days > 0 ? dev.remaining_days + ' 天' : '<span style="color:red;">已逾期</span>');
         let vmText = dev.is_virtual_machine ? '<span style="color:#B45309;">⚠️虚拟机</span>' : '物理真机';
         let clockText = dev.clock_tampered ? '<span style="color:#B91C1C;font-weight:bold;">🚨倒拨时钟</span>' : '时钟正常';
         let diskText = dev.disk_free_gb > 0 ? (dev.disk_free_gb + ' GB') : '-';
 
+        let actionBtns = '';
+        if (dev.status === 'BANNED' || dev.license_status === 'REVOKED') {
+          actionBtns = 
+            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;background:#059669;margin-right:4px;" onclick="deviceAction(\\'' + dev.machine_id + '\\', \\'ACTIVATE\\')">🔓 解锁恢复</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">重开授权</button>';
+        } else {
+          actionBtns = 
+            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;margin-right:4px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">开通/续约</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" onclick="revokeDevice(\\'' + dev.machine_id + '\\')">🚫 取消授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="showRemoteMenu(\\'' + dev.machine_id + '\\')">⚙️ 更多</button>';
+        }
+
         return '<tr>' +
-          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span></td>' +
+          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span><br>' + onlineBadge + '</td>' +
           '<td><b>' + (dev.customer_name || '-') + '</b><br><span style="color:#64748B;font-size:11px;">操作员: ' + (dev.operator_name || '-') + ' (' + (dev.system_user || '-') + ')</span><br><span style="color:#94A3B8;font-size:10px;">' + (dev.hostname || '-') + ' (' + (dev.ip_address || '-') + ')</span></td>' +
           '<td><span class="mono">' + dev.app_version + '</span><br><span style="color:#64748B;font-size:10px;">基准库: ' + (dev.wire_db_version || 'v1.0') + '</span></td>' +
           '<td>' + statusBadge + '</td>' +
           '<td>' + dev.license_expire + '<br><span style="font-size:11px;color:#64748B;">(' + remainText + ')</span></td>' +
           '<td><span style="font-size:11px;">' + (dev.last_sync_time || '-') + '</span><br><span style="font-size:10px;color:#94A3B8;">已同步 ' + (dev.sync_count || 1) + ' 次</span></td>' +
           '<td>' + vmText + ' | ' + clockText + '<br><span style="font-size:10px;color:#64748B;">空闲磁盘: ' + diskText + '</span></td>' +
-          '<td>' +
-            '<button class="btn-primary" style="padding:3px 8px;font-size:11px;margin-right:4px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">开通授权</button>' +
-            (dev.status === 'BANNED' ? 
-              '<button class="btn-secondary" style="padding:3px 8px;font-size:11px;" onclick="deviceAction(\\'' + dev.machine_id + '\\', \\'ACTIVATE\\')">解封</button>' :
-              '<button class="btn-secondary" style="padding:3px 8px;font-size:11px;color:#EF4444;" onclick="deviceAction(\\'' + dev.machine_id + '\\', \\'BAN\\')">拉黑</button>') +
-          '</td>' +
+          '<td>' + actionBtns + '</td>' +
         '</tr>';
       }).join('');
     } else {
@@ -1623,6 +1689,31 @@ async function loadDevices() {
   }
 }
 
+async function revokeDevice(mid) {
+  if (!confirm('⚠️ 确定要取消工位机 [' + mid + '] 的授权并远程锁机吗？\n\n【远程控制影响说明】：\n1. 云端将立即向该工位机下发 LOCK_APP 锁机指令；\n2. 客户端将在 30 秒心跳周期内自动清空本地许可文件并安全退出，外人无法继续使用！')) {
+    return;
+  }
+  await deviceAction(mid, 'REVOKE');
+}
+
+async function showRemoteMenu(mid) {
+  const act = prompt('请选择对工位机 [' + mid + '] 执行的远程指令：\n\n' +
+    '1: 延长 30 天使用期\n' +
+    '2: 延长 1 年使用期\n' +
+    '3: 设为永久企业买断版\n' +
+    '4: 远程通知强制刷新标杆案例库 (FORCE_SYNC_CASES)\n' +
+    '5: 彻底拉黑封禁 (BAN)\n\n' +
+    '请输入序号 (1-5):', '1');
+  if (!act) return;
+  if (act === '1') await deviceAction(mid, 'EXTEND_DAYS', 30);
+  else if (act === '2') await deviceAction(mid, 'EXTEND_DAYS', 365);
+  else if (act === '3') await deviceAction(mid, 'SET_PERMANENT');
+  else if (act === '4') await deviceAction(mid, 'REMOTE_COMMAND', 'FORCE_SYNC_CASES');
+  else if (act === '5') {
+    if (confirm('确定要拉黑该机器码吗？')) await deviceAction(mid, 'BAN');
+  }
+}
+
 async function loadLicenses() {
   const tbody = document.getElementById('license-table-body');
   try {
@@ -1630,6 +1721,13 @@ async function loadLicenses() {
     const d = await res.json();
     if(d.success && d.licenses.length > 0) {
       tbody.innerHTML = d.licenses.map(lic => {
+        let licAction = '';
+        if (lic.status === 'REVOKED') {
+          licAction = '<span style="color:#EF4444;font-size:11px;font-weight:bold;">已吊销失效</span>';
+        } else {
+          licAction = '<button class="btn-secondary" style="padding:2px 7px;font-size:10px;color:#EF4444;border-color:#FCA5A5;" onclick="revokeLicenseToken(\\'' + lic.token + '\\')">吊销此码</button>';
+        }
+
         return '<tr>' +
           '<td>' + lic.id + '</td>' +
           '<td><span class="mono">' + lic.machine_id + '</span></td>' +
@@ -1639,10 +1737,28 @@ async function loadLicenses() {
           '<td>' + (lic.operator_name || 'ADMIN') + '</td>' +
           '<td>' + lic.created_at + '</td>' +
           '<td><span class="mono click-copy" style="font-size:10px;" onclick="copyText(\\'' + lic.token + '\\')">' + lic.token.substring(0, 32) + '...</span></td>' +
+          '<td>' + licAction + '</td>' +
         '</tr>';
       }).join('');
     }
   } catch(e){}
+}
+
+async function revokeLicenseToken(token) {
+  if (!confirm('⚠️ 确定要吊销此授权激活码吗？\n\n该激活码绑定的工位机将在下次心跳时直接失效退出！')) return;
+  try {
+    const res = await fetch('/admin/api/license/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token })
+    });
+    const d = await res.json();
+    alert(d.message || '已成功吊销');
+    loadLicenses();
+    loadDevices();
+  } catch(e) {
+    alert('操作失败: ' + e);
+  }
 }
 
 async function loadCases() {

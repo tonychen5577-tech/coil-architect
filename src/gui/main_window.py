@@ -7,7 +7,7 @@ import os
 import json
 import math
 from datetime import datetime
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
@@ -35,6 +35,9 @@ logger = get_logger("MainWindow")
 class MainWindow(QMainWindow):
     """Coil-Architect Pro 主工作站"""
 
+    signal_cloud_status = pyqtSignal(bool, str, str)  # (is_online, message, base_url)
+    signal_remote_command = pyqtSignal(str, str)      # (command, payload)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_TITLE} {APP_VERSION}")
@@ -45,12 +48,27 @@ class MainWindow(QMainWindow):
         self.outputs = CoilOutputs()
         self._is_syncing_params = False
 
+        # 连接云端协同信号
+        self.signal_cloud_status.connect(self._on_cloud_status_received)
+        self.signal_remote_command.connect(self._on_remote_command_received)
+
         # 加载 Clean White 工业样式
         self.setStyleSheet(LIGHT_INDUSTRIAL_QSS)
 
         self._init_ui()
         self._load_preset(self.combo_presets.itemText(0))
         self.run_simulation()
+
+        # 启动后台实时心跳守护引擎 (对标 Gear: 每 30 秒自动握手并监听远程锁机/更新指令)
+        try:
+            from src.core.cloud_client import CloudClient
+            CloudClient.start_background_sync(
+                interval_sec=30.0,
+                on_status_callback=lambda ok, msg, url: self.signal_cloud_status.emit(ok, msg, url),
+                on_command_callback=lambda cmd, payload: self.signal_remote_command.emit(cmd, payload)
+            )
+        except Exception as e:
+            logger.debug(f"启动云端心跳失败: {e}")
 
     def _init_ui(self):
         central_widget = QWidget(self)
@@ -212,7 +230,30 @@ class MainWindow(QMainWindow):
             self.comparison_drawer.setToolTip("【方案比对抽屉】\n记录手动固化的参数方案并进行横向对比分析，支持基准比对、一键还原与报表导出。")
 
     def _setup_statusbar_copyright(self):
-        """配置右下角三行常驻版权信息 (规范 04.二)"""
+        """配置右下角三行常驻版权信息与云端实时状态 (规范 04.二)"""
+        # 云端在线状态指示与一键同步按钮
+        self.btn_cloud_status = QPushButton("⏳ 云端连接中...")
+        self.btn_cloud_status.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #64748B;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 3px 10px;
+                font-size: 11px;
+                font-weight: 600;
+                margin-right: 14px;
+            }
+            QPushButton:hover {
+                background-color: #F1F5F9;
+                color: #0284C7;
+                border-color: #0284C7;
+            }
+        """)
+        self.btn_cloud_status.setToolTip("点击立即执行一次云端状态同步与远程指令检测")
+        self.btn_cloud_status.clicked.connect(self._on_cloud_status_clicked)
+        self.status_bar.addPermanentWidget(self.btn_cloud_status)
+
         copyright_widget = QWidget()
         copy_layout = QVBoxLayout(copyright_widget)
         copy_layout.setContentsMargins(0, 0, 8, 2)
@@ -236,6 +277,106 @@ class MainWindow(QMainWindow):
         copy_layout.addWidget(lbl_c3)
 
         self.status_bar.addPermanentWidget(copyright_widget)
+
+    def _on_cloud_status_received(self, ok: bool, msg: str, target: str):
+        """线程安全槽：实时刷新状态栏云端在线状态"""
+        if not hasattr(self, "btn_cloud_status"):
+            return
+        if ok:
+            domain = target.replace("https://", "").replace("http://", "")
+            self.btn_cloud_status.setText("🟢 云端已连接 | 实时同步")
+            self.btn_cloud_status.setStyleSheet("""
+                QPushButton {
+                    background-color: #ECFDF5;
+                    color: #059669;
+                    border: 1px solid #A7F3D0;
+                    border-radius: 4px;
+                    padding: 3px 10px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    margin-right: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #D1FAE5;
+                }
+            """)
+            self.btn_cloud_status.setToolTip(f"云端服务器已联通: {domain}\n实时心跳正常，双向遥控指令通道已激活。\n点击可立即强制刷新一次。")
+        else:
+            self.btn_cloud_status.setText("⚪ 本地离线模式")
+            self.btn_cloud_status.setStyleSheet("""
+                QPushButton {
+                    background-color: #F8FAFC;
+                    color: #94A3B8;
+                    border: 1px solid #E2E8F0;
+                    border-radius: 4px;
+                    padding: 3px 10px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    margin-right: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #F1F5F9;
+                }
+            """)
+            self.btn_cloud_status.setToolTip(f"{msg}\n点击可尝试重新连接云端服务器。")
+
+    def _on_cloud_status_clicked(self):
+        """点击底部云端状态指示按钮立即触发一次同步"""
+        self.btn_cloud_status.setText("🔄 正在同步中...")
+        from src.core.cloud_client import CloudClient
+        CloudClient.trigger_sync_now()
+
+    def _on_remote_command_received(self, cmd: str, payload: str):
+        """响应来自 Cloudflare 边缘控制台的远程指令 (对标 Gear)"""
+        cmd_upper = (cmd or "").upper().strip()
+        logger.warning(f"MainWindow 捕获云端远程遥控指令: {cmd_upper}")
+
+        if cmd_upper in ("LOCK_APP", "REVOKE_LICENSE"):
+            if getattr(self, "_remote_locked_flag", False):
+                return
+            self._remote_locked_flag = True
+
+            # 停止云端心跳
+            from src.core.cloud_client import CloudClient
+            CloudClient.stop_background_sync()
+
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("商业授权终止通知")
+            msg_box.setIcon(QMessageBox.Icon.Critical)
+            msg_box.setText(
+                "【当前工位机商业授权已被管理员在云端控制台吊销 / 终止】\n\n"
+                "软件已安全锁定并清除本地授权凭证。\n"
+                "如需恢复或重新开通授权，请联系 ANSV 官方管理员重新签发。"
+            )
+            btn_exit = msg_box.addButton("关闭退出", QMessageBox.ButtonRole.AcceptRole)
+            msg_box.setDefaultButton(btn_exit)
+            msg_box.exec()
+
+            self.close()
+            from PyQt6.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app:
+                app.quit()
+
+        elif cmd_upper == "UPDATE_LICENSE":
+            self.status_bar.showMessage("🎉 云端已远程下发最新商业授权，系统已自动刷新生效！", 5000)
+            QMessageBox.information(
+                self,
+                "云端授权更新成功",
+                "管理员已通过云端控制台为您延长了商业授权 / 升级了方案版本！\n\n当前授权凭证已在本地自动刷新生效。"
+            )
+
+        elif cmd_upper == "FORCE_SYNC_CASES":
+            self.status_bar.showMessage("📐 云端标杆案例库已更新", 4000)
+
+    def closeEvent(self, event):
+        """主窗口关闭时安全销毁后台守护线程"""
+        try:
+            from src.core.cloud_client import CloudClient
+            CloudClient.stop_background_sync()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
     def _show_about_dialog(self):
         """弹出 16:9 工业标准关于系统对话框"""
