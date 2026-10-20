@@ -348,3 +348,69 @@ class LicenseManager:
 
         except Exception as e:
             return False, f"写入凭证失败: {str(e)}"
+
+
+# 便捷别名与物理 MAC 地址提取
+get_machine_id = get_machine_code
+_CACHED_MAC_ADDRESS = None
+
+
+def get_mac_address() -> str:
+    """
+    获取工位机真实的物理网卡 MAC 地址 (格式: XX:XX:XX:XX:XX:XX)
+    单例内存缓存与多重静默获取，毫秒级快速返回，杜绝多进程阻塞与卡顿
+    """
+    global _CACHED_MAC_ADDRESS
+    if _CACHED_MAC_ADDRESS is not None:
+        return _CACHED_MAC_ADDRESS
+
+    mac_found = None
+    try:
+        import subprocess, re
+        startupinfo = None
+        if sys.platform == "win32":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+        out_bytes = subprocess.check_output(
+            "getmac /fo csv /nh",
+            shell=True,
+            timeout=1.5,
+            startupinfo=startupinfo,
+            stderr=subprocess.DEVNULL
+        )
+        out = out_bytes.decode("utf-8", errors="ignore")
+        macs = [m.replace("-", ":").upper() for m in re.findall(r"([0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2}[:-][0-9A-Fa-f]{2})", out)]
+        for m in macs:
+            if not m.startswith("00:00:00") and not m.startswith("FF:FF:FF"):
+                mac_found = m
+                break
+    except Exception:
+        pass
+
+    if not mac_found:
+        import uuid
+        node = uuid.getnode()
+        mac_hex = f"{node:012X}"
+        mac_found = ":".join(mac_hex[i:i+2] for i in range(0, 12, 2))
+
+    _CACHED_MAC_ADDRESS = mac_found
+    return _CACHED_MAC_ADDRESS
+
+
+def get_station_info() -> Dict[str, str]:
+    """获取当前授权工位信息"""
+    try:
+        ok, _, payload = LicenseManager.is_system_authorized()
+        if ok and payload:
+            return {
+                "customer": payload.get("customer", "内部核准机构"),
+                "station": payload.get("station", "专业研发工作站 (Pro Station)")
+            }
+    except Exception:
+        pass
+    return {
+        "customer": "内部核准机构",
+        "station": "专业研发工作站 (Pro Station)"
+    }
+

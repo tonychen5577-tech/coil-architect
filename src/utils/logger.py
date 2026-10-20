@@ -174,3 +174,128 @@ def install_crash_hook():
 
     sys.excepthook = global_excepthook
     crash_logger.info("全局异常与崩溃捕获钩子 (CrashHook) 已安装")
+
+
+def collect_system_fingerprint() -> dict:
+    """收集系统诊断指纹信息"""
+    import json
+    import platform
+    from datetime import datetime
+    try:
+        from src.version import APP_VERSION, APP_BUILD, BUILD_TIME, get_git_commit
+        git_commit = get_git_commit()
+    except Exception:
+        APP_VERSION = "v1.1.0"
+        APP_BUILD = "20261014_B1"
+        BUILD_TIME = "2026-10-20"
+        git_commit = "bca8bfe"
+
+    machine_id = "UNKNOWN"
+    mac_addr = "UNKNOWN"
+    try:
+        from src.core.license_manager import get_machine_code, get_mac_address
+        machine_id = get_machine_code()
+        mac_addr = get_mac_address()
+    except Exception:
+        pass
+
+    return {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "app_name": "Coil-Architect Pro",
+        "app_version": APP_VERSION,
+        "app_build": APP_BUILD,
+        "git_commit": git_commit,
+        "build_time": BUILD_TIME,
+        "machine_id": machine_id,
+        "mac_address": mac_addr,
+        "os_platform": platform.platform(),
+        "python_version": sys.version.split()[0],
+        "system_encoding": sys.getdefaultencoding(),
+    }
+
+
+def export_diagnostic_bundle(target_dir: Optional[Path] = None) -> Path:
+    """
+    一键打包全量诊断包为 ZIP 归档文件
+    包含：
+    1. coil_architect.log 全量日志与滚动历史日志
+    2. system_diagnostic_summary.json 系统软硬件与网络指纹
+    3. diagnostic_readme.txt 诊断指引与研发说明
+    """
+    import json
+    import zipfile
+    from datetime import datetime
+
+    diag_logger = get_logger("DiagnosticBundle")
+    log_dir = get_log_dir()
+
+    if target_dir is None:
+        desktop = Path.home() / "Desktop"
+        target_dir = desktop if desktop.exists() else log_dir
+
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    machine_id_short = "UNKNOWN"
+    try:
+        from src.core.license_manager import get_machine_code
+        machine_id_short = get_machine_code().replace("COIL-", "")[:8]
+    except Exception:
+        pass
+
+    zip_filename = f"CoilArchitect_Diagnostic_{machine_id_short}_{timestamp_str}.zip"
+    zip_path = target_dir / zip_filename
+
+    fingerprint = collect_system_fingerprint()
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1. 写入环境摘要 JSON
+        summary_str = json.dumps(fingerprint, ensure_ascii=False, indent=2)
+        zf.writestr("system_diagnostic_summary.json", summary_str.encode("utf-8"))
+
+        # 2. 写入研发快速排查说明
+        readme_lines = [
+            "=" * 72,
+            f"ANSV Coil-Architect Pro 诊断体检报告包 (生成时间: {fingerprint.get('timestamp')})",
+            "=" * 72,
+            f"平台全称: ANSV 微型执行器与精密传动仿真验证平台",
+            f"软件模块: Coil-Architect Pro 电磁线圈多物理场仿真工作站",
+            f"软件版本: v{fingerprint.get('app_version', '-')} (Build {fingerprint.get('app_build', '-')})",
+            f"Git指纹:  {fingerprint.get('git_commit', '-')} (构建于: {fingerprint.get('build_time', '-')})",
+            f"机器代码: {fingerprint.get('machine_id', '-')}",
+            f"物理MAC:  {fingerprint.get('mac_address', '-')}",
+            f"运行环境: {fingerprint.get('os_platform', '-')} | Python {fingerprint.get('python_version', '-')}",
+            "=" * 72,
+            "【使用说明】:",
+            "请将本压缩包直接发送给 ANSV 平台研发工程师，工程师可精准溯源日志与异常堆栈。",
+            "=" * 72,
+        ]
+        zf.writestr("diagnostic_readme.txt", "\n".join(readme_lines).encode("utf-8"))
+
+        # 3. 收集并写入全部相关 log 文件
+        for log_f in log_dir.glob(f"{LOG_FILENAME}*"):
+            if log_f.is_file():
+                try:
+                    zf.write(log_f, arcname=f"logs/{log_f.name}")
+                except Exception as e:
+                    diag_logger.warning(f"打包日志文件 {log_f.name} 失败: {e}")
+
+        # 如果有崩溃记录也一并写入
+        crash_log = log_dir / CRASH_FILENAME
+        if crash_log.exists():
+            try:
+                zf.write(crash_log, arcname=f"logs/{crash_log.name}")
+            except Exception:
+                pass
+
+    diag_logger.info(f"✅ 全景诊断包已成功生成: {zip_path}")
+    return zip_path
+
+
+def open_log_directory():
+    """在操作系统资源管理器中打开日志目录"""
+    log_dir = get_log_dir()
+    if sys.platform == "win32":
+        os.startfile(str(log_dir))
+    else:
+        import subprocess
+        subprocess.run(["xdg-open", str(log_dir)])
+
