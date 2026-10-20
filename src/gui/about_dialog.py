@@ -682,6 +682,28 @@ class AboutDialog(QDialog):
         btn_export_logs.clicked.connect(self._on_export_logs_clicked)
         footer_layout.addWidget(btn_export_logs)
 
+        # 按钮 2.5: 🌐 网络数据库诊断 (对标 Gear 规范)
+        btn_cloud_diag = QPushButton("🌐 网络数据库诊断")
+        btn_cloud_diag.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_cloud_diag.setToolTip("打开企业内网数据库与通信环境诊断中心 (快捷键: Ctrl+D)")
+        btn_cloud_diag.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #0369A1;
+                border: 1px solid #BAE6FD;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #E0F2FE;
+                border-color: #0284C7;
+            }
+        """)
+        btn_cloud_diag.clicked.connect(self._on_cloud_diag_clicked)
+        footer_layout.addWidget(btn_cloud_diag)
+
         # 按钮 3: 🚀 检查更新
         btn_chk_update = QPushButton("🚀 检查更新")
         btn_chk_update.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -803,6 +825,11 @@ class AboutDialog(QDialog):
                 open_log_directory()
         except Exception as e:
             QMessageBox.critical(self, "导出失败", f"生成诊断日志包失败: {e}")
+
+    def _on_cloud_diag_clicked(self):
+        """唤起企业内网数据库与通信环境诊断中心 (对标 Gear 规范)"""
+        from src.gui.cloud_config_dialog import open_cloud_config_dialog
+        open_cloud_config_dialog(self)
 
     def _on_check_update_clicked(self):
         """唤起检查更新与 Git 版本提交记录窗口"""

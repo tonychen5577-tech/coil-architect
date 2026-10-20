@@ -174,6 +174,11 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.debug(f"启动云端心跳失败: {e}")
 
+        # 全局快捷键 Ctrl+D 极速呼出数据库网络通信与诊断中心 (对标 Gear 规范)
+        from PyQt6.QtGui import QKeySequence, QShortcut
+        self.shortcut_db = QShortcut(QKeySequence("Ctrl+D"), self)
+        self.shortcut_db.activated.connect(self._open_cloud_config_dialog)
+
     def _init_ui(self):
         central_widget = QWidget(self)
         central_widget.setObjectName("centralWidget")
@@ -408,15 +413,15 @@ class MainWindow(QMainWindow):
                 f"已连接至官方授权中心: {domain}\n"
                 "✓ 本工位机线圈物理仿真设计数据 100% 留存在本地，绝不上云。\n"
                 "✓ 仅执行商业授权校验与版本检测 (每 30 分钟心跳一次)。\n"
-                "点击可立即测试授权连通性。"
+                "点击可打开数据库通信与网络诊断中心 (Ctrl+D)。"
             )
         else:
-            self.btn_cloud_status.setText("⚪ 本地授权模式")
+            self.btn_cloud_status.setText("⚪ 数据库未连通 (点击诊断)")
             self.btn_cloud_status.setStyleSheet("""
                 QPushButton {
-                    background-color: #F8FAFC;
-                    color: #94A3B8;
-                    border: 1px solid #E2E8F0;
+                    background-color: #FEF2F2;
+                    color: #B91C1C;
+                    border: 1px solid #FECACA;
                     border-radius: 4px;
                     padding: 3px 10px;
                     font-size: 11px;
@@ -424,20 +429,23 @@ class MainWindow(QMainWindow):
                     margin-right: 14px;
                 }
                 QPushButton:hover {
-                    background-color: #F1F5F9;
+                    background-color: #FEE2E2;
                 }
             """)
             self.btn_cloud_status.setToolTip(
                 f"{msg}\n"
-                "当前线圈仿真全功能不受影响，本地商业授权持续有效。\n"
-                "设计数据 100% 保存在本地，点击可重试连接官方授权服务器。"
+                "当前内网环境下数据库未建立连接。\n"
+                "点击立即打开数据库通信与环境诊断中心 (快捷键: Ctrl+D)。"
             )
 
     def _on_cloud_status_clicked(self):
-        """点击底部授权状态指示按钮立即触发一次检测"""
-        self.btn_cloud_status.setText("🔄 授权验证中...")
-        from src.core.cloud_client import CloudClient
-        CloudClient.trigger_sync_now()
+        """点击底部授权状态指示按钮打开网络通信与环境诊断中心"""
+        self._open_cloud_config_dialog()
+
+    def _open_cloud_config_dialog(self):
+        """打开企业内网数据库与通信诊断中心 (对标 Gear 规范)"""
+        from src.gui.cloud_config_dialog import open_cloud_config_dialog
+        open_cloud_config_dialog(self)
 
     def _on_remote_command_received(self, cmd: str, payload: str):
         """响应来自 Cloudflare 边缘控制台的远程指令 (对标 Gear)"""
@@ -595,6 +603,12 @@ class MainWindow(QMainWindow):
         self.btn_about = QPushButton("ℹ️ 关于系统")
         self.btn_about.clicked.connect(self._show_about_dialog)
         layout.addWidget(self.btn_about)
+
+        # 数据库通信与网络诊断按钮 (对标 Gear 规范)
+        self.btn_cloud_config = QPushButton("🌐 数据库设置与诊断")
+        self.btn_cloud_config.setToolTip("内网网络连通诊断、体检日志导出与通信参数导入 (快捷键: Ctrl+D)")
+        self.btn_cloud_config.clicked.connect(self._open_cloud_config_dialog)
+        layout.addWidget(self.btn_cloud_config)
 
         return bar
 

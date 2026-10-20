@@ -29,6 +29,9 @@ from src.gui.utils import GlobalNoWheelChangeFilter
 
 
 def main():
+    # 0. 启动企业内网智能 DNS 韧性解析器 (对标 Gear 规范，防内网 DNS 阻断)
+    import src.core.smart_dns
+
     # 1. 初始化全局安全滚动日志与未捕获异常崩溃看门狗 (规范 05.一)
     setup_logging()
     install_crash_hook()

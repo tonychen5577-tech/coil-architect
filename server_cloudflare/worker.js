@@ -504,6 +504,17 @@ async function handleClientApi(path, request, env) {
         });
     }
 
+    // 0. 健康检查与网络连通性探测 (对齐 Gear 规范)
+    if (path === "/api/v1/health" || path === "/health" || path === "/api/health") {
+        return jsonResponse({
+            success: true,
+            status: "ONLINE",
+            service: "Coil-Architect Cloud Edge Database",
+            message: "电磁线圈知识库与授权协同服务正常运行中",
+            timestamp: Date.now()
+        });
+    }
+
     // 1.1 工位机指令执行回执 (ACK) (对标 Gear 规范)
     if ((path === "/api/v1/command_ack" || path === "/api/v1/station/command_ack") && request.method === "POST") {
         let body = {};
