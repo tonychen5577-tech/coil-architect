@@ -21,14 +21,30 @@ FILE_EXT = ".ansvcoil"
 FRIENDLY_TYPE_NAME = "ANSV 线圈工程算例 (ANSV Coil Project)"
 
 
+def get_project_file_icon_path() -> Path:
+    """寻找 .ansvcoil 专属算例文件图标路径 (折角图纸带金色线圈与 COIL 徽标)"""
+    root_dir = Path(__file__).resolve().parent.parent.parent
+    candidates = [
+        root_dir / "resources" / "coil_project_icon.ico",
+        root_dir / "resources" / "app_icon.ico",
+        Path("resources/coil_project_icon.ico"),
+    ]
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        meipass = Path(sys._MEIPASS)
+        candidates.insert(0, meipass / "resources" / "coil_project_icon.ico")
+    for p in candidates:
+        if p.exists():
+            return p
+    return candidates[0]
+
+
 def get_target_executable_and_icon() -> tuple[str, str]:
     """
     推导当前运行环境下的启动命令与图标路径
-    兼容 PyInstaller 打包环境与 Python 源码运行环境
+    文件图标与主程序图标做严格视觉区分
     """
-    # 1. 图标绝对路径
-    from src.gui.icon_helper import get_icon_path
-    icon_p = get_icon_path().resolve()
+    # 1. 专属工程算例文档图标绝对路径
+    icon_p = get_project_file_icon_path().resolve()
     icon_str = str(icon_p)
 
     # 2. 启动执行体路径

@@ -50,10 +50,19 @@ def main():
     # 5. 全局安装防滚轮误触过滤器 (规范 04.一)
     app.installEventFilter(GlobalNoWheelChangeFilter(app))
 
-    # 6. 单实例运行检测 (内核级互斥体，防止操作员重复双开程序)
+    # 6. 单实例进程间通信 (IPC) 无缝路由：
+    # 若已有主工作台在运行，静默将外部双击打开的算例文件或前台唤醒指令投递给主工作台，彻底消灭双开冲突警告
+    from src.core.ipc_manager import send_args_to_running_instance, SingleInstanceIPCServer
+    target_arg_file = sys.argv[1] if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]) else ""
+    if send_args_to_running_instance(target_arg_file):
+        # 成功投递给已在运行的主窗口，二次进程安全静默退出
+        logger.info("已将外部调用指令无缝投递给当前运行中的主实例，当前辅助进程安全退出。")
+        sys.exit(0)
+
+    # 首次启动或异常崩溃恢复检测
     instance_checker = SingleInstanceChecker()
     if instance_checker.check():
-        logger.warning("检测到已有实例在运行，执行前台唤醒或异常残留恢复判定。")
+        logger.warning("检测到互斥体残留，执行前台唤醒或异常残留恢复判定。")
         if not instance_checker.handle_already_running():
             sys.exit(0)
     app._instance_checker = instance_checker  # 保持全局句柄常驻内存防回收
@@ -113,6 +122,58 @@ def main():
             register_ansvcoil_association()
         except Exception:
             pass
+
+        # 16. 启动单实例 IPC 监听服务，处理后续外部双击文件或激活调用
+        ipc_server = SingleInstanceIPCServer(window)
+        app._ipc_server = ipc_server
+
+        def on_external_file_import(filepath: str):
+            """响应外部进程投递的算例文件打开请求"""
+            # 1. 窗口前台激活置顶
+            window.setWindowState(window.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
+            window.show()
+            window.raise_()
+            window.activateWindow()
+            try:
+                import ctypes
+                ctypes.windll.user32.SetForegroundWindow(int(window.winId()))
+            except Exception:
+                pass
+
+            # 2. 弹出高对比度覆盖确认弹窗
+            filename = os.path.basename(filepath)
+            reply = QMessageBox.question(
+                window,
+                "导入外部线圈算例确认",
+                f"检测到外部请求打开线圈工程算例：\n\n"
+                f"📄 算例文件: {filename}\n"
+                f"📁 算例路径: {filepath}\n\n"
+                f"是否确认将此算例导入到当前工作台？\n\n"
+                f"⚠️ 警告: 导入新算例将覆盖当前工作台中尚未保存的参数与仿真结果！",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                window.load_project_file(filepath)
+                window.status_bar.showMessage(f"已成功导入外部算例: {filename}", 5000)
+            else:
+                window.status_bar.showMessage("已取消导入外部算例，当前工作台参数保持不变。", 3500)
+
+        def on_external_activate():
+            """响应外部重复启动请求：纯粹前台唤醒置顶，绝不弹窗打扰"""
+            window.setWindowState(window.windowState() & ~Qt.WindowState.WindowMinimized | Qt.WindowState.WindowActive)
+            window.show()
+            window.raise_()
+            window.activateWindow()
+            try:
+                import ctypes
+                ctypes.windll.user32.SetForegroundWindow(int(window.winId()))
+            except Exception:
+                pass
+            window.status_bar.showMessage("工作台已在前台激活就绪", 3000)
+
+        ipc_server.file_import_requested.connect(on_external_file_import)
+        ipc_server.activate_requested.connect(on_external_activate)
 
         sys.exit(app.exec())
     except Exception as e:
