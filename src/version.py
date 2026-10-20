@@ -191,3 +191,36 @@ def compare_versions(v1: str, v2: str) -> int:
 def is_newer_version(cloud_version: str, local_version: str = APP_VERSION) -> bool:
     """判断云端版本是否比本地版本更新"""
     return compare_versions(cloud_version, local_version) > 0
+
+
+def compare_builds(b1: str, b2: str) -> int:
+    """
+    比对两个构建号 (支持 '20261014_B1', '20261020_B2', '20261020' 等格式)
+    - 返回 1: b1 > b2
+    - 返回 -1: b1 < b2
+    - 返回 0: b1 == b2
+    """
+    import re
+
+    def _parse_build(b_str: str) -> tuple:
+        if not b_str:
+            return (0, 0)
+        clean = str(b_str).strip()
+        m = re.match(r"^(\d{8})(?:[_\-][bB]?(\d+))?$", clean)
+        if m:
+            date_part = int(m.group(1))
+            seq_part = int(m.group(2)) if m.group(2) else 0
+            return (date_part, seq_part)
+        digits = re.findall(r"\d+", clean)
+        if digits:
+            return (int(digits[0]), int(digits[1]) if len(digits) > 1 else 0)
+        return (0, 0)
+
+    t1 = _parse_build(b1)
+    t2 = _parse_build(b2)
+    if t1 > t2:
+        return 1
+    elif t1 < t2:
+        return -1
+    return 0
+

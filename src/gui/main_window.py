@@ -26,6 +26,7 @@ from .widgets.coil_canvas import CoilDualCanvasWidget
 from .widgets.comparison_drawer import ComparisonDrawer, SchemeSnapshot
 from .utils import atomic_write_json, atomic_write_text
 from .about_dialog import AboutDialog
+from src.core.ota_updater import OtaUpdater, OtaChecker
 from src.version import APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, APP_AUTHOR, OFFICIAL_URL, COPYRIGHT_TEXT, CORE_ENGINE_AUTHOR
 from src.utils.logger import get_logger
 from pathlib import Path
@@ -178,6 +179,22 @@ class MainWindow(QMainWindow):
         from PyQt6.QtGui import QKeySequence, QShortcut
         self.shortcut_db = QShortcut(QKeySequence("Ctrl+D"), self)
         self.shortcut_db.activated.connect(self._open_cloud_config_dialog)
+
+        # 软件本体静默 OTA 自动检查与升级服务 (对标 Gear 规范)
+        self.ota_updater = OtaUpdater.get_instance()
+        self.ota_updater.update_available.connect(self._on_ota_available)
+        self.ota_updater.update_download_progress.connect(self._on_ota_download_progress)
+        self.ota_updater.update_download_ready.connect(self._on_ota_download_ready)
+        self.ota_updater.update_download_failed.connect(self._on_ota_download_failed)
+        self.ota_checker = None
+
+        # 检查是否刚由 OTA 自动完成版本升级 (微信式体验：第二次打开时友好展示升级就绪致意)
+        upgraded_msg = self.ota_updater.check_and_clear_updated_flag()
+        if upgraded_msg:
+            QTimer.singleShot(1000, lambda: self.status_bar.showMessage(upgraded_msg, 10000))
+
+        # 启动后台静默 OTA 自动巡检 (5秒后启动，避开主界面初次加载资源争用)
+        QTimer.singleShot(5000, self._start_silent_ota_checker)
 
     def _init_ui(self):
         central_widget = QWidget(self)
@@ -491,13 +508,68 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("📐 云端标杆案例库已更新", 4000)
 
     def closeEvent(self, event):
-        """主窗口关闭时安全销毁后台守护线程"""
+        """主窗口关闭时安全销毁后台守护线程，并在更新就绪时拉起影子替换 (微信式体验：静默覆盖，不自启)"""
         try:
             from src.core.cloud_client import CloudClient
             CloudClient.stop_background_sync()
         except Exception:
             pass
+
+        if hasattr(self, "ota_checker") and self.ota_checker:
+            try:
+                self.ota_checker.stop()
+            except Exception:
+                pass
+            self.ota_checker = None
+
+        # 检查是否拉起影子替换升级 (微信式体验：关闭时静默替换，绝不自动重新拉起程序)
+        if hasattr(self, "ota_updater") and self.ota_updater:
+            try:
+                ready, meta = self.ota_updater.is_update_ready()
+                if ready:
+                    self.ota_updater.launch_shadow_replacement(restart_after=False)
+            except Exception:
+                pass
+
         super().closeEvent(event)
+
+    def _start_silent_ota_checker(self):
+        """启动后台静默 OTA 巡检线程 (首轮延迟，周期巡检)"""
+        if not self.ota_checker:
+            self.ota_checker = OtaChecker(self.ota_updater, interval_sec=3600, parent=self)
+            self.ota_checker.start()
+
+    def _on_ota_available(self, info: dict):
+        ver = info.get("latest_version") or info.get("version") or ""
+        logger.info(f"[OTA] 检测到可用新版本: v{ver}，后台正在静默拉取增量包...")
+
+    def _on_ota_download_progress(self, current_bytes: int, total_bytes: int, speed_mbps: float):
+        if total_bytes > 0:
+            pct = min(100.0, (current_bytes / total_bytes) * 100.0)
+            cur_mb = current_bytes / (1024 * 1024)
+            tot_mb = total_bytes / (1024 * 1024)
+            if hasattr(self, "status_bar"):
+                self.status_bar.showMessage(
+                    f"⬇️ 发现新版优化... 静默下载中 ({pct:.0f}% | {cur_mb:.1f}MB/{tot_mb:.1f}MB · {speed_mbps:.1f} MB/s)",
+                    3000
+                )
+
+    def _on_ota_download_ready(self, version: str, zip_path: str):
+        logger.info(f"[OTA] 升级包已在后台下载就绪: v{version} -> {zip_path}")
+        if hasattr(self, "status_bar"):
+            self.status_bar.showMessage(
+                f"✨ 版本更新... 优化补丁已在后台就绪 (v{version})，将在软件下次退出时自动生效",
+                12000
+            )
+
+    def _on_ota_download_failed(self, error_msg: str):
+        logger.debug(f"[OTA] 静默更新未完成: {error_msg}")
+
+    def _open_update_dialog(self):
+        """打开在线自动升级对话框"""
+        from src.gui.update_dialog import UpdateDialog
+        dlg = UpdateDialog(self)
+        dlg.exec()
 
     def _show_about_dialog(self):
         """弹出 16:9 工业标准关于系统对话框"""
