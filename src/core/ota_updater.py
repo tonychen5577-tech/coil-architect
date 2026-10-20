@@ -278,6 +278,13 @@ class OtaUpdater(QObject):
 
         # 智能双轨优先决策：工位机已处于安装运行态，优先拉取 ~8.7 MB 累积热补丁包
         patch_url = version_info.get("patch_download_url") or version_info.get("patch_url") or ""
+        clean_tag = latest_ver if str(latest_ver).startswith("v") else f"v{latest_ver}"
+        if not patch_url or "ansv.net/download" in patch_url:
+            patch_url = f"https://github.com/tonychen5577-tech/coil-architect/releases/download/{clean_tag}/ANSV_Coil_Architect_Pro_{clean_tag}_Incremental_Patch.zip"
+
+        if not dl_rel_url or "ansv.net/download" in dl_rel_url:
+            dl_rel_url = f"https://github.com/tonychen5577-tech/coil-architect/releases/download/{clean_tag}/ANSV_Coil_Architect_Pro_{clean_tag}_Full.zip"
+
         patch_sha = (version_info.get("patch_sha256") or "").lower()
 
         use_patch = False
