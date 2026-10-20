@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.version import (
-    APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, BUILD_TIME, OFFICIAL_URL, COPYRIGHT_TEXT,
+    APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, BUILD_TIME, OFFICIAL_URL, OFFICIAL_EMAIL, COPYRIGHT_TEXT,
     PLATFORM_NAME, PLATFORM_NAME_EN, PLATFORM_FULL_TITLE, WECHAT_OFFICIAL_ACCOUNT,
     WECHAT_CONTACT_ID, WHATSAPP_CONTACT_ID, CORE_ENGINE_AUTHOR, get_git_commit
 )
@@ -127,7 +127,7 @@ class AboutDialog(QDialog):
 
         btn_url = QPushButton(f"🌐 官方网址: {OFFICIAL_URL.replace('https://', '')}")
         btn_url.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_url.setToolTip(f"点击访问官方主页: {OFFICIAL_URL}")
+        btn_url.setToolTip(f"官方主页: {OFFICIAL_URL}\n技术支持与商务合作邮箱: {OFFICIAL_EMAIL}")
         btn_url.setStyleSheet("""
             QPushButton {
                 color: #0284C7;

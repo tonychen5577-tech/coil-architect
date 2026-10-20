@@ -41,6 +41,7 @@ APP_DATE = "2026-10-20"
 BUILD_TIME = "2026-10-20 11:00:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
+OFFICIAL_EMAIL = "support@ansv.net"
 COPYRIGHT_TEXT = "Copyright © 2026 ANSV Transmissions & Micro-Actuators Lab. All Rights Reserved."
 CORE_ENGINE_AUTHOR = "Yaming.Chen"
 
