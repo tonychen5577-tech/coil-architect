@@ -96,6 +96,7 @@ function jsonResponse(data, status = 200) {
         status,
         headers: {
             "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
             ...corsHeaders(),
         },
     });
@@ -594,11 +595,17 @@ async function handleAdmin(path, request, env, url) {
     if (path === "/admin" || path === "/admin/") {
         if (!isAdminAuthenticated(request, env)) {
             return new Response(renderLoginPage(), {
-                headers: { "Content-Type": "text/html; charset=utf-8" }
+                headers: { 
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+                }
             });
         }
         return new Response(renderDashboardPage(), {
-            headers: { "Content-Type": "text/html; charset=utf-8" }
+            headers: { 
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"
+            }
         });
     }
 
@@ -619,6 +626,9 @@ async function handleAdmin(path, request, env, url) {
         const totalDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices").first())?.c || 0;
         const activeDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'ACTIVE' AND (license_expire = 'PERMANENT' OR remaining_days > 0)").first())?.c || 0;
         const expiringSoon = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE remaining_days >= 0 AND remaining_days <= 7 AND license_expire != 'PERMANENT'").first())?.c || 0;
+        
+        // 核心监控：3分钟内有心跳的实时在线工位机数量
+        const liveOnline = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= datetime('now', '-3 minutes')").first())?.c || 0;
         const todaySyncs = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= date('now')").first())?.c || 0;
         const totalLicenses = (await db.prepare("SELECT COUNT(*) as c FROM licenses").first())?.c || 0;
         const totalCases = (await db.prepare("SELECT COUNT(*) as c FROM coil_cases").first())?.c || 0;
@@ -628,6 +638,7 @@ async function handleAdmin(path, request, env, url) {
             success: true,
             stats: {
                 total_devices: totalDevices,
+                live_online: liveOnline,
                 active_devices: activeDevices,
                 expiring_soon: expiringSoon,
                 today_syncs: todaySyncs,
@@ -638,7 +649,7 @@ async function handleAdmin(path, request, env, url) {
         });
     }
 
-    // B. 工位机列表 (支持搜索与状态筛选)
+    // B. 工位机列表 (支持搜索与状态筛选，服务端直出精确在线状态与北京时间)
     if (path === "/admin/api/devices" && request.method === "GET") {
         const q = (url.searchParams.get("q") || "").trim();
         let query = "SELECT * FROM devices ORDER BY last_sync_time DESC LIMIT 150";
@@ -650,7 +661,33 @@ async function handleAdmin(path, request, env, url) {
         } else {
             res = await db.prepare(query).all();
         }
-        return jsonResponse({ success: true, devices: res.results || [] });
+
+        const nowMs = Date.now();
+        const rawDevices = res.results || [];
+        const enriched = rawDevices.map(d => {
+            let syncMs = 0;
+            if (d.last_sync_time) {
+                syncMs = new Date(d.last_sync_time.replace(' ', 'T') + 'Z').getTime();
+            }
+            const diffSec = syncMs > 0 ? Math.floor(Math.max(0, nowMs - syncMs) / 1000) : 999999;
+            const isOnline = diffSec <= 180; // 3分钟内有心跳判定为实时在线
+            
+            // 自动转换为当地北京时间 (UTC+8) 显示
+            let bjTimeStr = "-";
+            if (syncMs > 0) {
+                const bjDate = new Date(syncMs + 8 * 3600 * 1000);
+                bjTimeStr = bjDate.toISOString().replace('T', ' ').substring(0, 19);
+            }
+            
+            return {
+                ...d,
+                is_online: isOnline,
+                diff_sec: diffSec,
+                last_sync_bj: bjTimeStr
+            };
+        });
+
+        return jsonResponse({ success: true, devices: enriched });
     }
 
     // C. 一键生成商业授权码并写入数据库
@@ -1371,21 +1408,22 @@ function renderDashboardPage() {
 <div class="container">
   <!-- 顶部数据概览卡片 (对齐 Gear 架构) -->
   <div class="stats-grid">
+    <div class="stat-card" style="border-left: 4px solid #10B981; background: #F0FDF4;">
+      <div class="stat-label">🟢 当前实时在线工位机</div>
+      <div class="stat-val" id="stat-live-online" style="color: #059669; font-size:28px;">-</div>
+      <div style="font-size:10px; color:#059669; margin-top:2px;">心跳间隔 ≤ 3 分钟实时在线</div>
+    </div>
     <div class="stat-card">
       <div class="stat-label">💻 累计接入工位机</div>
       <div class="stat-val" id="stat-total-devices">-</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">🟢 活跃商业授权</div>
-      <div class="stat-val" id="stat-active-devices" style="color: var(--success);">-</div>
+      <div class="stat-label">🔑 活跃商业授权</div>
+      <div class="stat-val" id="stat-active-devices" style="color: var(--primary);">-</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">⚠️ 7天内即将到期预警</div>
       <div class="stat-val" id="stat-expiring-soon" style="color: var(--warning);">-</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">🔄 今日在线心跳台数</div>
-      <div class="stat-val" id="stat-today-syncs">-</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">📐 官方标杆案例数</div>
@@ -1414,25 +1452,29 @@ function renderDashboardPage() {
       </div>
       <div>
         <button class="btn-primary" style="background:#059669;" onclick="openGenerateModal()">➕ 为客户一键生成激活码</button>
-        <button class="btn-secondary" onclick="loadDevices()">🔄 刷新列表</button>
+        <button class="btn-secondary" onclick="loadDevices(); loadStats();">🔄 立即刷新</button>
+        <span id="auto-refresh-pill" style="font-size:11px;color:#059669;background:#ECFDF5;padding:4px 10px;border-radius:12px;border:1px solid #A7F3D0;margin-left:8px;font-weight:600;">
+          🟢 实时在线监听中 (每10秒自刷新)
+        </span>
       </div>
     </div>
     <div style="overflow-x: auto;">
       <table>
         <thead>
           <tr>
+            <th style="min-width:115px;">实时连接状态</th>
             <th>机器识别码 (Machine ID)</th>
             <th>客户公司 / 操作人员</th>
-            <th>软件 / 线模版本</th>
-            <th>授权状态</th>
+            <th>软件 / 基准库</th>
+            <th>商业授权状态</th>
             <th>到期日期 (剩余天数)</th>
-            <th>最近在线心跳</th>
-            <th>磁盘 / 虚拟机 / 时钟</th>
-            <th>远程管控</th>
+            <th>最近在线心跳 (北京时间)</th>
+            <th>设备体征 (磁盘/虚拟机/时钟)</th>
+            <th>远程管控操作</th>
           </tr>
         </thead>
         <tbody id="device-table-body">
-          <tr><td colspan="8" style="text-align:center; padding: 30px;">正在加载工位机资产...</td></tr>
+          <tr><td colspan="9" style="text-align:center; padding: 30px;">正在加载工位机资产...</td></tr>
         </tbody>
       </table>
     </div>
@@ -1614,6 +1656,9 @@ async function loadStats() {
     const res = await fetch('/admin/api/stats');
     const d = await res.json();
     if(d.success) {
+      if(document.getElementById('stat-live-online')) {
+        document.getElementById('stat-live-online').innerText = d.stats.live_online !== undefined ? d.stats.live_online : 0;
+      }
       document.getElementById('stat-total-devices').innerText = d.stats.total_devices;
       document.getElementById('stat-active-devices').innerText = d.stats.active_devices;
       document.getElementById('stat-expiring-soon').innerText = d.stats.expiring_soon;
@@ -1627,22 +1672,25 @@ async function loadStats() {
 async function loadDevices() {
   const q = document.getElementById('search-device').value;
   const tbody = document.getElementById('device-table-body');
-  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px;">正在检索...</td></tr>';
   try {
     const res = await fetch('/admin/api/devices?q=' + encodeURIComponent(q));
     const d = await res.json();
     if(d.success && d.devices.length > 0) {
       tbody.innerHTML = d.devices.map(dev => {
-        let isOnline = false;
-        if (dev.last_sync_time) {
-          try {
-            const syncTs = new Date(dev.last_sync_time.replace(' ', 'T') + (dev.last_sync_time.endsWith('Z') ? '' : 'Z')).getTime();
-            if (Math.abs(Date.now() - syncTs) < 180000) isOnline = true; // 3分钟内有心跳
-          } catch(e){}
+        let onlineHtml = '';
+        if (dev.is_online) {
+          let secText = dev.diff_sec < 60 ? (dev.diff_sec + '秒前心跳') : (Math.floor(dev.diff_sec/60) + '分钟前心跳');
+          onlineHtml = '<div style="display:inline-flex;align-items:center;gap:6px;background:#ECFDF5;border:1px solid #A7F3D0;padding:4px 10px;border-radius:20px;">' +
+            '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#10B981;box-shadow:0 0 8px #10B981;"></span>' +
+            '<span style="color:#059669;font-weight:700;font-size:12px;">实时在线</span>' +
+          '</div><br><span style="color:#059669;font-size:10px;font-weight:600;margin-top:2px;display:inline-block;">⚡ ' + secText + '</span>';
+        } else {
+          let timeText = dev.diff_sec > 86400 ? (Math.floor(dev.diff_sec/86400) + '天前') : (dev.diff_sec > 3600 ? Math.floor(dev.diff_sec/3600) + '小时前' : Math.floor(dev.diff_sec/60) + '分钟前');
+          onlineHtml = '<div style="display:inline-flex;align-items:center;gap:6px;background:#F8FAFC;border:1px solid #E2E8F0;padding:4px 10px;border-radius:20px;">' +
+            '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#94A3B8;"></span>' +
+            '<span style="color:#94A3B8;font-size:11px;">离线状态</span>' +
+          '</div><br><span style="color:#94A3B8;font-size:10px;margin-top:2px;display:inline-block;">' + timeText + '</span>';
         }
-        let onlineBadge = isOnline ? 
-          '<span style="color:#059669;font-weight:700;font-size:11px;">🟢 实时在线</span>' : 
-          '<span style="color:#94A3B8;font-size:11px;">⚪ 离线</span>';
 
         let statusBadge = '<span class="badge badge-success">正常授权</span>';
         if(dev.status === 'BANNED' || dev.license_status === 'REVOKED') {
@@ -1671,21 +1719,22 @@ async function loadDevices() {
         }
 
         return '<tr>' +
-          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span><br>' + onlineBadge + '</td>' +
+          '<td>' + onlineHtml + '</td>' +
+          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span></td>' +
           '<td><b>' + (dev.customer_name || '-') + '</b><br><span style="color:#64748B;font-size:11px;">操作员: ' + (dev.operator_name || '-') + ' (' + (dev.system_user || '-') + ')</span><br><span style="color:#94A3B8;font-size:10px;">' + (dev.hostname || '-') + ' (' + (dev.ip_address || '-') + ')</span></td>' +
           '<td><span class="mono">' + dev.app_version + '</span><br><span style="color:#64748B;font-size:10px;">基准库: ' + (dev.wire_db_version || 'v1.0') + '</span></td>' +
           '<td>' + statusBadge + '</td>' +
           '<td>' + dev.license_expire + '<br><span style="font-size:11px;color:#64748B;">(' + remainText + ')</span></td>' +
-          '<td><span style="font-size:11px;">' + (dev.last_sync_time || '-') + '</span><br><span style="font-size:10px;color:#94A3B8;">已同步 ' + (dev.sync_count || 1) + ' 次</span></td>' +
+          '<td><b>' + (dev.last_sync_bj || dev.last_sync_time || '-') + '</b><br><span style="font-size:10px;color:#94A3B8;">已累计心跳 ' + (dev.sync_count || 1) + ' 次</span></td>' +
           '<td>' + vmText + ' | ' + clockText + '<br><span style="font-size:10px;color:#64748B;">空闲磁盘: ' + diskText + '</span></td>' +
           '<td>' + actionBtns + '</td>' +
         '</tr>';
       }).join('');
     } else {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 30px; color:#94A3B8;">暂无符合条件的工位机记录</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 30px; color:#94A3B8;">暂无符合条件的工位机记录</td></tr>';
     }
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px; color:red;">数据加载异常，请点击右上角【⚡ 数据库自愈】按钮</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 20px; color:red;">数据加载异常，请点击右上角【⚡ 数据库自愈】按钮</td></tr>';
   }
 }
 
@@ -1928,6 +1977,14 @@ async function doLogout() {
 window.onload = function() {
   loadStats();
   loadDevices();
+  // 生产级：每 10 秒自动静默轮询刷新工位机在线状态与心跳
+  setInterval(function() {
+    const tabDevices = document.getElementById('tab-devices');
+    if (tabDevices && tabDevices.style.display !== 'none') {
+      loadDevices();
+      loadStats();
+    }
+  }, 10000);
 };
 </script>
 </body>
