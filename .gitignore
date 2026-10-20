@@ -1,0 +1,48 @@
+# =============================================================================
+# ANSV Coil-Architect Pro - Public Distribution Repository
+# Strict isolation: Source code, proprietary physics models and internal tools
+# are strictly barred from this public repository.
+# =============================================================================
+
+# Source code & internal architectures
+src/
+scripts/
+server_cloudflare/
+tests/
+tools/
+build_tools/
+
+# Python scripts & specs
+*.py
+*.spec
+*.pyc
+__pycache__/
+
+# Licenses, logs & temporary data
+*.lic
+*.log
+logs/
+*.txt
+
+# Build artifacts & packages
+build/
+dist/
+*.pyd
+*.c
+*.obj
+*.exp
+*.lib
+
+# Root images (only docs/images/ is tracked)
+*.png
+*.jpg
+*.jpeg
+*.ico
+!docs/images/**
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.gemini/
