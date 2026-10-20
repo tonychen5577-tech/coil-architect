@@ -800,20 +800,55 @@ class MainWindow(QMainWindow):
                 days_left = lic.get("days_left", 7)
                 exp_date = lic.get("exp_date", "")
                 start_date = lic.get("start_date", "")
-                res = QMessageBox.information(
-                    self,
-                    "7天全功能免费试用详情",
+
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle("7天全功能免激活试用详情")
+                msg_box.setIcon(QMessageBox.Icon.Information)
+                msg_box.setText(
                     f"⏱️ Coil-Architect Pro 全功能免激活试用中\n\n"
                     f"• 试用模式: 7天免激活全功能评估\n"
                     f"• 试用周期: {start_date} 至 {exp_date}\n"
                     f"• 剩余天数: 还有 {days_left} 天\n"
-                    f"• 功能状态: 电磁求解器、2D孪生图纸、方案抽屉与Excel导出等 100% 全功能已解锁！\n\n"
-                    f"是否需要现在输入正式商业激活码升级？",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No
+                    f"• 功能状态: 电磁求解器、2D孪生图纸、方案对比抽屉与 Excel 导出等 100% 全功能已解锁！\n\n"
+                    f"是否需要现在输入正式商业激活码进行升级？"
                 )
-                if res == QMessageBox.StandardButton.Yes:
-                    self.check_authorization_or_prompt("商业授权升级")
+                btn_upgrade = msg_box.addButton("输入商业激活码", QMessageBox.ButtonRole.AcceptRole)
+                btn_continue = msg_box.addButton("继续试用", QMessageBox.ButtonRole.RejectRole)
+                msg_box.setDefaultButton(btn_continue)
+
+                btn_upgrade.setStyleSheet("""
+                    QPushButton {
+                        background-color: #0284C7;
+                        color: #FFFFFF;
+                        border: 1px solid #0369A1;
+                        border-radius: 4px;
+                        padding: 6px 14px;
+                        font-size: 11.5px;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        background-color: #0369A1;
+                    }
+                """)
+                btn_continue.setStyleSheet("""
+                    QPushButton {
+                        background-color: #F1F5F9;
+                        color: #475569;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        padding: 6px 14px;
+                        font-size: 11.5px;
+                        font-weight: 600;
+                    }
+                    QPushButton:hover {
+                        background-color: #E2E8F0;
+                        color: #1E293B;
+                    }
+                """)
+
+                msg_box.exec()
+                if msg_box.clickedButton() == btn_upgrade:
+                    self.check_authorization_or_prompt("商业授权升级", force_prompt=True)
             else:
                 lic_type = lic.get("type", "商业版")
                 exp_date = lic.get("exp_date", "永久有效")
@@ -829,16 +864,16 @@ class MainWindow(QMainWindow):
                     f"如需变更授权或续订，可联系 ansv.net 官方技术支持。"
                 )
         else:
-            self.check_authorization_or_prompt("商业授权激活")
+            self.check_authorization_or_prompt("商业授权激活", force_prompt=True)
 
-    def check_authorization_or_prompt(self, action_name: str = "") -> bool:
+    def check_authorization_or_prompt(self, action_name: str = "", force_prompt: bool = False) -> bool:
         """
-        检查商业授权状态；若未激活则弹出激活对话框。
+        检查商业授权状态；若未激活或强制要求升级激活则弹出激活对话框。
         返回 True 表示已激活，可以继续操作；返回 False 表示未激活或取消激活，应阻断操作。
         """
         from src.core.license_manager import LicenseManager
         auth_ok, auth_msg, lic_data = LicenseManager.is_system_authorized()
-        if auth_ok:
+        if auth_ok and not force_prompt:
             if not getattr(self, "is_authorized", False):
                 self._refresh_license_status()
             return True
@@ -861,8 +896,13 @@ class MainWindow(QMainWindow):
             self._refresh_license_status()
 
             if auth_ok_now:
-                if hasattr(self, "status_bar"):
-                    self.status_bar.showMessage("🎉 授权激活成功！所有工业仿真与报表功能已全部解锁。", 5000)
+                is_trial_now = lic_data_now.get("is_trial", False) if lic_data_now else False
+                if not is_trial_now:
+                    if hasattr(self, "status_bar"):
+                        self.status_bar.showMessage("🎉 正式商业授权已成功激活！感谢您的支持。", 5000)
+                else:
+                    if hasattr(self, "status_bar"):
+                        self.status_bar.showMessage("⏱️ 7天全功能免费试用生效中。", 4000)
                 return True
             else:
                 if hasattr(self, "status_bar"):
