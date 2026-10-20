@@ -547,11 +547,13 @@ class AboutDialog(QDialog):
         row_mac.addStretch()
         right_layout.addLayout(row_mac)
 
-        # 8. 授权工位 (注意：依照要求，严禁添加测试良率！)
+        # 8. 授权工位与授权状态
         st_info = get_station_info()
         cust_name = st_info.get("customer", "内部核准机构")
         line_stat = st_info.get("station", "专业研发工作站 (Pro Station)")
+        status_txt = st_info.get("status_text", "🛡️ 正式商业授权")
         right_layout.addLayout(make_row("授权工位:", f"{cust_name} · {line_stat}"))
+        right_layout.addLayout(make_row("授权状态:", status_txt))
 
         # 分割线
         div_line = QFrame()

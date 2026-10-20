@@ -609,27 +609,56 @@ class MainWindow(QMainWindow):
             return
 
         if auth_ok:
-            lic_type = lic_data.get("type", "商业版") if lic_data else "商业版"
-            exp_date = lic_data.get("exp_date", "永久有效") if lic_data else "永久有效"
-            self.btn_license.setText(f"🛡️ 正式商业授权 ({lic_type})")
-            self.btn_license.setStyleSheet("""
-                QPushButton {
-                    background-color: #ECFDF5;
-                    color: #059669;
-                    border: 1px solid #A7F3D0;
-                    border-radius: 4px;
-                    padding: 3px 8px;
-                    font-size: 11px;
-                    font-weight: 700;
-                }
-                QPushButton:hover {
-                    background-color: #D1FAE5;
-                    border-color: #6EE7B7;
-                }
-            """)
-            self.btn_license.setToolTip(f"商业授权有效 | 类型: {lic_type}\n有效期至: {exp_date}\n点击可查看授权详情")
+            is_trial = lic_data.get("is_trial", False) if lic_data else False
+            if is_trial:
+                days_left = lic_data.get("days_left", 7)
+                exp_date = lic_data.get("exp_date", "")
+                self.btn_license.setText(f"⏱️ 7天全功能试用 (剩 {days_left} 天)")
+                self.btn_license.setStyleSheet("""
+                    QPushButton {
+                        background-color: #F0F9FF;
+                        color: #0284C7;
+                        border: 1px solid #BAE6FD;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                        font-size: 11px;
+                        font-weight: 700;
+                    }
+                    QPushButton:hover {
+                        background-color: #E0F2FE;
+                        border-color: #38BDF8;
+                    }
+                """)
+                self.btn_license.setToolTip(
+                    f"7天全功能免激活试用中 | 剩余: {days_left} 天\n"
+                    f"有效期至: {exp_date}\n"
+                    f"试用期内所有电磁仿真、方案比对及报表导出功能 100% 完整可用\n"
+                    f"点击可查看试用详情或升级正式商业版"
+                )
+            else:
+                lic_type = lic_data.get("type", "商业版") if lic_data else "商业版"
+                exp_date = lic_data.get("exp_date", "永久有效") if lic_data else "永久有效"
+                self.btn_license.setText(f"🛡️ 正式商业授权 ({lic_type})")
+                self.btn_license.setStyleSheet("""
+                    QPushButton {
+                        background-color: #ECFDF5;
+                        color: #059669;
+                        border: 1px solid #A7F3D0;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                        font-size: 11px;
+                        font-weight: 700;
+                    }
+                    QPushButton:hover {
+                        background-color: #D1FAE5;
+                        border-color: #6EE7B7;
+                    }
+                """)
+                self.btn_license.setToolTip(f"商业授权有效 | 类型: {lic_type}\n有效期至: {exp_date}\n点击可查看授权详情")
         else:
-            self.btn_license.setText("⚠️ 未激活 (点击激活)")
+            is_trial_expired = lic_data.get("is_trial", False) if lic_data else False
+            btn_txt = "⚠️ 试用已到期 (点击激活)" if is_trial_expired else "⚠️ 未激活 (点击激活)"
+            self.btn_license.setText(btn_txt)
             self.btn_license.setStyleSheet("""
                 QPushButton {
                     background-color: #FEF3C7;
@@ -651,19 +680,39 @@ class MainWindow(QMainWindow):
         """点击顶部商业授权指示灯响应"""
         if getattr(self, "is_authorized", False):
             lic = getattr(self, "lic_data", {}) or {}
-            lic_type = lic.get("type", "商业版")
-            exp_date = lic.get("exp_date", "永久有效")
-            owner = lic.get("owner", "正式商业用户")
-            QMessageBox.information(
-                self,
-                "商业授权凭证详情",
-                f"🛡️ Coil-Architect Pro 正式商业授权\n\n"
-                f"• 授权类型: {lic_type}\n"
-                f"• 授权主体: {owner}\n"
-                f"• 有效期至: {exp_date}\n"
-                f"• 运行状态: 一机一码硬件数字签名已通过校验\n\n"
-                f"如需变更授权或续订，可联系 ansv.net 官方技术支持。"
-            )
+            is_trial = lic.get("is_trial", False)
+            if is_trial:
+                days_left = lic.get("days_left", 7)
+                exp_date = lic.get("exp_date", "")
+                start_date = lic.get("start_date", "")
+                res = QMessageBox.information(
+                    self,
+                    "7天全功能免费试用详情",
+                    f"⏱️ Coil-Architect Pro 全功能免激活试用中\n\n"
+                    f"• 试用模式: 7天免激活全功能评估\n"
+                    f"• 试用周期: {start_date} 至 {exp_date}\n"
+                    f"• 剩余天数: 还有 {days_left} 天\n"
+                    f"• 功能状态: 电磁求解器、2D孪生图纸、方案抽屉与Excel导出等 100% 全功能已解锁！\n\n"
+                    f"是否需要现在输入正式商业激活码升级？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                if res == QMessageBox.StandardButton.Yes:
+                    self.check_authorization_or_prompt("商业授权升级")
+            else:
+                lic_type = lic.get("type", "商业版")
+                exp_date = lic.get("exp_date", "永久有效")
+                owner = lic.get("owner", "正式商业用户")
+                QMessageBox.information(
+                    self,
+                    "商业授权凭证详情",
+                    f"🛡️ Coil-Architect Pro 正式商业授权\n\n"
+                    f"• 授权类型: {lic_type}\n"
+                    f"• 授权主体: {owner}\n"
+                    f"• 有效期至: {exp_date}\n"
+                    f"• 运行状态: 一机一码硬件数字签名已通过校验\n\n"
+                    f"如需变更授权或续订，可联系 ansv.net 官方技术支持。"
+                )
         else:
             self.check_authorization_or_prompt("商业授权激活")
 

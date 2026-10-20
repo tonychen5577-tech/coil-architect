@@ -12,7 +12,7 @@ import hashlib
 import platform
 import subprocess
 import base64
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Tuple, Dict, Any, Optional
 
@@ -207,6 +207,176 @@ class TimeGuard:
         return True, ""
 
 
+class TrialGuard:
+    """
+    7天全功能免激活试用看门狗 (首次运行自动享受，一机一码双重锚点防篡改)
+    双重持久化防删除重置:
+    1. 本地安全凭证: %LOCALAPPDATA%/CoilArchitectPro/.trial_anchor.enc (HMAC+XOR)
+    2. Windows 注册表: HKCU\\Software\\ANSV\\CoilArchitect\\Security\\TrialAnchor
+    若任一方被清理，会自动根据另一方自愈还原；若同时检测到时钟倒拨或历史时钟超期，则判定试用届满。
+    """
+
+    TRIAL_DAYS = 7
+    REG_SUBKEY = r"Software\ANSV\CoilArchitect\Security"
+    REG_VALUE_NAME = "TrialAnchor"
+
+    @classmethod
+    def _get_file_path(cls) -> Path:
+        return get_app_data_dir() / ".trial_anchor.enc"
+
+    @classmethod
+    def _create_token(cls, mid: str, start_date_str: str, exp_date_str: str) -> str:
+        """根据工位机硬件指纹与起止时间签发加密试用 Token"""
+        data = {
+            "mid": mid,
+            "start": start_date_str,
+            "exp": exp_date_str,
+            "days": cls.TRIAL_DAYS,
+            "created_ts": datetime.now().timestamp()
+        }
+        raw_json = json.dumps(data, separators=(',', ':')).encode("utf-8")
+        key = _SECRET_KEY
+        xored = bytes([b ^ key[i % len(key)] for i, b in enumerate(raw_json)])
+        b64 = base64.urlsafe_b64encode(xored).decode("utf-8").rstrip("=")
+        sig = hmac.new(key, f"{mid}|{start_date_str}|{exp_date_str}|{cls.TRIAL_DAYS}".encode("utf-8"), hashlib.sha256).hexdigest()[:16].upper()
+        return f"{b64}.{sig}"
+
+    @classmethod
+    def _verify_token(cls, token_str: str, mid: str) -> Optional[Dict[str, Any]]:
+        """解密并校验试用 Token 完整性"""
+        if not token_str or "." not in token_str:
+            return None
+        parts = token_str.split(".", 1)
+        if len(parts) != 2:
+            return None
+        b64, sig = parts
+        try:
+            padding = 4 - (len(b64) % 4)
+            if padding != 4:
+                b64 += "=" * padding
+            xored = base64.urlsafe_b64decode(b64)
+            key = _SECRET_KEY
+            raw_json = bytes([b ^ key[i % len(key)] for i, b in enumerate(xored)])
+            data = json.loads(raw_json.decode("utf-8"))
+            if data.get("mid") != mid:
+                return None
+            expected_sig = hmac.new(key, f"{mid}|{data.get('start')}|{data.get('exp')}|{cls.TRIAL_DAYS}".encode("utf-8"), hashlib.sha256).hexdigest()[:16].upper()
+            if not hmac.compare_digest(sig.upper(), expected_sig):
+                return None
+            return data
+        except Exception:
+            return None
+
+    @classmethod
+    def get_or_create_trial(cls) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        获取或首次自动生成 7 天全功能免激活试用凭证
+        :return: (is_authorized, msg, payload)
+        """
+        mid = get_machine_code()
+        token_from_file = ""
+        token_from_reg = ""
+
+        # 1. 读取本地加密文件
+        fpath = cls._get_file_path()
+        if fpath.exists():
+            try:
+                token_from_file = fpath.read_text(encoding="utf-8").strip()
+            except Exception:
+                pass
+
+        # 2. 读取 Windows 注册表
+        if sys.platform == "win32":
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, cls.REG_SUBKEY) as k:
+                    val, _ = winreg.QueryValueEx(k, cls.REG_VALUE_NAME)
+                    token_from_reg = str(val).strip()
+            except Exception:
+                pass
+
+        data = None
+        if token_from_file:
+            data = cls._verify_token(token_from_file, mid)
+        if not data and token_from_reg:
+            data = cls._verify_token(token_from_reg, mid)
+
+        # 3. 首次在当前机器运行：自动享受 7 天全功能免激活试用！
+        if not data:
+            start_d = date.today()
+            exp_d = start_d + timedelta(days=cls.TRIAL_DAYS)
+            start_str = start_d.strftime("%Y-%m-%d")
+            exp_str = exp_d.strftime("%Y-%m-%d")
+
+            new_token = cls._create_token(mid, start_str, exp_str)
+            try:
+                _atomic_write_text(fpath, new_token)
+            except Exception:
+                pass
+
+            if sys.platform == "win32":
+                try:
+                    import winreg
+                    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, cls.REG_SUBKEY) as k:
+                        winreg.SetValueEx(k, cls.REG_VALUE_NAME, 0, winreg.REG_SZ, new_token)
+                except Exception:
+                    pass
+
+            data = {
+                "mid": mid,
+                "start": start_str,
+                "exp": exp_str,
+                "days": cls.TRIAL_DAYS
+            }
+        else:
+            # 双向自愈同步
+            valid_token = token_from_file if (token_from_file and cls._verify_token(token_from_file, mid)) else token_from_reg
+            if valid_token:
+                if not token_from_file or not cls._verify_token(token_from_file, mid):
+                    try:
+                        _atomic_write_text(fpath, valid_token)
+                    except Exception:
+                        pass
+                if sys.platform == "win32" and (not token_from_reg or not cls._verify_token(token_from_reg, mid)):
+                    try:
+                        import winreg
+                        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, cls.REG_SUBKEY) as k:
+                            winreg.SetValueEx(k, cls.REG_VALUE_NAME, 0, winreg.REG_SZ, valid_token)
+                    except Exception:
+                        pass
+
+        # 4. 计算剩余天数与试用有效期
+        exp_str = data.get("exp", "")
+        start_str = data.get("start", "")
+        try:
+            exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
+            today = date.today()
+            delta_days = (exp_date - today).days
+
+            trial_payload = {
+                "mid": mid,
+                "cust": "全功能试用评估用户",
+                "customer": "全功能试用评估用户",
+                "owner": "全功能试用评估用户",
+                "stat": f"7天全功能试用工位 (剩余 {max(0, delta_days)} 天)",
+                "station": f"7天全功能试用工位 (剩余 {max(0, delta_days)} 天)",
+                "type": f"7天全功能免激活试用 (剩 {max(0, delta_days)} 天)",
+                "exp": exp_str,
+                "exp_date": exp_str,
+                "is_trial": True,
+                "days_left": max(0, delta_days),
+                "start_date": start_str,
+                "total_days": cls.TRIAL_DAYS
+            }
+
+            if delta_days >= 0:
+                return True, f"7天全功能免激活试用中 (剩余 {delta_days} 天，有效期至 {exp_str})", trial_payload
+            else:
+                return False, f"7天全功能免费试用已于 {exp_str} 到期，请激活正式商业授权", trial_payload
+        except Exception as e:
+            return False, f"试用周期解析异常: {e}", {}
+
+
 class LicenseManager:
     """商业授权管理器"""
 
@@ -314,23 +484,26 @@ class LicenseManager:
             _LAST_AUTH_CHECK_TS = now_ts
             return _CACHED_AUTH_RESULT
 
-        # 2. 检查本地凭证文件
+        # 2. 检查本地正式商业凭证文件 (若存在有效正式授权则优先享用)
         lic_path = cls.get_license_path()
-        if not lic_path.exists():
-            _CACHED_AUTH_RESULT = (False, "未检测到授权文件，请先激活软件", {})
-            _LAST_AUTH_CHECK_TS = now_ts
-            return _CACHED_AUTH_RESULT
+        if lic_path.exists():
+            try:
+                token = lic_path.read_text(encoding="utf-8").strip()
+                res = cls.verify_token(token)
+                if res[0]:
+                    payload = dict(res[2])
+                    payload["is_trial"] = False
+                    _CACHED_AUTH_RESULT = (True, res[1], payload)
+                    _LAST_AUTH_CHECK_TS = now_ts
+                    return _CACHED_AUTH_RESULT
+            except Exception:
+                pass
 
-        try:
-            token = lic_path.read_text(encoding="utf-8").strip()
-            res = cls.verify_token(token)
-            _CACHED_AUTH_RESULT = res
-            _LAST_AUTH_CHECK_TS = now_ts
-            return res
-        except Exception as e:
-            _CACHED_AUTH_RESULT = (False, f"授权文件读取异常: {str(e)}", {})
-            _LAST_AUTH_CHECK_TS = now_ts
-            return _CACHED_AUTH_RESULT
+        # 3. 首次运行或未激活状态：自动享受 7 天全功能免激活试用！
+        trial_ok, trial_msg, trial_payload = TrialGuard.get_or_create_trial()
+        _CACHED_AUTH_RESULT = (trial_ok, trial_msg, trial_payload)
+        _LAST_AUTH_CHECK_TS = now_ts
+        return _CACHED_AUTH_RESULT
 
     @classmethod
     def install_license(cls, token: str) -> Tuple[bool, str]:
@@ -433,19 +606,39 @@ def get_mac_address() -> str:
     return _CACHED_MAC_ADDRESS
 
 
-def get_station_info() -> Dict[str, str]:
+def get_station_info() -> Dict[str, Any]:
     """获取当前授权工位信息"""
     try:
         ok, _, payload = LicenseManager.is_system_authorized()
         if ok and payload:
+            is_trial = payload.get("is_trial", False)
+            if is_trial:
+                days_left = payload.get("days_left", 7)
+                exp = payload.get("exp_date", "")
+                return {
+                    "customer": payload.get("customer", "全功能试用评估用户"),
+                    "station": f"7天全功能评估工位 (剩余 {days_left} 天 · 截止 {exp})",
+                    "status_text": f"7天全功能试用中 (剩 {days_left} 天)",
+                    "is_trial": True,
+                    "days_left": days_left,
+                    "exp_date": exp
+                }
             return {
-                "customer": payload.get("customer", "内部核准机构"),
-                "station": payload.get("station", "专业研发工作站 (Pro Station)")
+                "customer": payload.get("customer", payload.get("cust", "内部核准机构")),
+                "station": payload.get("station", payload.get("stat", "专业研发工作站 (Pro Station)")),
+                "status_text": "🛡️ 正式商业授权",
+                "is_trial": False,
+                "days_left": -1,
+                "exp_date": payload.get("exp", "永久有效")
             }
     except Exception:
         pass
     return {
-        "customer": "内部核准机构",
-        "station": "专业研发工作站 (Pro Station)"
+        "customer": "全功能试用评估用户",
+        "station": "专业研发工作站 (Pro Station)",
+        "status_text": "未激活",
+        "is_trial": False,
+        "days_left": 0,
+        "exp_date": "-"
     }
 

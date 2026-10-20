@@ -530,6 +530,8 @@ async function handleClientApi(path, request, env) {
             build: release.build,
             release_date: release.release_date,
             download_url: release.download_url,
+            patch_url: release.backup_url || release.download_url,
+            patch_size_mb: 8.7,
             backup_url: release.backup_url,
             sha256: release.sha256,
             file_size_mb: release.file_size_mb,

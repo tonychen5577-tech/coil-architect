@@ -81,7 +81,13 @@ def main():
             logger.info(f"系统处于未激活状态 ({auth_msg})，进入评估预览模式。")
             splash.update_progress(35, "检测到未激活评估模式，正在准备工作台预览...")
         else:
-            splash.update_progress(35, "授权凭证验证通过，正在装载物理引擎...")
+            is_trial = lic_data.get("is_trial", False) if lic_data else False
+            if is_trial:
+                days_left = lic_data.get("days_left", 7)
+                logger.info(f"系统处于 7 天全功能免激活试用期 (剩余 {days_left} 天)")
+                splash.update_progress(35, f"7天全功能试用有效 (剩 {days_left} 天)，正在装载物理引擎...")
+            else:
+                splash.update_progress(35, "正式商业授权凭证验证通过，正在装载物理引擎...")
 
         # 9. 步进式加载系统核心物理引擎
         splash.update_progress(45, "正在装载电磁线圈双核高精度求解器 (Cython加速内核)...")

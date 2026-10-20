@@ -161,13 +161,21 @@ class CloudClient:
             except Exception:
                 pass
 
-            # 读取当前本地凭证状态
+            # 读取当前本地凭证与 7 天免激活试用状态
             ok, msg, lic_payload = LicenseManager.is_system_authorized()
-            lic_status = "ACTIVE" if ok else "TRIAL"
-            lic_exp = lic_payload.get("exp", "-") if ok else "-"
-            maint_exp = lic_payload.get("maint_exp", "-") if ok else "-"
-            plan_type = lic_payload.get("plan", "TRIAL") if ok else "TRIAL"
-            op_name = lic_payload.get("cust", "-") if ok else "-"
+            is_trial = lic_payload.get("is_trial", False) if lic_payload else False
+            if ok:
+                lic_status = "TRIAL_ACTIVE" if is_trial else "ACTIVE"
+                days_left = lic_payload.get("days_left", 7)
+                plan_type = f"7-Day Trial (剩{days_left}天)" if is_trial else lic_payload.get("plan", "COMMERCIAL")
+                lic_exp = lic_payload.get("exp", "-")
+            else:
+                lic_status = "TRIAL_EXPIRED" if is_trial else "UNACTIVATED"
+                plan_type = "EXPIRED"
+                lic_exp = lic_payload.get("exp", "-") if lic_payload else "-"
+
+            maint_exp = lic_payload.get("maint_exp", "-") if lic_payload else "-"
+            op_name = lic_payload.get("cust", "-") if lic_payload else "-"
             cur_token = LicenseManager.get_installed_license_token() or ""
 
             payload = {
