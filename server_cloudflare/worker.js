@@ -163,6 +163,98 @@ export default {
 };
 
 // ==============================================================================
+// 数据库自动热迁移与自愈初始化 (首次运行时自动补齐所有表)
+// ==============================================================================
+
+let _tablesReady = false;
+
+async function ensureTables(db) {
+    if (_tablesReady || !db) return;
+    try {
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS devices (
+                machine_id VARCHAR(64) PRIMARY KEY,
+                hostname VARCHAR(128) DEFAULT '-',
+                ip_address VARCHAR(64) DEFAULT '-',
+                mac_address VARCHAR(64) DEFAULT '-',
+                app_version VARCHAR(32) DEFAULT '-',
+                app_build VARCHAR(32) DEFAULT '-',
+                license_status VARCHAR(32) DEFAULT 'TRIAL',
+                license_expire VARCHAR(64) DEFAULT '-',
+                remaining_days INTEGER DEFAULT 0,
+                customer_name VARCHAR(128) DEFAULT '散户/未登记',
+                line_station VARCHAR(128) DEFAULT 'WORKSTATION-01',
+                is_virtual_machine INTEGER DEFAULT 0,
+                clock_tampered INTEGER DEFAULT 0,
+                first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_sync DATETIME DEFAULT CURRENT_TIMESTAMP,
+                sync_count INTEGER DEFAULT 1,
+                status VARCHAR(20) DEFAULT 'ACTIVE',
+                notes TEXT DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS licenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT NOT NULL UNIQUE,
+                machine_id VARCHAR(64) NOT NULL,
+                plan_type VARCHAR(32) DEFAULT 'TRIAL',
+                expire_date VARCHAR(64) NOT NULL,
+                customer_name VARCHAR(128) DEFAULT 'ANSV VIP Client',
+                station_id VARCHAR(64) DEFAULT 'WORKSTATION-01',
+                status VARCHAR(32) DEFAULT 'ACTIVE',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                activated_at DATETIME,
+                notes TEXT DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS releases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version VARCHAR(32) NOT NULL UNIQUE,
+                build VARCHAR(64) DEFAULT '',
+                release_date VARCHAR(32) NOT NULL,
+                download_url TEXT NOT NULL,
+                backup_url TEXT DEFAULT '',
+                sha256 VARCHAR(64) DEFAULT '',
+                file_size_mb REAL DEFAULT 0.0,
+                changelog TEXT DEFAULT '',
+                is_mandatory INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action VARCHAR(64) NOT NULL,
+                target_mid VARCHAR(64) DEFAULT '',
+                operator VARCHAR(64) DEFAULT 'ADMIN',
+                details TEXT DEFAULT '',
+                ip VARCHAR(64) DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS app_config (
+                meta_key TEXT PRIMARY KEY,
+                meta_value TEXT NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT OR IGNORE INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
+            VALUES (
+                'v1.1.0',
+                '20261014_B1',
+                '2026-10-20',
+                'https://github.com/tonychen5577-tech/coil-architect/releases/download/v1.1.0/ANSV_Coil_Architect_Pro_v1.1.0_20261020_12e1dc6.zip',
+                'https://ansv.net/download/coil-architect-v1.1.0.zip',
+                '60b84e04a59953c3b3de346d4355baa09eb92ad3deaaf75b3a49c01e6a5e11d8',
+                60.60,
+                '### ANSV Coil-Architect Pro v1.1.0 商业正式版',
+                0,
+                1
+            );
+            INSERT OR IGNORE INTO app_config (meta_key, meta_value) VALUES ('latest_version', 'v1.1.0');
+        `);
+        _tablesReady = true;
+    } catch (e) {
+        // 如果已初始化则静默忽略
+    }
+}
+
+// ==============================================================================
 // 客户端静默 API 处理器
 // ==============================================================================
 
@@ -171,6 +263,7 @@ async function handleClientApi(path, request, env) {
     if (!db) {
         return jsonResponse({ success: false, error: "Database binding DB is missing." }, 500);
     }
+    await ensureTables(db);
 
     // 1. 心跳上报与防倒拨时钟校准
     if (path === "/api/v1/heartbeat" && request.method === "POST") {
@@ -305,6 +398,7 @@ async function handleAdmin(path, request, env, url) {
     if (!db) {
         return new Response("Database binding DB is missing in Worker configuration.", { status: 500 });
     }
+    await ensureTables(db);
 
     // 1. 登录验证 API
     if (path === "/admin/api/login" && request.method === "POST") {
