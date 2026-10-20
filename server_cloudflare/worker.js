@@ -30,6 +30,7 @@ const AUTH_COOKIE_VALUE = "COIL_AUTH_VALID_ANSV_2026_SESSION";
 // 官方重定向主页
 const OFFICIAL_REDIRECT_URL = "https://ansv.net";
 const GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect";
+const GITHUB_RELEASES_URL = "https://github.com/tonychen5577-tech/coil-architect/releases";
 
 // ==============================================================================
 // 密码学与 Token 编解码工具 (与 Python 端 100% 互通)
@@ -353,6 +354,13 @@ export default {
             // ------------------------------------------------------------------
             if (path.startsWith("/admin")) {
                 return await handleAdmin(path, request, env, url);
+            }
+
+            // ------------------------------------------------------------------
+            // 4. 软件发布包与增量补丁下载直连重定向
+            // ------------------------------------------------------------------
+            if (path.startsWith("/download")) {
+                return Response.redirect(GITHUB_RELEASES_URL, 302);
             }
 
             // 兜底重定向

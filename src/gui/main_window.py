@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
     QLabel, QPushButton, QComboBox, QFrame, QSplitter, 
     QScrollArea, QFileDialog, QMessageBox, QStatusBar, QCheckBox,
-    QLineEdit, QInputDialog, QApplication, QScrollBar
+    QLineEdit, QInputDialog, QApplication, QScrollBar, QSizePolicy
 )
 
 from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType
@@ -130,7 +130,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"{APP_TITLE} {APP_VERSION}")
         self.resize(1380, 860)
-        self.setMinimumSize(1100, 720)
+        self.setMinimumSize(1200, 700)
 
         self.inputs = CoilInputs()
         self.outputs = CoilOutputs()
@@ -516,34 +516,39 @@ class MainWindow(QMainWindow):
         """)
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(8, 4, 8, 4)
-        layout.setSpacing(10)
+        layout.setSpacing(6)
 
-        # Logo / 标题
+        # 1. Logo / 标题垂直紧凑排列 (高度压缩，横向锁死 160px，彻底释放顶部横向空间)
+        title_box = QVBoxLayout()
+        title_box.setSpacing(1)
+        title_box.setContentsMargins(0, 0, 0, 0)
         lbl_brand = QLabel("🌀 Coil-Architect Pro")
-        lbl_brand.setStyleSheet("font-size: 15px; font-weight: 800; color: #0284C7;")
-        layout.addWidget(lbl_brand)
-
+        lbl_brand.setStyleSheet("font-size: 14px; font-weight: 800; color: #0284C7; line-height: 1.1;")
         lbl_sub = QLabel("精密线圈多物理场仿真工作站")
-        lbl_sub.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B;")
-        layout.addWidget(lbl_sub)
+        lbl_sub.setStyleSheet("font-size: 10px; font-weight: 600; color: #64748B; line-height: 1.1;")
+        title_box.addWidget(lbl_brand)
+        title_box.addWidget(lbl_sub)
+        layout.addLayout(title_box)
 
-        layout.addSpacing(15)
+        layout.addSpacing(6)
 
-        # 项目名称输入框 (预设: Coli-Architect)
-        lbl_proj = QLabel("🏷️ 项目名称:")
-        lbl_proj.setStyleSheet("font-size: 11px; font-weight: 700; color: #1E293B; margin-left: 2px;")
+        # 2. 项目名称输入区 (锁死尺寸，防止横向拉伸挤占按钮空间)
+        lbl_proj = QLabel("🏷️ 项目:")
+        lbl_proj.setStyleSheet("font-size: 11px; font-weight: 700; color: #1E293B;")
+        lbl_proj.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(lbl_proj)
 
         self.txt_project_name = QLineEdit("Coli-Architect")
-        self.txt_project_name.setPlaceholderText("预设: Coli-Architect")
+        self.txt_project_name.setPlaceholderText("项目代号")
         self.txt_project_name.setToolTip("当前工程项目代号/名称（导出 Excel/CSV 报表与方案比对时将自动注入文件名与表格抬头）")
-        self.txt_project_name.setFixedWidth(150)
+        self.txt_project_name.setFixedWidth(110)
+        self.txt_project_name.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.txt_project_name.setStyleSheet("""
             QLineEdit {
                 background-color: #FFFFFF;
                 border: 1px solid #CBD5E1;
                 border-radius: 4px;
-                padding: 4px 8px;
+                padding: 3px 6px;
                 font-size: 11px;
                 font-weight: 600;
                 color: #0F172A;
@@ -555,11 +560,12 @@ class MainWindow(QMainWindow):
         """)
         layout.addWidget(self.txt_project_name)
 
-        layout.addSpacing(10)
+        layout.addSpacing(4)
 
-        # 快速预设方案
-        lbl_preset = QLabel("工程预设:")
+        # 3. 快速预设方案下拉框 (按用户要求优化超长文本框：从 270px 收敛至 145px)
+        lbl_preset = QLabel("📐 预设:")
         lbl_preset.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
+        lbl_preset.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(lbl_preset)
 
         self.combo_presets = QComboBox()
@@ -571,49 +577,71 @@ class MainWindow(QMainWindow):
             "5. CAD异形线圈"
         ])
         self.combo_presets.currentTextChanged.connect(self._load_preset)
-        self.combo_presets.setFixedWidth(270)
+        self.combo_presets.setFixedWidth(145)
+        self.combo_presets.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(self.combo_presets)
 
-        layout.addStretch()
+        # 4. 中间自适应弹性占位条 (窗口缩放、拉大拉小时由其弹性吸收，两侧控件位置绝对锁定、绝不重叠)
+        layout.addStretch(1)
 
-        # 算例操作按钮
+        # 5. 算例与报表操作按钮组 (锁死固定尺寸，文字 100% 完整显示)
         self.btn_open = QPushButton("📂 载入算例")
+        self.btn_open.setToolTip("载入 .ansvcoil 专属算例工程文件 (支持单实例 IPC 导入)")
+        self.btn_open.setFixedWidth(82)
+        self.btn_open.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.btn_open.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_open.clicked.connect(self._import_project)
         layout.addWidget(self.btn_open)
 
         self.btn_save = QPushButton("💾 保存算例")
+        self.btn_save.setToolTip("将当前仿真参数与约束保存为 .ansvcoil 专属算例工程文件")
+        self.btn_save.setFixedWidth(82)
+        self.btn_save.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.btn_save.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_save.clicked.connect(self._export_project)
         layout.addWidget(self.btn_save)
 
-        self.btn_export = QPushButton("📊 导出评审报告 (Excel)")
-        self.btn_export.clicked.connect(self._export_report)
+        self.btn_export = QPushButton("📊 导出报表")
+        self.btn_export.setToolTip("导出 Excel (含二维工程制图) 与 CSV 仿真评审报告")
         self.btn_export.setProperty("class", "SuccessBtn")
+        self.btn_export.setFixedWidth(92)
+        self.btn_export.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.btn_export.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 700;")
+        self.btn_export.clicked.connect(self._export_report)
         layout.addWidget(self.btn_export)
 
-        layout.addSpacing(10)
+        layout.addSpacing(4)
 
-        # 商业授权指示灯 / 点击激活按钮
-        self.btn_license = QPushButton("🛡️ 正式商业授权 (ANSV 工业版)")
+        # 6. 商业授权状态指示按钮 (固定 130px，完整容纳试用与商业版状态)
+        self.btn_license = QPushButton("🛡️ 正式商业授权")
+        self.btn_license.setFixedWidth(130)
+        self.btn_license.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.btn_license.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_license.clicked.connect(self._on_license_chip_clicked)
         layout.addWidget(self.btn_license)
         self._refresh_license_status()
 
-        # 关于系统按钮 (规范 04.二)
+        # 7. 关于系统按钮 (固定 82px)
         self.btn_about = QPushButton("ℹ️ 关于系统")
+        self.btn_about.setFixedWidth(82)
+        self.btn_about.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.btn_about.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_about.clicked.connect(self._show_about_dialog)
         layout.addWidget(self.btn_about)
 
-        # 数据库通信与网络诊断按钮 (对标 Gear 规范)
+        # 8. 数据库设置与网络诊断按钮 (固定 132px，锁死不重叠)
         self.btn_cloud_config = QPushButton("🌐 数据库设置与诊断")
+        self.btn_cloud_config.setFixedWidth(132)
+        self.btn_cloud_config.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.btn_cloud_config.setToolTip("内网网络连通诊断、体检日志导出与通信参数导入 (快捷键: Ctrl+D)")
+        self.btn_cloud_config.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_cloud_config.clicked.connect(self._open_cloud_config_dialog)
         layout.addWidget(self.btn_cloud_config)
 
         return bar
 
     def _refresh_license_status(self):
-        """动态刷新顶部授权指示灯的文本、样式与提示"""
+        """动态刷新顶部授权指示灯的文本、样式与提示 (锁死尺寸自适应文字)"""
         from src.core.license_manager import LicenseManager
         auth_ok, auth_msg, lic_data = LicenseManager.is_system_authorized()
         self.is_authorized = auth_ok
@@ -627,14 +655,14 @@ class MainWindow(QMainWindow):
             if is_trial:
                 days_left = lic_data.get("days_left", 7)
                 exp_date = lic_data.get("exp_date", "")
-                self.btn_license.setText(f"⏱️ 7天全功能试用 (剩 {days_left} 天)")
+                self.btn_license.setText(f"⏱️ 7天试用 (剩 {days_left} 天)")
                 self.btn_license.setStyleSheet("""
                     QPushButton {
                         background-color: #F0F9FF;
                         color: #0284C7;
                         border: 1px solid #BAE6FD;
                         border-radius: 4px;
-                        padding: 3px 8px;
+                        padding: 3px 6px;
                         font-size: 11px;
                         font-weight: 700;
                     }
@@ -652,14 +680,14 @@ class MainWindow(QMainWindow):
             else:
                 lic_type = lic_data.get("type", "商业版") if lic_data else "商业版"
                 exp_date = lic_data.get("exp_date", "永久有效") if lic_data else "永久有效"
-                self.btn_license.setText(f"🛡️ 正式商业授权 ({lic_type})")
+                self.btn_license.setText(f"🛡️ 商业授权 ({lic_type})")
                 self.btn_license.setStyleSheet("""
                     QPushButton {
                         background-color: #ECFDF5;
                         color: #059669;
                         border: 1px solid #A7F3D0;
                         border-radius: 4px;
-                        padding: 3px 8px;
+                        padding: 3px 6px;
                         font-size: 11px;
                         font-weight: 700;
                     }
@@ -671,7 +699,7 @@ class MainWindow(QMainWindow):
                 self.btn_license.setToolTip(f"商业授权有效 | 类型: {lic_type}\n有效期至: {exp_date}\n点击可查看授权详情")
         else:
             is_trial_expired = lic_data.get("is_trial", False) if lic_data else False
-            btn_txt = "⚠️ 试用已到期 (点击激活)" if is_trial_expired else "⚠️ 未激活 (点击激活)"
+            btn_txt = "⚠️ 试用已到期" if is_trial_expired else "⚠️ 未激活 (点击激活)"
             self.btn_license.setText(btn_txt)
             self.btn_license.setStyleSheet("""
                 QPushButton {
@@ -679,7 +707,7 @@ class MainWindow(QMainWindow):
                     color: #B45309;
                     border: 1px solid #FCD34D;
                     border-radius: 4px;
-                    padding: 3px 8px;
+                    padding: 3px 6px;
                     font-size: 11px;
                     font-weight: 700;
                 }
@@ -688,6 +716,7 @@ class MainWindow(QMainWindow):
                     border-color: #F59E0B;
                 }
             """)
+            self.btn_license.setToolTip("当前处于未激活受限状态\n点击打开授权激活窗口")
             self.btn_license.setToolTip("当前处于未激活评估模式\n点击立即输入授权激活码，解锁全部参数调节、方案比对及报表导出功能")
 
     def _on_license_chip_clicked(self):

@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 
 from src.version import (
     APP_NAME, APP_VERSION, APP_BUILD, BUILD_TIME, OFFICIAL_URL,
-    PLATFORM_NAME, get_git_commit, get_git_log
+    PLATFORM_NAME, GITHUB_RELEASES_URL, get_git_commit, get_git_log
 )
 from src.gui.utils import adapt_dialog_geometry
 
@@ -76,7 +76,7 @@ class UpdateDialog(QDialog):
         header_h.addLayout(title_v)
         header_h.addStretch()
 
-        btn_web = QPushButton("🌐 官方更新主页")
+        btn_web = QPushButton("🌐 官方发布与更新主页")
         btn_web.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_web.setStyleSheet("""
             QPushButton {
@@ -93,7 +93,7 @@ class UpdateDialog(QDialog):
                 border-color: #0284C7;
             }
         """)
-        btn_web.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(OFFICIAL_URL)))
+        btn_web.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(GITHUB_RELEASES_URL)))
         header_h.addWidget(btn_web)
 
         main_layout.addLayout(header_h)
@@ -430,9 +430,10 @@ class UpdateDialog(QDialog):
             "   ② 解压压缩包，将所有文件直接复制并覆盖到 Coil-Architect Pro 原安装根目录；\n"
             "   ③ 重新运行 Coil-Architect-Pro.exe 即可秒级完成升级！\n\n"
             "• 多机分发建议: 将此补丁包拷入 U 盘或内网共享，各客户端就地覆盖，完全免消耗外网流量。\n\n"
-            "点击【确定】将为您在浏览器中打开官方增量补丁下载通道。"
+            "点击【确定】将为您在浏览器中打开官方增量补丁下载发布通道。"
         )
-        QDesktopServices.openUrl(QUrl(f"{OFFICIAL_URL}/download/coil-architect-patch"))
+        url = getattr(self, "_patch_download_url", None) or GITHUB_RELEASES_URL
+        QDesktopServices.openUrl(QUrl(url))
 
     def _on_download_full_clicked(self):
         """点击获取全量完整安装包"""
@@ -442,9 +443,10 @@ class UpdateDialog(QDialog):
             "📦 全量独立安装包使用说明 (~61.5 MB)\n\n"
             "• 适用工位机: 全新电脑或未安装旧版本环境。\n"
             "• 包含内容: 内置独立 Python 运行时、全量 Qt 库与完整算法引擎，解压即可运行。\n\n"
-            "点击【确定】将为您在浏览器中打开官方全量下载通道。"
+            "点击【确定】将为您在浏览器中打开官方全量下载发布通道。"
         )
-        QDesktopServices.openUrl(QUrl(f"{OFFICIAL_URL}/download/coil-architect-full"))
+        url = getattr(self, "_full_download_url", None) or GITHUB_RELEASES_URL
+        QDesktopServices.openUrl(QUrl(url))
 
     def _on_refresh_clicked(self):
         """重新检测更新并反馈"""
@@ -459,6 +461,10 @@ class UpdateDialog(QDialog):
                 maint_exp = lic_data.get("maint_exp", lic_data.get("exp", "PERMANENT")) if is_auth else "PERMANENT"
 
                 is_newer, release, msg = CloudClient.check_update_sync()
+                if release:
+                    self._full_download_url = release.get("download_url") or GITHUB_RELEASES_URL
+                    self._patch_download_url = release.get("patch_url") or release.get("download_url") or GITHUB_RELEASES_URL
+
                 if is_newer and release:
                     rel_ver = release.get("version", "")
                     patch_size = release.get("patch_size_mb", 8.7)
