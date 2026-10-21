@@ -238,6 +238,11 @@ class MainWindow(QMainWindow):
         self._setup_statusbar_copyright()
         self._setup_tooltips()
 
+        # 4. 全局快捷键: F1 快速打开 HTML 用户说明书
+        from PyQt6.QtGui import QKeySequence, QShortcut
+        self.sc_manual = QShortcut(QKeySequence("F1"), self)
+        self.sc_manual.activated.connect(self._open_user_manual)
+
     def showEvent(self, event):
         super().showEvent(event)
         if hasattr(self, "splitter") and hasattr(self, "_splitter_left_width"):
@@ -570,6 +575,26 @@ class MainWindow(QMainWindow):
         from src.gui.update_dialog import UpdateDialog
         dlg = UpdateDialog(self)
         dlg.exec()
+
+    def _open_user_manual(self):
+        """打开离线 HTML 用户使用说明书"""
+        import sys
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        app_dir = Path(__file__).resolve().parent.parent.parent
+        candidates = [
+            app_dir / "Coil-Architect-Pro_使用说明书.html",
+            app_dir / "README.html",
+            app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
+            Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
+            Path(sys.executable).parent / "README.html",
+            Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
+        ]
+        for p in candidates:
+            if p.exists():
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
+                return
+        QDesktopServices.openUrl(QUrl("https://github.com/tonychen5577-tech/coil-architect"))
 
     def _show_about_dialog(self):
         """弹出 16:9 工业标准关于系统对话框"""

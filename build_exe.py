@@ -255,6 +255,21 @@ def step4_security_audit_and_zip() -> Path:
         print("  ✓ [PASSED] 核心物理求解器、几何排布与商业授权核心 100% 为原生 C 机器码 (.pyd)！")
         print("  ✓ [PASSED] 无任何核心 .py 裸源码，彻底免疫 uncompyle6 / pycdc 等字节码逆向工具！")
 
+    # 4.1 制作并编译 GitHub README 为独立离线 HTML 说明书
+    print("\n[Manual] 正在编译 GitHub README 为独立离线 HTML 说明书...")
+    try:
+        from tools.generate_html_manual import build_html_manual
+        build_html_manual(
+            ROOT_DIR / "README.md",
+            [
+                app_dir / "Coil-Architect-Pro_使用说明书.html",
+                app_dir / "README.html",
+                ROOT_DIR / "docs" / "Coil-Architect-Pro_使用说明书.html",
+            ]
+        )
+    except Exception as e:
+        print(f"  ⚠️  [Warn] HTML 说明书编译失败: {e}")
+
     # 制作带时间戳与版本号的 Release ZIP 压缩包
     from src.version import APP_VERSION, APP_BUILD, get_git_commit
     git_hash = get_git_commit()
@@ -331,6 +346,13 @@ pause
         # 4. bat & txt
         pzf.write(apply_bat, arcname="一键应用增量补丁.bat")
         pzf.write(readme_txt, arcname="增量升级使用说明.txt")
+        # 5. HTML 离线说明书
+        manual_html = app_dir / "Coil-Architect-Pro_使用说明书.html"
+        if manual_html.exists():
+            pzf.write(manual_html, arcname="Coil-Architect-Pro_使用说明书.html")
+        readme_html = app_dir / "README.html"
+        if readme_html.exists():
+            pzf.write(readme_html, arcname="README.html")
 
     # 清理临时文件
     apply_bat.unlink(missing_ok=True)

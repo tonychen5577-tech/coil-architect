@@ -5,6 +5,10 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B3：
+                             1) 自动化编译 GitHub README 为独立离线高保真 HTML 格式工程使用说明书；
+                             2) 将 HTML 说明书自动注入并打包至绿色安装包与增量升级包根目录；
+                             3) 软件内支持 F1 快捷键及关于系统面板一键直达打开本地离线说明书；
 - 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B2：
                              1) 修复关于系统对话框在特定网卡环境下触发的 No module named 'uuid' 打包缺失缺陷；
                              2) 补齐 PyInstaller 对底层 Cython 原生库 uuid、hmac、winreg 的 hidden-import 依赖声明；
@@ -44,7 +48,7 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261021B2"
+APP_BUILD = "20261021B3"
 APP_DATE = "2026-10-21"
 BUILD_TIME = "2026-10-21 08:00:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"

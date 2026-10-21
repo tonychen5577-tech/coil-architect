@@ -704,6 +704,28 @@ class AboutDialog(QDialog):
         btn_cloud_diag.clicked.connect(self._on_cloud_diag_clicked)
         footer_layout.addWidget(btn_cloud_diag)
 
+        # 按钮 2.8: 📖 使用说明书 (离线 HTML 用户手册)
+        btn_manual = QPushButton("📖 使用说明书")
+        btn_manual.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_manual.setToolTip("在默认浏览器中打开本软件专属离线 HTML 用户手册与工程指南")
+        btn_manual.setStyleSheet("""
+            QPushButton {
+                background-color: #F8FAFC;
+                color: #0284C7;
+                border: 1px solid #BAE6FD;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #E0F2FE;
+                border-color: #0284C7;
+            }
+        """)
+        btn_manual.clicked.connect(self._on_open_manual_clicked)
+        footer_layout.addWidget(btn_manual)
+
         # 按钮 3: 🚀 检查更新
         btn_chk_update = QPushButton("🚀 检查更新")
         btn_chk_update.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -830,6 +852,26 @@ class AboutDialog(QDialog):
         """唤起企业内网数据库与通信环境诊断中心 (对标 Gear 规范)"""
         from src.gui.cloud_config_dialog import open_cloud_config_dialog
         open_cloud_config_dialog(self)
+
+    def _on_open_manual_clicked(self):
+        """一键在默认浏览器打开本地 HTML 用户说明书"""
+        import sys
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        app_dir = Path(__file__).resolve().parent.parent.parent
+        candidates = [
+            app_dir / "Coil-Architect-Pro_使用说明书.html",
+            app_dir / "README.html",
+            app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
+            Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
+            Path(sys.executable).parent / "README.html",
+            Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
+        ]
+        for p in candidates:
+            if p.exists():
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
+                return
+        QDesktopServices.openUrl(QUrl("https://github.com/tonychen5577-tech/coil-architect"))
 
     def _on_check_update_clicked(self):
         """唤起检查更新与 Git 版本提交记录窗口"""
