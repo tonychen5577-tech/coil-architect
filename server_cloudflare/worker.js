@@ -282,7 +282,7 @@ async function ensureTables(db) {
             INSERT OR IGNORE INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
             VALUES (
                 'v1.1.0',
-                '20261014_B1',
+                '20261021B1',
                 '2026-10-20',
                 'https://github.com/tonychen5577-tech/coil-architect/releases/download/v1.1.0/ANSV_Coil_Architect_Pro_v1.1.0_20261020_12e1dc6.zip',
                 'https://ansv.net/download/coil-architect-v1.1.0.zip',

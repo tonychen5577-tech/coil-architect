@@ -5,6 +5,10 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B1：
+                             1) 优化 7 天试用升级弹窗操作按钮为中文语义（输入商业激活码 / 继续试用）；
+                             2) 修复试用期点击升级未弹出激活对话框的缺陷；
+                             3) 规范化构建号为 20261021B1，确保云端 OTA 增量检测精准触发更新。
 - 2026-10-20 [Yaming] v1.1.0: 补齐关于系统对话框与更新日志：
                              1) 规范公众号名称为“ANSV微型执行器”，加载真实二维码；
                              2) 补齐底栏 3 个操作按钮：桌面快捷方式、导出诊断日志、检查更新；
@@ -36,9 +40,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261014_B1"
-APP_DATE = "2026-10-20"
-BUILD_TIME = "2026-10-20 11:00:00 CST"
+APP_BUILD = "20261021B1"
+APP_DATE = "2026-10-21"
+BUILD_TIME = "2026-10-21 08:00:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"

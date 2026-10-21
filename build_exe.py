@@ -256,7 +256,7 @@ def step4_security_audit_and_zip() -> Path:
     from src.version import APP_VERSION, APP_BUILD, get_git_commit
     git_hash = get_git_commit()
     date_str = datetime.now().strftime("%Y%m%d")
-    zip_name = f"ANSV_Coil_Architect_Pro_{APP_VERSION}_{date_str}_{git_hash}.zip"
+    zip_name = f"ANSV_Coil_Architect_Pro_{APP_VERSION}_{APP_BUILD}_{git_hash}.zip"
     zip_path = dist_dir / zip_name
 
     print(f"\n[Packaging] 正在打包发布压缩包: {zip_path.name} ...")
@@ -271,7 +271,7 @@ def step4_security_audit_and_zip() -> Path:
     print(f"  ✓ 归档体积: {zip_size_mb:.2f} MB")
 
     # 制作增量升级补丁包 (仅含 EXE、核心 Cython .pyd 动态库与资源资产，体积仅 ~8.7 MB，节约 85%+ 流量)
-    patch_name = f"ANSV_Coil_Architect_Pro_{APP_VERSION}_{date_str}_{git_hash}_Incremental_Patch.zip"
+    patch_name = f"ANSV_Coil_Architect_Pro_{APP_VERSION}_{APP_BUILD}_{git_hash}_Incremental_Patch.zip"
     patch_path = dist_dir / patch_name
     print(f"\n[Patching] 正在制作最小网络流量增量升级补丁包: {patch_path.name} ...")
 
@@ -336,15 +336,32 @@ pause
     patch_size_mb = patch_path.stat().st_size / (1024 * 1024)
     print(f"  ✓ 最小流量增量补丁包生成成功: {patch_path}")
     print(f"  ✓ 补丁归档体积: {patch_size_mb:.2f} MB (相比全量包节省 {(1 - patch_size_mb/zip_size_mb)*100:.1f}% 流量)")
+
+    # 自动同步生成标准发布文件名 (对齐官方 OTA 与 GitHub Releases 下载索引)
+    full_canonical = dist_dir / f"ANSV_Coil_Architect_Pro_{APP_VERSION}_Full.zip"
+    patch_canonical = dist_dir / f"ANSV_Coil_Architect_Pro_{APP_VERSION}_Incremental_Patch.zip"
+    shutil.copy2(zip_path, full_canonical)
+    shutil.copy2(patch_path, patch_canonical)
+    print(f"  ✓ 标准全量发布包同步生成: {full_canonical.name}")
+    print(f"  ✓ 标准增量补丁包同步生成: {patch_canonical.name}")
     print("=" * 68)
     return zip_path, patch_path
 
 
 def main():
+    from src.version import APP_VERSION, APP_BUILD
     print("=" * 68)
     print("  ANSV 微型执行器与精密传动仿真验证平台")
-    print("  Coil-Architect Pro - 商业防反编译/反逆向工程打包流程启动")
+    print(f"  Coil-Architect Pro ({APP_VERSION} · Build {APP_BUILD}) - 商业防反编译打包流程启动")
     print("=" * 68)
+
+    # 严格校验构建号日期，确保每次升级均更新 APP_BUILD
+    today_str = datetime.now().strftime("%Y%m%d")
+    if today_str not in APP_BUILD:
+        print(f"\n⚠️  [WARN] 检测到 src/version.py 中的 APP_BUILD ({APP_BUILD}) 未包含今日日期 ({today_str})！")
+        print(f"⚠️  根据工业规范，每次发布新版本必须递增更新 APP_BUILD (如: {today_str}B1)，以便云端 OTA 精准识别。\n")
+    else:
+        print(f"  ✓ 构建号校验通过: {APP_BUILD} (包含今日日期 {today_str})")
 
     # 1. Cython 编译
     ok_cython = step1_cython_compilation()
