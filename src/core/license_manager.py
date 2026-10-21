@@ -12,6 +12,7 @@ import hashlib
 import platform
 import subprocess
 import base64
+import uuid
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Tuple, Dict, Any, Optional
@@ -597,10 +598,13 @@ def get_mac_address() -> str:
         pass
 
     if not mac_found:
-        import uuid
-        node = uuid.getnode()
-        mac_hex = f"{node:012X}"
-        mac_found = ":".join(mac_hex[i:i+2] for i in range(0, 12, 2))
+        try:
+            import uuid
+            node = uuid.getnode()
+            mac_hex = f"{node:012X}"
+            mac_found = ":".join(mac_hex[i:i+2] for i in range(0, 12, 2))
+        except Exception:
+            mac_found = "02:00:00:00:00:01" 
 
     _CACHED_MAC_ADDRESS = mac_found
     return _CACHED_MAC_ADDRESS

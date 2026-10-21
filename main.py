@@ -2,6 +2,8 @@
 Coil-Architect Pro - Main Entry Point
 """
 import sys
+import uuid
+import hmac
 from pathlib import Path
 
 # Ensure root dir is in sys.path
