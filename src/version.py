@@ -5,6 +5,10 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B5：
+                             1) 网络模式自动顺序验证：参照 Gear 软件规范，网络模式设置为受控只读，禁止个人擅自修改；
+                             2) 智能自动顺序探测：顺序验证自动检测系统代理 (auto)、企业原生直连 (direct) 与专用代理，测速并自动锁定最优连接通道；
+                             3) 移除主界面右上角「🌐 数据库设置与诊断」按钮，将网络诊断收敛至「关于系统」底栏工具与 Ctrl+D 快捷键，主界面顶栏更宽裕优雅。
 - 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B4：
                              1) 彻底修复影子替换 OTA 脚本拉起失败缺陷：过滤空参数，防止 PowerShell switch 空实参抛出 MissingArgument 致命异常；
                              2) 移除 app.py 启动时对更新清单的误删，确保静默升级/端内交互下载后下次打开或退出时 100% 自动装载新版本；
@@ -53,9 +57,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261021B4"
+APP_BUILD = "20261021B5"
 APP_DATE = "2026-10-21"
-BUILD_TIME = "2026-10-21 08:00:00 CST"
+BUILD_TIME = "2026-10-21 16:30:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"

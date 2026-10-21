@@ -108,10 +108,11 @@ class CloudConfigDialog(QDialog):
 
         # 1. 顶部提示栏
         lbl_intro = QLabel(
-            "🔒 <b>企业内网连接保障说明</b>：系统已集成 SmartDNS 韧性穿透与 Anycast 安全通道，自动应对内网 DNS 阻断。\n"
-            "• <b>网络排查</b>：点击【🔍 开始网络连通诊断】可执行 DNS、TCP、SSL 与 API 接口全链路检测；\n"
-            "• <b>链路体检</b>：点击【🩺 一键体检并导出日志】可生成诊断报告直接提供给技术人员分析；\n"
-            "• <b>参数定制</b>：点击【📥 导入网络设置参数】可直接导入内网私有部署或专属代理配置文件。"
+            "🔒 <b>企业数据库通信保障说明</b>：系统已集成网络模式自动顺序验证与 SmartDNS 韧性穿透技术。\n"
+            "• <b>自动优选</b>：系统自动顺序验证【系统代理】与【企业直连】等模式并锁定最佳连接链路，禁止个人擅自修改；\n"
+            "• <b>连通诊断</b>：点击【🔍 开始网络连通诊断】可重新触发顺序验证并执行全链路体检；\n"
+            "• <b>日志导出</b>：点击【🩺 一键体检并导出日志】可生成诊断报告直接提供给技术人员分析；\n"
+            "• <b>参数定制</b>：点击【📥 导入网络设置参数】可直接导入由技术专家分发的专用配置文件。"
         )
         lbl_intro.setWordWrap(True)
         lbl_intro.setStyleSheet("""
@@ -153,8 +154,8 @@ class CloudConfigDialog(QDialog):
         v_url.addWidget(self.edit_url)
         root_layout.addWidget(group_url)
 
-        # 3. 网络代理与路由模式
-        group_proxy = QGroupBox("🛡️ 当前网络代理与内网路由策略")
+        # 3. 网络代理与路由模式 (受控只读 · 自动顺序验证优选)
+        group_proxy = QGroupBox("🛡️ 当前网络模式与路由策略 (自动顺序验证 · 受控只读)")
         v_proxy = QVBoxLayout(group_proxy)
         v_proxy.setContentsMargins(12, 12, 12, 10)
         v_proxy.setSpacing(6)
@@ -163,9 +164,9 @@ class CloudConfigDialog(QDialog):
         h_p_sel.addWidget(QLabel("网络模式:"))
         self.cmb_proxy = QComboBox()
         self.cmb_proxy.addItems([
-            "自动检测系统代理 (推荐，自动读取 Windows 系统代理)",
-            "直连模式 (不走任何代理，企业内网/涉密局域网互通)",
-            "指定本地代理 (手动指定内网代理服务器端口)"
+            "自动检测系统代理 (推荐，自动读取 Windows 系统代理与 PAC)",
+            "企业原生直连 (不走任何代理，企业内网/专线互联)",
+            "专用本地代理 (技术专家配置文件指定专用端口)"
         ])
         p_mode = self.cfg.get("proxy_setting", "auto")
         if p_mode == "direct":
@@ -174,22 +175,24 @@ class CloudConfigDialog(QDialog):
             self.cmb_proxy.setCurrentIndex(2)
         else:
             self.cmb_proxy.setCurrentIndex(0)
+        self.cmb_proxy.setEnabled(False)  # 严格对标 Gear 规范，受控只读，禁止个人修改
+        self.cmb_proxy.setToolTip("网络连接模式已锁定为自动顺序验证，系统自动获取最佳连接方式 (受控只读，禁止个人擅自修改)")
         self.cmb_proxy.setStyleSheet("""
             QComboBox {
                 padding: 4px 8px;
                 font-size: 11px;
                 border: 1px solid #CBD5E1;
                 border-radius: 4px;
-                background-color: #FFFFFF;
-                color: #1E293B;
+                background-color: #F1F5F9;
+                color: #334155;
             }
         """)
-        self.cmb_proxy.currentIndexChanged.connect(self._on_proxy_changed)
         h_p_sel.addWidget(self.cmb_proxy, 1)
         v_proxy.addLayout(h_p_sel)
 
         self.edit_custom_proxy = QLineEdit(self.cfg.get("custom_proxy", ""))
-        self.edit_custom_proxy.setPlaceholderText("请输入代理地址，例如: http://10.0.0.1:8080 或 socks5://127.0.0.1:10808")
+        self.edit_custom_proxy.setReadOnly(True)  # 受控只读
+        self.edit_custom_proxy.setPlaceholderText("由【📥 导入网络设置参数】自动载入，禁止个人手动输入")
         self.edit_custom_proxy.setStyleSheet("""
             QLineEdit {
                 padding: 5px 8px;
@@ -197,12 +200,11 @@ class CloudConfigDialog(QDialog):
                 font-family: monospace;
                 border: 1px solid #CBD5E1;
                 border-radius: 4px;
-                background-color: #FFFFFF;
-                color: #1E293B;
+                background-color: #F1F5F9;
+                color: #334155;
             }
         """)
         self.edit_custom_proxy.setVisible(self.cmb_proxy.currentIndex() == 2)
-        self.edit_custom_proxy.textChanged.connect(self._on_custom_proxy_changed)
         v_proxy.addWidget(self.edit_custom_proxy)
 
         root_layout.addWidget(group_proxy)
@@ -317,61 +319,66 @@ class CloudConfigDialog(QDialog):
         root_layout.addLayout(btn_box)
 
     def _on_proxy_changed(self, idx: int):
-        modes = ["auto", "direct", "custom"]
-        p_mode = modes[idx] if idx < len(modes) else "auto"
-        self.edit_custom_proxy.setVisible(idx == 2)
-        self.cfg["proxy_setting"] = p_mode
-        save_cloud_config(self.cfg)
+        """受控只读：模式由系统自动顺序验证决定，忽略外部直接修改"""
+        pass
 
     def _on_custom_proxy_changed(self, text: str):
-        self.cfg["custom_proxy"] = text.strip()
-        save_cloud_config(self.cfg)
+        """受控只读：专用代理地址由配置文件导入，忽略个人手动输入"""
+        pass
 
     def _do_test(self):
-        """执行网络连通性诊断 (100% 对齐 Gear 工业级诊断标准)"""
+        """执行网络连通性诊断与模式自动顺序验证 (100% 对齐 Gear 工业级诊断标准)"""
         target_url = getattr(self, "_target_server_url", None) or CloudClient.get_server_url() or DEFAULT_CLOUD_BASE_URL
         if not target_url:
             QMessageBox.warning(self, "提示", "未找到有效的数据库服务器地址！")
             return
 
-        ps_idx = self.cmb_proxy.currentIndex()
-        ps_mode = "auto" if ps_idx == 0 else ("direct" if ps_idx == 1 else "custom")
-        cp_val = self.edit_custom_proxy.text().strip() if ps_mode == "custom" else ""
-
         self.btn_test.setEnabled(False)
-        self.btn_test.setText("⏳ 正在探测网络...")
+        self.btn_test.setText("⏳ 正在顺序探测网络...")
         self.txt_diag.clear()
-        self.txt_diag.append(f"[*] 开始网络连通性诊断: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.txt_diag.append(f"[*] 开始网络连通性诊断与全自动模式验证: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         self.txt_diag.append(f"• 目标数据链路:   {mask_server_url(target_url)}")
-        self.txt_diag.append(f"• 路由代理模式:   {ps_mode} {('(' + cp_val + ')') if cp_val else ''}")
-        self.txt_diag.append(f"• 本机机器标识码: {get_machine_code()}")
+        self.txt_diag.append(f"• 本机工位机器码: {get_machine_code()}")
         self.txt_diag.append(f"• 本机网卡 MAC:   {get_mac_address()}")
         self.txt_diag.append(f"• 本机内网 IP:    {get_client_ip()}")
         self.txt_diag.append("-" * 65)
+        self.txt_diag.append("⏳ 正在自动顺序验证各网络模式，获取最佳连接链路...")
         QApplication.processEvents()
 
-        ok, msg = CloudClient.test_connection(target_url, ps_mode, cp_val)
+        best_mode, ok, summary_msg, probe_details = CloudClient.auto_detect_best_network_mode(target_url)
+
+        for step_idx, probe in enumerate(probe_details, start=1):
+            if probe["ok"]:
+                self.txt_diag.append(f"  [步骤 {step_idx}/{len(probe_details)}] {probe['name']}: ✅ 连通成功 (延迟 {probe['latency']}ms)")
+            else:
+                self.txt_diag.append(f"  [步骤 {step_idx}/{len(probe_details)}] {probe['name']}: ❌ 连接未通 ({sanitize_diag_text(probe['msg'])})")
+
+        self.txt_diag.append("-" * 65)
         self.btn_test.setEnabled(True)
         self.btn_test.setText("🔍 开始网络连通诊断")
 
-        clean_msg = sanitize_diag_text(msg)
+        # 刷新下拉框显示对应最佳模式
+        if best_mode == "direct":
+            self.cmb_proxy.setCurrentIndex(1)
+        elif best_mode == "custom":
+            self.cmb_proxy.setCurrentIndex(2)
+        else:
+            self.cmb_proxy.setCurrentIndex(0)
+        self.edit_custom_proxy.setVisible(self.cmb_proxy.currentIndex() == 2)
+
         if ok:
-            self.txt_diag.append(f"✅ [诊断通过] {clean_msg}")
-            self.txt_diag.append("• SSL 握手安全通道: 正常建立 (兼容证书模式)")
+            self.txt_diag.append(f"🎯 最佳连接方式: {summary_msg}")
+            self.txt_diag.append("• SSL 握手安全通道: 正常建立 (企业内网安全证书兼容模式生效)")
             self.txt_diag.append("• API 通信鉴权:     HTTP 200 OK (X-API-Key 已匹配)")
             self.txt_diag.append("• 数据库状态:       正常就绪，可无缝同步与查阅专家案例！")
-            QMessageBox.information(self, "连接成功", f"✅ 数据库联机测试成功！\n\n{clean_msg}")
+            QMessageBox.information(self, "连接成功", f"✅ 网络模式顺序验证完成！\n\n{summary_msg}\n\n系统已自动为您锁定最佳通信链路。")
         else:
-            self.txt_diag.append(f"❌ [诊断失败] {clean_msg}")
+            self.txt_diag.append(f"❌ [诊断失败] {summary_msg}")
             self.txt_diag.append("\n【排查诊断分析与对策建议】:")
-            if "127.0.0.1" in target_url or "localhost" in target_url:
-                self.txt_diag.append("1. 您配置的地址为 127.0.0.1 (本机)。若数据库运行在另一台主机电脑上，请将 127.0.0.1 替换为该主机的局域网 IP；")
-                self.txt_diag.append("2. 请确认该主机电脑上已启动数据库后端服务。")
-            else:
-                self.txt_diag.append("1. 请检查本机是否能正常访问公网（可尝试开启或切换系统网络代理）；")
-                self.txt_diag.append("2. 请检查局域网防火墙或路由器是否拦截了出站网络通信；")
-                self.txt_diag.append("3. 若现场网络发生变动，请点击【📥 导入网络设置参数】重新导入由技术专家分发的配置文件。")
-            QMessageBox.critical(self, "连接失败", f"❌ 数据库未能连通！\n\n原因: {clean_msg}\n\n详细排查建议已输出至控制台，请参考修改。")
+            self.txt_diag.append("1. 请检查本机是否能正常访问公网或企业专网；")
+            self.txt_diag.append("2. 请检查局域网防火墙或网络路由设备是否拦截了出站网络通信；")
+            self.txt_diag.append("3. 若现场网络发生变动，请点击【📥 导入网络设置参数】重新导入由技术专家分发的专用配置文件。")
+            QMessageBox.critical(self, "连接未就绪", f"⚠️ 数据库网络连接未就绪！\n\n原因: {summary_msg}\n\n详细排查建议已输出至控制台，请参考修改。")
 
     def _export_diag_log(self):
         """一键执行环境体检并将诊断报告保存为日志文件，方便直接发送给技术专家分析 (对标 Gear 标准)"""

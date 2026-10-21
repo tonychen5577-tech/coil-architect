@@ -342,6 +342,91 @@ class CloudClient:
             return False, f"连接异常: {e}"
 
     @classmethod
+    def auto_detect_best_network_mode(
+        cls,
+        test_url: Optional[str] = None
+    ) -> Tuple[str, bool, str, List[Dict[str, Any]]]:
+        """
+        自动顺序验证网络连接模式，智能测速并获取最佳连接方式 (对标 Gear 工业级规范，不允许个人擅自修改)
+        顺序验证队列：
+          1. 自动检测系统代理 (auto) - 优先读取 Windows 操作系统网络与 PAC 设置
+          2. 企业内网原生直连 (direct) - 绕过本地所有代理，直连企业专线或云端
+          3. 专用本地代理 (custom) - 若配置文件中指定了代理地址，则测试该代理
+        
+        返回:
+          (best_mode, is_connected, summary_message, probe_details)
+        """
+        cfg = load_cloud_config()
+        target_base = (test_url or cls.get_server_url() or DEFAULT_CLOUD_BASE_URL).rstrip("/")
+        custom_proxy = cfg.get("custom_proxy", "").strip()
+
+        candidates = [
+            ("auto", "自动检测系统代理 (auto)"),
+            ("direct", "企业原生直连 (direct)")
+        ]
+        if custom_proxy:
+            candidates.append(("custom", f"专用本地代理 ({custom_proxy})"))
+
+        probe_details = []
+        successful_modes = []
+
+        for mode_key, mode_name in candidates:
+            t0 = time.time()
+            try:
+                ok, msg = cls.test_connection(
+                    test_url=target_base,
+                    proxy_setting=mode_key,
+                    custom_proxy=custom_proxy if mode_key == "custom" else "",
+                    retry=0
+                )
+                latency_ms = max(1, int((time.time() - t0) * 1000))
+                item = {
+                    "mode": mode_key,
+                    "name": mode_name,
+                    "ok": ok,
+                    "latency": latency_ms,
+                    "msg": msg
+                }
+                probe_details.append(item)
+                if ok:
+                    successful_modes.append(item)
+            except Exception as e:
+                latency_ms = max(1, int((time.time() - t0) * 1000))
+                probe_details.append({
+                    "mode": mode_key,
+                    "name": mode_name,
+                    "ok": False,
+                    "latency": latency_ms,
+                    "msg": str(e)
+                })
+
+        if successful_modes:
+            # 排序优选：优先可用，测速延迟最低者胜出；若延迟差距在 40ms 以内，优先保持当前配置模式稳定性
+            current_mode = cfg.get("proxy_setting", "auto")
+            current_match = [m for m in successful_modes if m["mode"] == current_mode]
+            min_latency_item = min(successful_modes, key=lambda x: x["latency"])
+
+            if current_match and (current_match[0]["latency"] <= min_latency_item["latency"] + 40):
+                best_item = current_match[0]
+            else:
+                best_item = min_latency_item
+
+            best_mode = best_item["mode"]
+            best_name = best_item["name"]
+            best_latency = best_item["latency"]
+
+            # 静默持久化生效
+            if cfg.get("proxy_setting") != best_mode:
+                cfg["proxy_setting"] = best_mode
+                save_cloud_config(cfg)
+                logger.info(f"[NetworkMode] 自动顺序验证完成，已锁定最佳连接模式: {best_mode} (延迟: {best_latency}ms)")
+
+            return best_mode, True, f"已锁定最佳连接模式 [{best_name}] (响应延迟: {best_latency}ms)", probe_details
+        else:
+            current_mode = cfg.get("proxy_setting", "auto")
+            return current_mode, False, "所有网络模式顺序验证均未连通，请检查物理网线或联系技术管理员", probe_details
+
+    @classmethod
     def diagnose_full(
         cls,
         test_url: Optional[str] = None,

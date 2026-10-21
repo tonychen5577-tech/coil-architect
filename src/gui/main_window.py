@@ -726,15 +726,6 @@ class MainWindow(QMainWindow):
         self.btn_about.clicked.connect(self._show_about_dialog)
         layout.addWidget(self.btn_about)
 
-        # 8. 数据库设置与网络诊断按钮 (固定 132px，锁死不重叠)
-        self.btn_cloud_config = QPushButton("🌐 数据库设置与诊断")
-        self.btn_cloud_config.setFixedWidth(132)
-        self.btn_cloud_config.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.btn_cloud_config.setToolTip("内网网络连通诊断、体检日志导出与通信参数导入 (快捷键: Ctrl+D)")
-        self.btn_cloud_config.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
-        self.btn_cloud_config.clicked.connect(self._open_cloud_config_dialog)
-        layout.addWidget(self.btn_cloud_config)
-
         return bar
 
     def _refresh_license_status(self):
