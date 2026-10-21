@@ -185,6 +185,20 @@ def main():
         ipc_server.file_import_requested.connect(on_external_file_import)
         ipc_server.activate_requested.connect(on_external_activate)
 
+        # 17. 注册程序退出钩子：双保险确保无论通过何种途径退出，更新包均能执行影子替换
+        def _on_app_about_to_quit():
+            try:
+                from src.core.ota_updater import OtaUpdater
+                updater = OtaUpdater.get_instance()
+                ready, meta = updater.is_update_ready()
+                if ready and not getattr(updater, "_shadow_replacement_active", False):
+                    logger.info("[AboutToQuit] 发现待应用的更新包，执行影子替换双保险拉起 (restart_after=False)...")
+                    updater.launch_shadow_replacement(restart_after=False)
+            except Exception as e:
+                logger.error(f"[AboutToQuit] 影子替换保底异常: {e}")
+
+        app.aboutToQuit.connect(_on_app_about_to_quit)
+
         sys.exit(app.exec())
     except Exception as e:
         logger.critical(f"系统启动主循环捕获严重异常: {e}\n{traceback.format_exc()}")

@@ -5,6 +5,10 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B6：
+                             1) 彻底修复静默下载后手动关闭软件不自动更新的重大缺陷：排查定位并清除了 MainWindow 类中由于历史遗留的第 2 个 closeEvent 定义对第 1 个包含 OTA 影子替换的 closeEvent 造成的重载覆盖；
+                             2) 深度对齐 Gear 软件 closeEvent 架构，统一资源释放与 OTA 影子替换流程，增加全流程关键节点日志追踪；
+                             3) 在 app.py 中接入 app.aboutToQuit 双保险钩子，无论通过何种途径退出主进程均能 100% 确保后台拉起影子替换脚本。
 - 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B5：
                              1) 网络模式自动顺序验证：参照 Gear 软件规范，网络模式设置为受控只读，禁止个人擅自修改；
                              2) 智能自动顺序探测：顺序验证自动检测系统代理 (auto)、企业原生直连 (direct) 与专用代理，测速并自动锁定最优连接通道；
@@ -57,9 +61,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261021B5"
+APP_BUILD = "20261021B6"
 APP_DATE = "2026-10-21"
-BUILD_TIME = "2026-10-21 16:30:00 CST"
+BUILD_TIME = "2026-10-21 16:45:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"

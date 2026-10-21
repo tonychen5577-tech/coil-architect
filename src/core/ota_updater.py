@@ -231,7 +231,7 @@ class OtaUpdater(QObject):
 
             v_cmp = compare_versions(version, self.current_version)
             if v_cmp == 0 and ready_build:
-                if compare_builds(ready_build, self.current_build) <= 0:
+                if compare_builds(ready_build, self.current_build) < 0:
                     try:
                         MANIFEST_FILE.unlink(missing_ok=True)
                         if zip_path.exists():

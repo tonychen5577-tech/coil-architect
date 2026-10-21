@@ -513,13 +513,30 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("📐 云端标杆案例库已更新", 4000)
 
     def closeEvent(self, event):
-        """主窗口关闭时安全销毁后台守护线程，并在更新就绪时拉起影子替换 (微信式体验：静默覆盖，不自启)"""
+        """
+        主窗口关闭安全销毁守护线程与资源，并在更新就绪时拉起影子替换 (100% 对齐 Gear 工业级规范)
+        微信式体验：关闭时后台静默覆盖，绝不自动弹起新程序，下次打开直接为新版本
+        """
+        logger.info("[CloseEvent] 主窗口接收到关闭事件，正在安全释放资源并检查 OTA 更新...")
+
+        # 1. 移除全局事件过滤器
+        if hasattr(self, "_param_interaction_filter"):
+            try:
+                from PyQt6.QtWidgets import QApplication
+                app_inst = QApplication.instance()
+                if app_inst:
+                    app_inst.removeEventFilter(self._param_interaction_filter)
+            except Exception:
+                pass
+
+        # 2. 停止云端后台数据同步线程
         try:
             from src.core.cloud_client import CloudClient
             CloudClient.stop_background_sync()
         except Exception:
             pass
 
+        # 3. 停止 OTA 后台静默检测线程
         if hasattr(self, "ota_checker") and self.ota_checker:
             try:
                 self.ota_checker.stop()
@@ -527,15 +544,21 @@ class MainWindow(QMainWindow):
                 pass
             self.ota_checker = None
 
-        # 检查是否拉起影子替换升级 (微信式体验：关闭时静默替换，绝不自动重新拉起程序)
-        if hasattr(self, "ota_updater") and self.ota_updater:
-            try:
-                ready, meta = self.ota_updater.is_update_ready()
+        # 4. 检查是否有静默下载就绪的 OTA 补丁包，触发影子替换
+        try:
+            from src.core.ota_updater import OtaUpdater
+            updater = getattr(self, "ota_updater", None) or OtaUpdater.get_instance()
+            if updater:
+                ready, meta = updater.is_update_ready()
+                logger.info(f"[CloseEvent] OTA 更新就绪状态检查: ready={ready}, meta={meta.get('version') if meta else None}")
                 if ready:
-                    self.ota_updater.launch_shadow_replacement(restart_after=False)
-            except Exception:
-                pass
+                    logger.info("[CloseEvent] 检测到更新包已就绪，正在拉起后台脱离影子替换进程 (restart_after=False)...")
+                    ok = updater.launch_shadow_replacement(restart_after=False)
+                    logger.info(f"[CloseEvent] 后台影子替换脚本拉起结果: {ok}")
+        except Exception as e:
+            logger.error(f"[CloseEvent] 检查或拉起影子替换异常: {e}")
 
+        event.accept()
         super().closeEvent(event)
 
     def _start_silent_ota_checker(self):
@@ -927,17 +950,7 @@ class MainWindow(QMainWindow):
         finally:
             self._is_prompting_activation = False
 
-    def closeEvent(self, event):
-        """窗口关闭前安全移除全局事件过滤器与停止心跳"""
-        if hasattr(self, "_param_interaction_filter"):
-            try:
-                from PyQt6.QtWidgets import QApplication
-                app_inst = QApplication.instance()
-                if app_inst:
-                    app_inst.removeEventFilter(self._param_interaction_filter)
-            except Exception:
-                pass
-        super().closeEvent(event)
+
 
     def get_project_name(self) -> str:
         """获取当前工程项目名称 (去除首尾空格，若未填则保底默认 Coli-Architect)"""
