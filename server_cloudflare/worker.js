@@ -901,6 +901,16 @@ async function handleAdmin(path, request, env, url) {
         await db.prepare(`
             INSERT INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(version) DO UPDATE SET
+                build = excluded.build,
+                release_date = excluded.release_date,
+                download_url = excluded.download_url,
+                backup_url = excluded.backup_url,
+                sha256 = excluded.sha256,
+                file_size_mb = excluded.file_size_mb,
+                changelog = excluded.changelog,
+                is_mandatory = excluded.is_mandatory,
+                is_active = 1
         `).bind(
             b.version.trim(),
             b.build || "",
