@@ -6,9 +6,10 @@ Script: tools/generate_html_manual.py
 Description: 将 GitHub 官方 README.md 转换为独立离线高保真 HTML 格式使用说明书
 特性：
 1. [零外部依赖离线阅读] 自动将 docs/images 中的高清截图、拓扑图与二维码转为 Base64 内嵌 Data URI；
-2. [工业级响应式排版] 深度对齐 ANSV 工业蓝与纯净测控灰现代设计系统，适配 4K 宽屏至移动端；
-3. [打印与归档友好] 内置 @media print 打印机样式，支持工程师在浏览器中直接「Ctrl+P」无损另存为 PDF 说明书；
-4. [双向自动同步] 可被 build_exe.py 打包流水线直接调用，自动打包至绿色全量安装包与增量升级包根目录。
+2. [纯 CSS 离线高清徽标] 自动将 Shields.io 徽标转换为 100% 离线脱网可用的超清纯 CSS Badge 药丸标签；
+3. [工业级 Markdown 渲染] 支持 md_in_html 与居中块，100% 完美呈现四大形态对比表与官方联系二维码表；
+4. [打印与归档友好] 内置 @media print 打印机样式，支持工程师在浏览器中直接「Ctrl+P」无损另存为 PDF 说明书；
+5. [双向自动同步] 可被 build_exe.py 打包流水线直接调用，自动打包至绿色全量安装包与增量升级包根目录。
 =============================================================================
 """
 
@@ -16,6 +17,7 @@ import os
 import sys
 import re
 import base64
+import urllib.parse
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -84,18 +86,59 @@ def build_html_manual(
     )
     print(f"  ✓ 成功完成 {embedded_count} 张高清图片/架构图的零依赖数据内嵌！")
 
-    # 2. 转换简易数学公式符号为优雅样式
-    # 将 $formula$ 转换为 <span class="math-tex">formula</span>
+    # 2. 将网络 Shields.io 徽标转为 100% 离线脱网可用的纯 CSS Badge 药丸标签 (彻底消灭断网红叉与乱码感)
+    badge_pattern = re.compile(
+        r'\[\!\[([^\]]+)\]\((https://img\.shields\.io/badge/.*?)\)\]\((https?://[^\)]+)\)'
+    )
+    def _convert_badge(m):
+        alt = m.group(1).strip()
+        raw_badge_url = m.group(2)
+        link = m.group(3).strip()
+
+        path = raw_badge_url.replace('https://img.shields.io/badge/', '').split('?')[0]
+        temp = path.replace('--', '__DOUBLE_HYPHEN__')
+        parts = temp.split('-')
+        if len(parts) >= 3:
+            color = parts[-1].lstrip('#')
+            label = urllib.parse.unquote(parts[0].replace('__DOUBLE_HYPHEN__', '-'))
+            val = urllib.parse.unquote('-'.join(parts[1:-1]).replace('__DOUBLE_HYPHEN__', '-'))
+        elif len(parts) == 2:
+            label = urllib.parse.unquote(parts[0].replace('__DOUBLE_HYPHEN__', '-'))
+            val = urllib.parse.unquote(parts[1].replace('__DOUBLE_HYPHEN__', '-'))
+            color = '0284C7'
+        else:
+            label = alt
+            val = ''
+            color = '0284C7'
+
+        return (
+            f'<a href="{link}" class="badge-pill" target="_blank" title="{alt}">'
+            f'<span class="badge-label">{label}</span>'
+            f'<span class="badge-val" style="background-color: #{color};">{val}</span>'
+            f'</a>'
+        )
+
+    md_content = badge_pattern.sub(_convert_badge, md_content)
+    # 将连续的 badge 自动包装为 badge-group flex 容器
+    md_content = re.sub(
+        r'((?:<a href="[^"]+" class="badge-pill"[^>]*>.*?</a>\s*)+)',
+        r'<div class="badge-group">\1</div>',
+        md_content
+    )
+
+    # 3. 预处理 HTML 标签：将 <div align="center"> 转换为带有 markdown="1" 的响应式居中容器，支持内部表格解析
+    md_content = md_content.replace('<div align="center">', '<div class="text-center" markdown="1">')
+
+    # 4. 转换简易数学公式符号为优雅样式
     def _math_sub(m):
         raw = m.group(1)
-        # 简单美化常见公式符号
         pretty = raw.replace(r"\times", " × ").replace(r"\cdot", " · ")
         pretty = pretty.replace(r"\text{in}", "in").replace(r"\text{corner}", "corner")
         return f'<span class="math-tex">{pretty}</span>'
 
     md_content = re.sub(r'\$([^\$\n]+?)\$', _math_sub, md_content)
 
-    # 3. 使用 Markdown 扩展引擎解析核心语法
+    # 5. 使用 Markdown 扩展引擎解析核心语法 (启用 md_in_html 允许在 div 内部渲染表格与列表)
     print("[Manual] 正在编译 Markdown 为标准化语义 HTML5 节点...")
     extensions = [
         "extra",
@@ -104,11 +147,12 @@ def build_html_manual(
         "codehilite",
         "toc",
         "nl2br",
-        "sane_lists"
+        "sane_lists",
+        "md_in_html"
     ]
     html_body = markdown.markdown(md_content, extensions=extensions)
 
-    # 4. 组装工业级独立发布 HTML5 模板
+    # 6. 组装工业级独立发布 HTML5 模板
     html_document = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -138,93 +182,140 @@ def build_html_manual(
 
         * {{
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }}
 
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Microsoft YaHei", sans-serif;
-            font-size: 15px;
-            line-height: 1.75;
+            margin: 0;
+            padding: 24px;
+            background-color: #F8FAFC;
             color: var(--slate-800);
-            background-color: var(--slate-100);
-            padding: 24px 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Microsoft YaHei", "PingFang SC", sans-serif;
+            line-height: 1.7;
+            font-size: 15px;
+            -webkit-font-smoothing: antialiased;
         }}
 
         .page-container {{
-            max-width: 1080px;
+            max-width: 1040px;
             margin: 0 auto;
             background: #FFFFFF;
-            border-radius: 12px;
             border: 1px solid var(--slate-200);
-            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
-            padding: 48px 56px;
+            border-radius: 12px;
+            padding: 42px 48px;
+            box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
         }}
 
-        /* 顶部工业徽章头 */
+        /* 顶部科技感状态横条 */
         .manual-top-bar {{
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 2px solid var(--primary-border);
-            padding-bottom: 16px;
-            margin-bottom: 32px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 12px;
+            margin-bottom: 28px;
         }}
         .manual-top-bar .platform-title {{
-            font-size: 13px;
+            font-size: 13.5px;
             font-weight: 700;
             color: var(--primary);
             letter-spacing: 0.5px;
-            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }}
         .manual-top-bar .doc-version {{
-            font-size: 12px;
-            color: var(--slate-600);
+            font-size: 11.5px;
+            color: var(--slate-400);
             background: var(--slate-100);
-            padding: 4px 12px;
-            border-radius: 20px;
+            padding: 2px 8px;
+            border-radius: 4px;
             font-weight: 600;
-            border: 1px solid var(--slate-200);
         }}
 
-        /* 标题层级排版 */
+        /* 居中类 */
+        .text-center {{
+            text-align: center;
+        }}
+
+        /* 纯 CSS 离线高清徽标 (Shield Badges) */
+        .badge-group {{
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin: 16px 0 22px 0;
+        }}
+        .badge-pill {{
+            display: inline-flex;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 11.5px;
+            font-weight: 600;
+            line-height: 1.4;
+            text-decoration: none;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }}
+        .badge-pill:hover {{
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.2);
+        }}
+        .badge-label {{
+            background-color: #334155;
+            color: #FFFFFF;
+            padding: 3px 8px;
+            letter-spacing: 0.2px;
+        }}
+        .badge-val {{
+            color: #FFFFFF;
+            padding: 3px 9px;
+            font-weight: 700;
+        }}
+
+        /* 标题层级体系 */
         h1, h2, h3, h4, h5, h6 {{
             color: var(--dark);
             font-weight: 700;
             line-height: 1.35;
-            margin-top: 1.8em;
-            margin-bottom: 0.8em;
         }}
         h1 {{
             font-size: 26px;
-            border-bottom: 2px solid var(--slate-200);
-            padding-bottom: 12px;
-            margin-top: 0.5em;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            color: var(--dark);
         }}
         h2 {{
             font-size: 20px;
-            border-bottom: 1px solid var(--slate-200);
+            margin-top: 36px;
+            margin-bottom: 16px;
             padding-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            border-bottom: 1px solid var(--slate-200);
+            color: #0369A1;
         }}
         h3 {{
             font-size: 16.5px;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: var(--slate-800);
         }}
         h4 {{
             font-size: 15px;
+            margin-top: 18px;
+            margin-bottom: 8px;
         }}
 
         p {{
-            margin-bottom: 1.1em;
+            margin-top: 0;
+            margin-bottom: 14px;
         }}
 
-        /* 链接风格 */
         a {{
             color: var(--primary);
             text-decoration: none;
-            font-weight: 600;
             transition: color 0.15s ease;
         }}
         a:hover {{
@@ -234,58 +325,72 @@ def build_html_manual(
 
         /* 列表 */
         ul, ol {{
-            margin-left: 24px;
-            margin-bottom: 1.2em;
+            padding-left: 24px;
+            margin-top: 4px;
+            margin-bottom: 16px;
         }}
         li {{
             margin-bottom: 6px;
         }}
 
-        /* 引用块 / Callout 强调 */
+        /* 引用块与工程注意项 */
         blockquote {{
-            border-left: 4px solid var(--primary);
-            background: var(--primary-light);
-            border-radius: 0 8px 8px 0;
-            padding: 14px 20px;
             margin: 18px 0;
+            padding: 12px 18px;
+            background-color: var(--primary-light);
+            border-left: 4px solid var(--primary);
+            border-radius: 0 6px 6px 0;
             color: var(--slate-800);
-            font-size: 14.5px;
+            font-size: 14px;
         }}
         blockquote p:last-child {{
             margin-bottom: 0;
         }}
 
-        /* 工业级表格 */
+        /* 工业级数据表格 */
         table {{
             width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0 28px 0;
-            font-size: 14px;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 22px 0 28px 0;
+            font-size: 13.5px;
             border: 1px solid var(--slate-200);
             border-radius: 8px;
             overflow: hidden;
-            display: table;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
         }}
         th {{
             background: #1E293B;
             color: #FFFFFF;
             font-weight: 600;
             text-align: left;
-            padding: 12px 14px;
-            border: 1px solid #334155;
+            padding: 11px 14px;
+            border-bottom: 2px solid #0F172A;
             letter-spacing: 0.3px;
         }}
         td {{
             padding: 11px 14px;
-            border: 1px solid var(--slate-200);
+            border-bottom: 1px solid var(--slate-200);
+            border-right: 1px solid var(--slate-200);
             color: var(--slate-800);
             vertical-align: middle;
+        }}
+        td:last-child {{
+            border-right: none;
+        }}
+        tr:last-child td {{
+            border-bottom: none;
         }}
         tr:nth-child(even) td {{
             background: var(--slate-50);
         }}
         tr:hover td {{
             background: #F0F9FF;
+        }}
+        table img {{
+            margin: 6px auto;
+            border: 1px solid var(--slate-200);
+            box-shadow: none;
         }}
 
         /* 代码高亮与代码块 */
@@ -321,14 +426,14 @@ def build_html_manual(
             max-width: 100%;
             height: auto;
             display: block;
-            margin: 12px auto;
+            margin: 14px auto;
             border-radius: 8px;
             border: 1px solid var(--slate-200);
             box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }}
         img:hover {{
-            transform: scale(1.01);
+            transform: scale(1.008);
             box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
         }}
 
@@ -338,65 +443,67 @@ def build_html_manual(
             font-style: italic;
             background: #F1F5F9;
             padding: 1px 6px;
-            border-radius: 4px;
+            border-radius: 3px;
             color: #0F172A;
-            border: 1px solid #E2E8F0;
             font-size: 14px;
+            margin: 0 2px;
+            border: 1px solid #E2E8F0;
         }}
 
-        /* 分割线 */
+        /* 水平分割线 */
         hr {{
             border: none;
             height: 1px;
-            background: var(--slate-200);
+            background-color: var(--slate-200);
             margin: 36px 0;
         }}
 
-        /* 底部版权与免责声明 */
+        /* 页面底部 */
         .manual-footer {{
             margin-top: 48px;
-            border-top: 2px solid var(--slate-200);
             padding-top: 24px;
+            border-top: 1px solid var(--slate-200);
             text-align: center;
-            font-size: 13px;
+            font-size: 12.5px;
             color: var(--slate-600);
         }}
+        .manual-footer p {{
+            margin: 4px 0;
+        }}
 
-        /* 浮动操作按钮栏 (返回顶部与快速打印) */
+        /* 悬浮打印与返回顶部操作条 */
         .floating-action-bar {{
             position: fixed;
-            bottom: 30px;
-            right: 30px;
+            bottom: 28px;
+            right: 28px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            z-index: 1000;
+            z-index: 999;
         }}
         .floating-btn {{
-            background: #0284C7;
-            color: #FFFFFF;
-            border: none;
-            border-radius: 24px;
-            padding: 10px 18px;
-            font-size: 13px;
+            background: #FFFFFF;
+            color: var(--slate-800);
+            border: 1px solid var(--slate-200);
+            border-radius: 30px;
+            padding: 8px 16px;
+            font-size: 12px;
             font-weight: 600;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
             cursor: pointer;
-            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
             display: flex;
             align-items: center;
             gap: 6px;
             transition: all 0.2s ease;
-            text-decoration: none;
         }}
         .floating-btn:hover {{
-            background: #0369A1;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(2, 132, 199, 0.45);
+            background: var(--primary);
             color: #FFFFFF;
-            text-decoration: none;
+            border-color: var(--primary);
+            box-shadow: 0 6px 16px rgba(2, 132, 199, 0.25);
+            transform: translateY(-2px);
         }}
 
-        /* 打印机与 PDF 另存专用样式 */
         @media print {{
             body {{
                 background: #FFFFFF;
@@ -472,7 +579,7 @@ def build_html_manual(
 </html>
 """
 
-    # 5. 输出文件保存
+    # 7. 输出文件保存
     for out_p in output_html_paths:
         out_p.parent.mkdir(parents=True, exist_ok=True)
         with open(out_p, "w", encoding="utf-8") as f:

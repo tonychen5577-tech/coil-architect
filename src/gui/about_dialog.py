@@ -57,7 +57,7 @@ class AboutDialog(QDialog):
         """)
 
         self._init_ui()
-        adapt_dialog_geometry(self, target_w=790, target_h=530, min_w=700, min_h=460)
+        adapt_dialog_geometry(self, target_w=980, target_h=600, min_w=860, min_h=540)
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -606,16 +606,28 @@ class AboutDialog(QDialog):
         # -------------------------------------------------------------
         # 3. 底部版权声明与功能按钮栏 (完全对齐用户截图要求)
         # -------------------------------------------------------------
-        footer_layout = QHBoxLayout()
-        footer_layout.setContentsMargins(0, 4, 0, 0)
-        footer_layout.setSpacing(10)
+        # 底部操作栏 (分层设计：上层工程辅助工具 + 版权，下层主控操作与说明书，彻底避免挤压重叠)
+        footer_container = QVBoxLayout()
+        footer_container.setContentsMargins(0, 6, 0, 0)
+        footer_container.setSpacing(7)
+
+        # 分割线
+        footer_div = QFrame()
+        footer_div.setFrameShape(QFrame.Shape.HLine)
+        footer_div.setStyleSheet("color: #E2E8F0; margin-top: 2px; margin-bottom: 2px;")
+        footer_container.addWidget(footer_div)
+
+        # 第一行: 系统工程辅助工具条 + 左侧版权说明
+        row1_layout = QHBoxLayout()
+        row1_layout.setContentsMargins(0, 0, 0, 0)
+        row1_layout.setSpacing(8)
 
         lbl_copyright = QLabel("Copyright © 2026 ansv.net & Yaming.Chen. All rights reserved.")
         lbl_copyright.setStyleSheet("color: #94A3B8; font-size: 10px;")
-        footer_layout.addWidget(lbl_copyright)
-        footer_layout.addStretch()
+        row1_layout.addWidget(lbl_copyright)
+        row1_layout.addStretch()
 
-        # 按钮 1: 🖥️ 桌面快捷方式
+        # 辅助按钮 1: 🖥️ 桌面快捷方式
         btn_shortcut = QPushButton("🖥️ 桌面快捷方式")
         btn_shortcut.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_shortcut.setToolTip("在当前电脑桌面上创建本系统专属高清快捷方式")
@@ -625,9 +637,10 @@ class AboutDialog(QDialog):
                 color: #475569;
                 border: 1px solid #CBD5E1;
                 border-radius: 4px;
-                padding: 4px 10px;
+                padding: 3px 9px;
                 font-size: 11px;
                 font-weight: 600;
+                white-space: nowrap;
             }
             QPushButton:hover {
                 background-color: #F0F9FF;
@@ -636,9 +649,9 @@ class AboutDialog(QDialog):
             }
         """)
         btn_shortcut.clicked.connect(self._on_create_shortcut_clicked)
-        footer_layout.addWidget(btn_shortcut)
+        row1_layout.addWidget(btn_shortcut)
 
-        # 按钮 1.5: 🔗 关联 .ansvcoil 算例
+        # 辅助按钮 2: 🔗 关联 .ansvcoil 算例
         btn_assoc = QPushButton("🔗 关联 .ansvcoil 算例")
         btn_assoc.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_assoc.setToolTip("在 Windows 系统中注册 .ansvcoil 专属算例格式与科技感图标，支持双击算例直接唤起工作站")
@@ -648,9 +661,10 @@ class AboutDialog(QDialog):
                 color: #0284C7;
                 border: 1px solid #BAE6FD;
                 border-radius: 4px;
-                padding: 4px 10px;
+                padding: 3px 9px;
                 font-size: 11px;
                 font-weight: 600;
+                white-space: nowrap;
             }
             QPushButton:hover {
                 background-color: #E0F2FE;
@@ -658,9 +672,9 @@ class AboutDialog(QDialog):
             }
         """)
         btn_assoc.clicked.connect(self._on_register_association_clicked)
-        footer_layout.addWidget(btn_assoc)
+        row1_layout.addWidget(btn_assoc)
 
-        # 按钮 2: 📄 导出诊断日志
+        # 辅助按钮 3: 📄 导出诊断日志
         btn_export_logs = QPushButton("📄 导出诊断日志")
         btn_export_logs.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_export_logs.setToolTip("一键打包全景运行日志与系统体检指纹 (.zip) 供研发快速定位排查")
@@ -670,9 +684,10 @@ class AboutDialog(QDialog):
                 color: #059669;
                 border: 1px solid #A7F3D0;
                 border-radius: 4px;
-                padding: 4px 10px;
+                padding: 3px 9px;
                 font-size: 11px;
                 font-weight: 600;
+                white-space: nowrap;
             }
             QPushButton:hover {
                 background-color: #ECFDF5;
@@ -680,9 +695,9 @@ class AboutDialog(QDialog):
             }
         """)
         btn_export_logs.clicked.connect(self._on_export_logs_clicked)
-        footer_layout.addWidget(btn_export_logs)
+        row1_layout.addWidget(btn_export_logs)
 
-        # 按钮 2.5: 🌐 网络数据库诊断 (对标 Gear 规范)
+        # 辅助按钮 4: 🌐 网络数据库诊断
         btn_cloud_diag = QPushButton("🌐 网络数据库诊断")
         btn_cloud_diag.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cloud_diag.setToolTip("打开企业内网数据库与通信环境诊断中心 (快捷键: Ctrl+D)")
@@ -692,9 +707,10 @@ class AboutDialog(QDialog):
                 color: #0369A1;
                 border: 1px solid #BAE6FD;
                 border-radius: 4px;
-                padding: 4px 10px;
+                padding: 3px 9px;
                 font-size: 11px;
                 font-weight: 600;
+                white-space: nowrap;
             }
             QPushButton:hover {
                 background-color: #E0F2FE;
@@ -702,31 +718,45 @@ class AboutDialog(QDialog):
             }
         """)
         btn_cloud_diag.clicked.connect(self._on_cloud_diag_clicked)
-        footer_layout.addWidget(btn_cloud_diag)
+        row1_layout.addWidget(btn_cloud_diag)
+        footer_container.addLayout(row1_layout)
 
-        # 按钮 2.8: 📖 使用说明书 (离线 HTML 用户手册)
+        # 第二行: 核心主控操作栏 (说明书高亮直达、检查更新与确定关闭)
+        row2_layout = QHBoxLayout()
+        row2_layout.setContentsMargins(0, 0, 0, 0)
+        row2_layout.setSpacing(10)
+
+        lbl_f1_tip = QLabel("💡 提示：在任意界面按 F1 键可随时一键唤起离线 HTML 用户说明书与工程实战指南")
+        lbl_f1_tip.setStyleSheet("color: #64748B; font-size: 10.5px;")
+        row2_layout.addWidget(lbl_f1_tip)
+        row2_layout.addStretch()
+
+        # 主控按钮 1: 📖 使用说明书 (高亮主推，宽度充裕)
         btn_manual = QPushButton("📖 使用说明书")
         btn_manual.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_manual.setToolTip("在默认浏览器中打开本软件专属离线 HTML 用户手册与工程指南")
+        btn_manual.setToolTip("在默认浏览器中打开本软件专属离线 HTML 用户手册与工程指南 (快捷键: F1)")
         btn_manual.setStyleSheet("""
             QPushButton {
-                background-color: #F8FAFC;
+                background-color: #F0F9FF;
                 color: #0284C7;
-                border: 1px solid #BAE6FD;
+                border: 1.5px solid #38BDF8;
                 border-radius: 4px;
-                padding: 4px 10px;
-                font-size: 11px;
-                font-weight: 600;
+                padding: 5px 14px;
+                font-size: 11.5px;
+                font-weight: 700;
+                min-width: 105px;
+                white-space: nowrap;
             }
             QPushButton:hover {
                 background-color: #E0F2FE;
                 border-color: #0284C7;
+                color: #0369A1;
             }
         """)
         btn_manual.clicked.connect(self._on_open_manual_clicked)
-        footer_layout.addWidget(btn_manual)
+        row2_layout.addWidget(btn_manual)
 
-        # 按钮 3: 🚀 检查更新
+        # 主控按钮 2: 🚀 检查更新
         btn_chk_update = QPushButton("🚀 检查更新")
         btn_chk_update.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_chk_update.setToolTip("检查软件更新并查看 Git 提交历史记录 (Changelog)")
@@ -736,9 +766,11 @@ class AboutDialog(QDialog):
                 color: #0284C7;
                 border: 1px solid #CBD5E1;
                 border-radius: 4px;
-                padding: 4px 12px;
-                font-size: 11px;
+                padding: 5px 14px;
+                font-size: 11.5px;
                 font-weight: 600;
+                min-width: 90px;
+                white-space: nowrap;
             }
             QPushButton:hover {
                 background-color: #F0F9FF;
@@ -746,9 +778,9 @@ class AboutDialog(QDialog):
             }
         """)
         btn_chk_update.clicked.connect(self._on_check_update_clicked)
-        footer_layout.addWidget(btn_chk_update)
+        row2_layout.addWidget(btn_chk_update)
 
-        # 按钮 4: 确定
+        # 主控按钮 3: 确定
         btn_ok = QPushButton("确定")
         btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_ok.setStyleSheet("""
@@ -757,9 +789,11 @@ class AboutDialog(QDialog):
                 color: #FFFFFF;
                 border: 1px solid #0284C7;
                 border-radius: 4px;
-                padding: 4px 18px;
-                font-size: 11px;
-                font-weight: 600;
+                padding: 5px 22px;
+                font-size: 11.5px;
+                font-weight: 700;
+                min-width: 75px;
+                white-space: nowrap;
             }
             QPushButton:hover {
                 background-color: #0369A1;
@@ -767,9 +801,10 @@ class AboutDialog(QDialog):
             }
         """)
         btn_ok.clicked.connect(self.accept)
-        footer_layout.addWidget(btn_ok)
+        row2_layout.addWidget(btn_ok)
 
-        card_layout.addLayout(footer_layout)
+        footer_container.addLayout(row2_layout)
+        card_layout.addLayout(footer_container)
         main_layout.addWidget(card)
 
     def _copy_to_clipboard(self, text: str, btn: QPushButton, success_msg: str = "已复制"):

@@ -32,12 +32,6 @@ def main():
     # 0. 启动企业内网智能 DNS 韧性解析器 (对标 Gear 规范，防内网 DNS 阻断)
     import src.core.smart_dns
 
-    # 0.1 软件启动前安全自检：若存在已就绪的 staged 增量包，执行静默无缝装载
-    try:
-        from src.core.ota_updater import apply_staged_update_if_pending
-        apply_staged_update_if_pending()
-    except Exception:
-        pass
 
     # 1. 初始化全局安全滚动日志与未捕获异常崩溃看门狗 (规范 05.一)
     setup_logging()

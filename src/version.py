@@ -5,6 +5,11 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B4：
+                             1) 彻底修复影子替换 OTA 脚本拉起失败缺陷：过滤空参数，防止 PowerShell switch 空实参抛出 MissingArgument 致命异常；
+                             2) 移除 app.py 启动时对更新清单的误删，确保静默升级/端内交互下载后下次打开或退出时 100% 自动装载新版本；
+                             3) 重构「关于系统」底栏为双层工整布局，充裕预留宽度，彻底消除 7 个操作按钮重叠挤压与文字截断缺陷；
+                             4) 升级离线 HTML 说明书编译器：开启 md_in_html，四大线圈对比表与二维码表 100% 完美呈现，将网络 Shields 徽标转为全脱网纯 CSS 药丸徽章。
 - 2026-10-21 [Yaming] v1.1.0: 升级构建版本至 20261021B3：
                              1) 自动化编译 GitHub README 为独立离线高保真 HTML 格式工程使用说明书；
                              2) 将 HTML 说明书自动注入并打包至绿色安装包与增量升级包根目录；
@@ -48,7 +53,7 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261021B3"
+APP_BUILD = "20261021B4"
 APP_DATE = "2026-10-21"
 BUILD_TIME = "2026-10-21 08:00:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"

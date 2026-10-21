@@ -225,9 +225,12 @@ class OtaUpdater(QObject):
             ready_build = str(meta.get("build") or "").strip()
             expected_sha = meta.get("sha256", "").lower()
 
-            has_source = zip_path.exists() or staged_dir.exists()
+            has_source = (zip_path.exists() and zip_path.is_file()) or (staged_dir.exists() and staged_dir.is_dir())
+            if not has_source:
+                return False, None
+
             v_cmp = compare_versions(version, self.current_version)
-            if v_cmp == 0 and meta.get("is_patch", False) and ready_build:
+            if v_cmp == 0 and ready_build:
                 if compare_builds(ready_build, self.current_build) <= 0:
                     try:
                         MANIFEST_FILE.unlink(missing_ok=True)
@@ -237,8 +240,9 @@ class OtaUpdater(QObject):
                         pass
                     return False, None
 
-            if has_source and (v_cmp > 0 or (v_cmp == 0 and (not ready_build or compare_builds(ready_build, self.current_build) > 0))):
-                if zip_path.exists() and zip_path.stat().st_size < 100 * 1024:
+            is_newer = (v_cmp > 0) or (v_cmp == 0 and (not ready_build or compare_builds(ready_build, self.current_build) > 0 or meta.get("is_patch", False)))
+            if is_newer:
+                if zip_path.exists() and zip_path.stat().st_size < 50 * 1024:
                     try:
                         MANIFEST_FILE.unlink(missing_ok=True)
                         zip_path.unlink(missing_ok=True)
@@ -248,11 +252,13 @@ class OtaUpdater(QObject):
 
                 if expected_sha and zip_path.exists():
                     if calculate_sha256(zip_path) != expected_sha:
+                        logger.warning(f"[OTA] 就绪包 SHA256 校验不匹配: {zip_path}")
                         return False, None
                 return True, meta
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[OTA] 读取就绪清单异常: {e}")
         return False, None
+
 
     def download_update_package(
         self,
@@ -616,7 +622,8 @@ Start-Sleep -Milliseconds 400
 $copySrc = ""
 if (-not [string]::IsNullOrWhiteSpace($StagedDir) -and (Test-Path -LiteralPath $StagedDir)) {
     $copySrc = $StagedDir
-    foreach ($sub in Get-ChildItem -LiteralPath $StagedDir -Directory -ErrorAction SilentlyContinue) {
+    $subDirs = Get-ChildItem -LiteralPath $StagedDir -Directory -ErrorAction SilentlyContinue
+    foreach ($sub in $subDirs) {
         if ($sub.Name -like "*Coil*") {
             $copySrc = $sub.FullName
             break
@@ -629,8 +636,15 @@ if (-not [string]::IsNullOrWhiteSpace($StagedDir) -and (Test-Path -LiteralPath $
     New-Item -Path $tempExtract -ItemType Directory -Force | Out-Null
     Expand-Archive -LiteralPath $ZipFile -DestinationPath $tempExtract -Force
     $copySrc = $tempExtract
+    $subDirs = Get-ChildItem -LiteralPath $tempExtract -Directory -ErrorAction SilentlyContinue
+    foreach ($sub in $subDirs) {
+        if ($sub.Name -like "*Coil*") {
+            $copySrc = $sub.FullName
+            break
+        }
+    }
 } else {
-    Log-Msg "【严重错误】更新包与解压源均不存在，升级终止！"
+    Log-Msg "【严重错误】更新包与解压源均不存在 (StagedDir='$StagedDir', ZipFile='$ZipFile')，升级终止！"
     exit 1
 }
 $copySrc = $copySrc.TrimEnd('\', '/')
@@ -805,7 +819,7 @@ exit 0
         if platform.system() == "Windows":
             flags = subprocess.CREATE_NO_WINDOW | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
 
-        # 1. 尝试以 PowerShell 纯静默拉起
+        # 1. 尝试以 PowerShell 纯静默拉起 (严格过滤空参数，防止 -Switch "" 被 PowerShell 解析器抛出 MissingArgument 致命异常)
         try:
             cmd_ps = [
                 ps_exe,
@@ -814,13 +828,15 @@ exit 0
                 "-NonInteractive",
                 "-ExecutionPolicy", "Bypass",
                 "-File", str(ps_path),
-                "-TargetPid", cur_pid,
-                "-ZipFile", zip_path,
+                "-TargetPid", str(cur_pid),
                 "-InstallDir", install_dir,
                 "-ExeName", exe_name,
-                "-NewVer", new_version,
-                "-StagedDir", staged_dir
+                "-NewVer", new_version
             ]
+            if zip_path and os.path.exists(zip_path):
+                cmd_ps.extend(["-ZipFile", zip_path])
+            if staged_dir and os.path.exists(staged_dir):
+                cmd_ps.extend(["-StagedDir", staged_dir])
             if restart_after:
                 cmd_ps.append("-RestartAfterUpdate")
 
@@ -832,6 +848,7 @@ exit 0
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
+            logger.info(f"[OTA] 成功拉起 PowerShell 影子升级脱离进程 (TargetPID: {cur_pid}, NewVer: {new_version})")
             return True
         except Exception as e:
             logger.warning(f"拉起 PowerShell 影子升级脚本失败，尝试批处理后备: {e}")
@@ -841,7 +858,13 @@ exit 0
             restart_arg = "1" if restart_after else "0"
             cmd_bat = [
                 "cmd.exe", "/c", str(bat_path),
-                cur_pid, zip_path, install_dir, exe_name, new_version, staged_dir, restart_arg
+                str(cur_pid),
+                zip_path if (zip_path and os.path.exists(zip_path)) else '""',
+                install_dir,
+                exe_name,
+                new_version,
+                staged_dir if (staged_dir and os.path.exists(staged_dir)) else '""',
+                restart_arg
             ]
             subprocess.Popen(
                 cmd_bat,
@@ -851,6 +874,7 @@ exit 0
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
+            logger.info(f"[OTA] 成功拉起批处理备用影子升级脱离进程 (TargetPID: {cur_pid})")
             return True
         except Exception as e2:
             self._shadow_replacement_active = False
