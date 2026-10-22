@@ -348,7 +348,7 @@ class ActivationDialog(QDialog):
         switch_tab(0)
 
         # 底部支持支付方式声明
-        lbl_pay_tips = QLabel("💳 支付通道: 微信支付 · 支付宝 · 银行对公转账 · PayPal (International USD)")
+        lbl_pay_tips = QLabel("💳 支付通道: 微信支付 · 支付宝 · PayPal (International USD)")
         lbl_pay_tips.setStyleSheet("color: #64748B; font-size: 9.5px; text-align: center;")
         lbl_pay_tips.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(lbl_pay_tips)
