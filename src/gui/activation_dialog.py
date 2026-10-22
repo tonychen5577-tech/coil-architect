@@ -1,10 +1,10 @@
 """
 =============================================================================
 Module: src.gui.activation_dialog
-Description: ANSV Coil-Architect Pro 商业软件授权激活与订购引导向导
+Description: ANSV Coil-Architect Pro 商业软件授权激活与国际订购引导向导
 采用工业级双栏高对比度设计：
-- 左栏: 推荐订购方案阶梯、专属代工冲抵特权、工程师微信二维码与直达通道
-- 右栏: 本机特征码、一键复制微信订购草稿、激活码粘贴与 .lic 导入
+- 左栏: 双币定价阶梯 (RMB / USD)、专属代工冲抵特权、微信与 WhatsApp 国际直通通道
+- 右栏: 本机特征码、一键复制订购草稿 (双语适配)、激活码输入与 .lic 导入
 =============================================================================
 """
 
@@ -16,24 +16,24 @@ from PyQt6.QtGui import QPixmap, QDesktopServices, QColor
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QLineEdit, QPushButton, QMessageBox, QFileDialog, QFrame,
-    QWidget, QSizePolicy
+    QStackedWidget, QWidget, QSizePolicy
 )
 
 from ..core.license_manager import get_machine_code, LicenseManager
 from .icon_helper import get_app_icon, get_ansv_logo_pixmap
 from src.version import (
     APP_NAME, APP_VERSION, APP_BUILD, OFFICIAL_URL, OFFICIAL_EMAIL,
-    WECHAT_CONTACT_ID
+    WECHAT_CONTACT_ID, WHATSAPP_CONTACT_ID
 )
 from .utils import adapt_dialog_geometry
 
 
 class ActivationDialog(QDialog):
-    """全新工业级双栏商业授权激活与订购引导工作台"""
+    """全新国际化双栏商业授权激活与订购引导工作台"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"商业授权激活与订购向导 — {APP_NAME}")
+        self.setWindowTitle(f"商业授权激活与订购向导 — {APP_NAME} (License & Purchase Guide)")
         self.setWindowIcon(get_app_icon())
         self.setModal(True)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -48,7 +48,7 @@ class ActivationDialog(QDialog):
 
         self.machine_code = get_machine_code()
         self._init_ui()
-        adapt_dialog_geometry(self, target_w=840, target_h=530, min_w=780, min_h=480)
+        adapt_dialog_geometry(self, target_w=870, target_h=560, min_w=800, min_h=500)
 
     def _init_ui(self):
         root_layout = QVBoxLayout(self)
@@ -56,7 +56,7 @@ class ActivationDialog(QDialog):
         root_layout.setSpacing(10)
 
         # -------------------------------------------------------------
-        # 1. 顶部 Header (Logo + 标题 + 官方网站)
+        # 1. 顶部 Header (Logo + 双语标题 + 官方门户)
         # -------------------------------------------------------------
         header_card = QFrame()
         header_card.setStyleSheet("""
@@ -77,9 +77,9 @@ class ActivationDialog(QDialog):
 
         title_vbox = QVBoxLayout()
         title_vbox.setSpacing(2)
-        lbl_title = QLabel("ANSV Coil-Architect Pro · 商业授权激活与订购向导")
+        lbl_title = QLabel("ANSV Coil-Architect Pro · 商业授权激活与订购向导 (License & Purchase)")
         lbl_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #0284C7; letter-spacing: 0.3px;")
-        lbl_sub = QLabel("微型线圈设计与电热仿真工作站 | 一机一码硬件加密防御体系 · 官方正版授权认证")
+        lbl_sub = QLabel("微型线圈设计与电热仿真工作站 | 官方正版授权认证 · 全球一机一码硬件加密防御体系")
         lbl_sub.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 500;")
         title_vbox.addWidget(lbl_title)
         title_vbox.addWidget(lbl_sub)
@@ -116,7 +116,7 @@ class ActivationDialog(QDialog):
         columns_layout.setSpacing(10)
 
         # =============================================================
-        # 左栏：订购方案阶梯与官方极速直达渠道
+        # 左栏：双币资费阶梯 (RMB / USD) 与 微信/WhatsApp 国际通道
         # =============================================================
         left_card = QFrame()
         left_card.setStyleSheet("""
@@ -131,14 +131,15 @@ class ActivationDialog(QDialog):
         left_layout.setContentsMargins(14, 12, 14, 12)
         left_layout.setSpacing(8)
 
-        lbl_tier_title = QLabel("🛒 商业授权方案与资费 (标准阶梯):")
+        lbl_tier_title = QLabel("🛒 商业授权方案与双币资费 (Tier & Pricing):")
         lbl_tier_title.setStyleSheet("font-size: 12px; font-weight: 800; color: #0F172A;")
         left_layout.addWidget(lbl_tier_title)
 
+        # 方案条目 (带美金标价)
         tiers_box = QVBoxLayout()
         tiers_box.setSpacing(5)
 
-        def make_tier_item(badge_txt, badge_bg, badge_fg, name, price, desc):
+        def make_tier_item(badge_txt, badge_bg, badge_fg, name, rmb_price, usd_price, desc):
             row = QFrame()
             row.setStyleSheet("""
                 QFrame {
@@ -164,7 +165,11 @@ class ActivationDialog(QDialog):
 
             v_info = QVBoxLayout()
             v_info.setSpacing(1)
-            t_line = QLabel(f"<b>{name}</b>  <span style='color: #0284C7; font-weight: 800;'>{price}</span>")
+            t_line = QLabel(
+                f"<b>{name}</b>  "
+                f"<span style='color: #0284C7; font-weight: 800;'>{rmb_price}</span> "
+                f"<span style='color: #64748B; font-size: 10.5px;'>({usd_price})</span>"
+            )
             t_line.setStyleSheet("font-size: 11px; color: #1E293B;")
             d_line = QLabel(desc)
             d_line.setStyleSheet("font-size: 10px; color: #64748B;")
@@ -175,12 +180,18 @@ class ActivationDialog(QDialog):
             r_layout.addStretch()
             return row
 
-        tiers_box.addWidget(make_tier_item("⚡ 季度", "#E0F2FE", "#0369A1", "项目季度版 (90天)", "¥ 2,180", "短期项目攻关 / EVT-DVT 单案打样"))
-        tiers_box.addWidget(make_tier_item("🌟 主推", "#FEF3C7", "#92400E", "年度商业版 (365天)", "¥ 5,800", "全物理模型 · 优先一对一支持 · 免费升级"))
-        tiers_box.addWidget(make_tier_item("🛡️ 买断", "#DCFCE7", "#166534", "企业单机买断 (永久)", "¥ 16,800", "终身授权 · 涉密工位内网运行 · 首年维护"))
+        tiers_box.addWidget(make_tier_item(
+            "⚡ 季度", "#E0F2FE", "#0369A1", "项目季度版 (90天)", "¥ 2,180", "$349", "短期项目攻关 / EVT-DVT 单案打样"
+        ))
+        tiers_box.addWidget(make_tier_item(
+            "🌟 主推", "#FEF3C7", "#92400E", "年度商业版 (365天)", "¥ 5,800", "$899", "全物理模型 · 优先一对一支持 · 免费升级"
+        ))
+        tiers_box.addWidget(make_tier_item(
+            "🛡️ 买断", "#DCFCE7", "#166534", "企业单机买断 (永久)", "¥ 16,800", "$2,699", "终身授权 · 涉密工位内网脱网运行 · 首年维护"
+        ))
         left_layout.addLayout(tiers_box)
 
-        # 冲抵特权提示条 (浅琥珀底色)
+        # 冲抵特权提示卡
         offset_bar = QFrame()
         offset_bar.setStyleSheet("""
             QFrame {
@@ -200,81 +211,145 @@ class ActivationDialog(QDialog):
         o_layout.addWidget(lbl_offset)
         left_layout.addWidget(offset_bar)
 
-        # 联系通道区 (微信二维码 + 工程师直通)
-        contact_box = QFrame()
-        contact_box.setStyleSheet("""
-            QFrame {
+        # 联系通道 Tab 切换 (微信咨询 vs WhatsApp International)
+        tab_box = QFrame()
+        tab_box.setStyleSheet("""
+            QFrame#tabFrame {
                 background-color: #F8FAFC;
                 border: 1px solid #E2E8F0;
                 border-radius: 6px;
             }
         """)
-        c_layout = QHBoxLayout(contact_box)
-        c_layout.setContentsMargins(10, 8, 10, 8)
-        c_layout.setSpacing(12)
+        tab_box.setObjectName("tabFrame")
+        tab_vbox = QVBoxLayout(tab_box)
+        tab_vbox.setContentsMargins(8, 8, 8, 8)
+        tab_vbox.setSpacing(6)
 
-        # 二维码 (多路径安全探测)
-        qr_lbl = QLabel()
-        qr_candidates = [
+        tab_btn_bar = QHBoxLayout()
+        tab_btn_bar.setSpacing(6)
+
+        self.btn_subtab_wx = QPushButton("💬 工程师微信 (WeChat)")
+        self.btn_subtab_wa = QPushButton("🌐 WhatsApp (International)")
+
+        for b in [self.btn_subtab_wx, self.btn_subtab_wa]:
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFixedHeight(26)
+            b.setStyleSheet("""
+                QPushButton {
+                    background-color: #FFFFFF;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 4px;
+                    font-size: 10.5px;
+                    font-weight: 600;
+                    color: #475569;
+                    padding: 2px 8px;
+                }
+                QPushButton:hover {
+                    background-color: #F1F5F9;
+                    color: #0F172A;
+                }
+            """)
+        tab_btn_bar.addWidget(self.btn_subtab_wx)
+        tab_btn_bar.addWidget(self.btn_subtab_wa)
+        tab_vbox.addLayout(tab_btn_bar)
+
+        # 堆叠视窗 (微信 vs WhatsApp)
+        self.contact_stack = QStackedWidget()
+
+        # 1. 微信卡片
+        wx_widget = QWidget()
+        wx_h = QHBoxLayout(wx_widget)
+        wx_h.setContentsMargins(0, 4, 0, 0)
+        wx_h.setSpacing(10)
+
+        lbl_wx_qr = QLabel()
+        candidates_wx = [
             Path("resources/wechat_personal_qr.png"),
             Path(__file__).resolve().parent.parent.parent / "resources" / "wechat_personal_qr.png",
             Path("docs/images/qr_wechat_personal.png")
         ]
-        qr_found = None
-        for qp in qr_candidates:
-            if qp.exists():
-                qr_found = qp
-                break
+        p_wx = next((p for p in candidates_wx if p.exists()), None)
+        if p_wx:
+            lbl_wx_qr.setPixmap(QPixmap(str(p_wx)).scaled(76, 76, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        lbl_wx_qr.setFixedSize(76, 76)
+        lbl_wx_qr.setStyleSheet("border: 1px solid #CBD5E1; background: #FFFFFF; border-radius: 4px;")
+        wx_h.addWidget(lbl_wx_qr)
 
-        if qr_found:
-            qr_pix = QPixmap(str(qr_found)).scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            qr_lbl.setPixmap(qr_pix)
-        else:
-            qr_lbl.setText("【微信二维码】")
-        qr_lbl.setFixedSize(80, 80)
-        qr_lbl.setStyleSheet("border: 1px solid #CBD5E1; background: #FFFFFF; border-radius: 4px;")
-        c_layout.addWidget(qr_lbl)
-
-        # 微信信息与按钮
-        c_vbox = QVBoxLayout()
-        c_vbox.setSpacing(3)
-        c_t = QLabel("💬 <b>官方工程师专属微信</b>")
-        c_t.setStyleSheet("font-size: 11px; color: #0F172A;")
-        c_vbox.addWidget(c_t)
-
-        c_sub = QLabel(f"微信号: <code style='color: #0284C7; font-weight: bold;'>{WECHAT_CONTACT_ID}</code>")
-        c_sub.setStyleSheet("font-size: 11px; color: #334155;")
-        c_vbox.addWidget(c_sub)
-
-        c_tip = QLabel("手机扫码或复制微信号，即可快速咨询与开通")
-        c_tip.setStyleSheet("font-size: 10px; color: #64748B;")
-        c_vbox.addWidget(c_tip)
-
+        wx_info = QVBoxLayout()
+        wx_info.setSpacing(3)
+        wx_info.addWidget(QLabel(f"微信号: <code style='color:#0284C7; font-weight:bold;'>{WECHAT_CONTACT_ID}</code>"))
+        wx_info.addWidget(QLabel("<span style='font-size:10px; color:#64748B;'>手机微信扫码或复制微信号咨询开通</span>"))
         btn_copy_wx = QPushButton("📋 复制微信号 (ansv-net)")
         btn_copy_wx.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_wx.setStyleSheet("""
             QPushButton {
-                background-color: #FFFFFF;
-                border: 1px solid #0284C7;
-                color: #0284C7;
-                border-radius: 4px;
-                font-size: 10.5px;
-                font-weight: 700;
-                padding: 3px 8px;
+                background-color: #FFFFFF; border: 1px solid #0284C7; color: #0284C7;
+                border-radius: 4px; font-size: 10.5px; font-weight: 700; padding: 3px 8px;
             }
-            QPushButton:hover {
-                background-color: #E0F2FE;
-            }
+            QPushButton:hover { background-color: #E0F2FE; }
         """)
         btn_copy_wx.clicked.connect(self._copy_wechat_id)
-        c_vbox.addWidget(btn_copy_wx)
+        wx_info.addWidget(btn_copy_wx)
+        wx_h.addLayout(wx_info)
+        self.contact_stack.addWidget(wx_widget)
 
-        c_layout.addLayout(c_vbox)
-        left_layout.addWidget(contact_box)
+        # 2. WhatsApp 卡片
+        wa_widget = QWidget()
+        wa_h = QHBoxLayout(wa_widget)
+        wa_h.setContentsMargins(0, 4, 0, 0)
+        wa_h.setSpacing(10)
+
+        lbl_wa_qr = QLabel()
+        candidates_wa = [
+            Path("resources/whatsapp_qr.png"),
+            Path(__file__).resolve().parent.parent.parent / "resources" / "whatsapp_qr.png",
+            Path("docs/images/qr_whatsapp.png")
+        ]
+        p_wa = next((p for p in candidates_wa if p.exists()), None)
+        if p_wa:
+            lbl_wa_qr.setPixmap(QPixmap(str(p_wa)).scaled(76, 76, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        lbl_wa_qr.setFixedSize(76, 76)
+        lbl_wa_qr.setStyleSheet("border: 1px solid #CBD5E1; background: #FFFFFF; border-radius: 4px;")
+        wa_h.addWidget(lbl_wa_qr)
+
+        wa_info = QVBoxLayout()
+        wa_info.setSpacing(3)
+        wa_info.addWidget(QLabel(f"WhatsApp: <code style='color:#16A34A; font-weight:bold;'>{WHATSAPP_CONTACT_ID}</code>"))
+        wa_info.addWidget(QLabel("<span style='font-size:10px; color:#64748B;'>Global direct technical support & license</span>"))
+        btn_copy_wa = QPushButton("📋 复制 WhatsApp (ansv_net)")
+        btn_copy_wa.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_copy_wa.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF; border: 1px solid #16A34A; color: #16A34A;
+                border-radius: 4px; font-size: 10.5px; font-weight: 700; padding: 3px 8px;
+            }
+            QPushButton:hover { background-color: #DCFCE7; }
+        """)
+        btn_copy_wa.clicked.connect(self._copy_whatsapp_id)
+        wa_info.addWidget(btn_copy_wa)
+        wa_h.addLayout(wa_info)
+        self.contact_stack.addWidget(wa_widget)
+
+        tab_vbox.addWidget(self.contact_stack)
+        left_layout.addWidget(tab_box)
+
+        # 切换逻辑
+        def switch_tab(idx):
+            self.contact_stack.setCurrentIndex(idx)
+            if idx == 0:
+                self.btn_subtab_wx.setStyleSheet("background-color: #E0F2FE; border: 1px solid #0284C7; color: #0284C7; font-weight: 700; border-radius: 4px; font-size: 10.5px;")
+                self.btn_subtab_wa.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CBD5E1; color: #475569; font-weight: 600; border-radius: 4px; font-size: 10.5px;")
+            else:
+                self.btn_subtab_wa.setStyleSheet("background-color: #DCFCE7; border: 1px solid #16A34A; color: #16A34A; font-weight: 700; border-radius: 4px; font-size: 10.5px;")
+                self.btn_subtab_wx.setStyleSheet("background-color: #FFFFFF; border: 1px solid #CBD5E1; color: #475569; font-weight: 600; border-radius: 4px; font-size: 10.5px;")
+
+        self.btn_subtab_wx.clicked.connect(lambda: switch_tab(0))
+        self.btn_subtab_wa.clicked.connect(lambda: switch_tab(1))
+        switch_tab(0)
 
         # 底部支持支付方式声明
-        lbl_pay_tips = QLabel("💳 支持支付方式: 微信支付 · 支付宝 · 银行对公转账 · PayPal (海外)")
-        lbl_pay_tips.setStyleSheet("color: #64748B; font-size: 10px; text-align: center;")
+        lbl_pay_tips = QLabel("💳 支付通道: 微信支付 · 支付宝 · 银行对公转账 · PayPal (International USD)")
+        lbl_pay_tips.setStyleSheet("color: #64748B; font-size: 9.5px; text-align: center;")
         lbl_pay_tips.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(lbl_pay_tips)
 
@@ -338,8 +413,8 @@ class ActivationDialog(QDialog):
         hw_row.addWidget(btn_copy_mid)
         right_layout.addLayout(hw_row)
 
-        # 核心促单加速神器: 一键复制微信订购消息草稿
-        btn_copy_order_msg = QPushButton("💬 一键复制订购消息草稿 (微信直发工程师)")
+        # 核心促单加速神器: 一键复制订购消息草稿 (双语模板)
+        btn_copy_order_msg = QPushButton("💬 一键复制订购消息草稿 (微信 / WhatsApp 直发)")
         btn_copy_order_msg.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_order_msg.setStyleSheet("""
             QPushButton {
@@ -349,7 +424,7 @@ class ActivationDialog(QDialog):
                 color: #15803D;
                 font-size: 11px;
                 font-weight: 700;
-                padding: 6px 12px;
+                padding: 7px 12px;
             }
             QPushButton:hover {
                 background-color: #DCFCE7;
@@ -367,7 +442,7 @@ class ActivationDialog(QDialog):
         right_layout.addWidget(lbl_act_title)
 
         self.txt_token = QLineEdit()
-        self.txt_token.setPlaceholderText("粘贴 COIL-SEC-XXXX 格式的激活码...")
+        self.txt_token.setPlaceholderText("粘贴 COIL-SEC-XXXX 格式激活码...")
         self.txt_token.setStyleSheet("""
             QLineEdit {
                 background-color: #FFFFFF;
@@ -468,6 +543,15 @@ class ActivationDialog(QDialog):
             f"✅ 工程师微信号已复制: {WECHAT_CONTACT_ID}\n\n请在微信中粘贴搜索添加好友，即可极速开通正式商业授权！"
         )
 
+    def _copy_whatsapp_id(self):
+        clipboard = QApplication.clipboard()
+        clipboard.setText(WHATSAPP_CONTACT_ID)
+        QMessageBox.information(
+            self,
+            "WhatsApp ID Copied",
+            f"✅ WhatsApp Contact Copied: {WHATSAPP_CONTACT_ID}\n\nAdd us on WhatsApp for international license procurement & technical support!"
+        )
+
     def _copy_machine_code(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.machine_code)
@@ -479,17 +563,18 @@ class ActivationDialog(QDialog):
 
     def _copy_order_template(self):
         template = (
-            f"您好！我想订购 ANSV Coil-Architect Pro 商业授权：\n"
-            f"• 意向方案: 年度商业版 (365天)\n"
-            f"• 本机机器码: {self.machine_code}\n"
-            f"• 申请单位/工位: [请填写单位或姓名]\n"
+            f"【ANSV Coil-Architect Pro 商业授权订购申请】\n"
+            f"• 意向方案 (Tier): 年度商业版 / Annual Commercial ($899 / ¥5,800)\n"
+            f"• 本机特征码 (Machine Code): {self.machine_code}\n"
+            f"• 申请人或单位 (Client / Organization): [请填写 / Your Name or Company]\n"
+            f"• 官方技术支持 (Support): WeChat: {WECHAT_CONTACT_ID} | WhatsApp: {WHATSAPP_CONTACT_ID} | {OFFICIAL_URL}"
         )
         clipboard = QApplication.clipboard()
         clipboard.setText(template)
         QMessageBox.information(
             self,
-            "订购消息已就绪",
-            f"🎉 订购消息草稿已成功复制到剪贴板！\n\n内容已包含您的本机机器码 ({self.machine_code})。\n请直接打开微信发送给工程师（微信号: ansv-net）即可秒级办理！"
+            "订购消息草稿已就绪",
+            f"🎉 订购消息草稿已成功复制到剪贴板！\n\n内容已包含您的本机机器码 ({self.machine_code}) 与双语格式。\n请直接打开微信或 WhatsApp 发送给工程师即可秒级开通！"
         )
 
     def _import_lic_file(self):
@@ -526,5 +611,5 @@ class ActivationDialog(QDialog):
             QMessageBox.critical(
                 self,
                 "激活失败",
-                f"授权验证未通过，请检查激活码是否正确:\n\n{msg}\n\n如有疑问，可随时联系微信技术支持: {WECHAT_CONTACT_ID}"
+                f"授权验证未通过，请检查激活码是否正确:\n\n{msg}\n\n如有疑问，可随时联系微信技术支持: {WECHAT_CONTACT_ID} 或 WhatsApp: {WHATSAPP_CONTACT_ID}"
             )
