@@ -866,14 +866,14 @@ class MainWindow(QMainWindow):
                 msg_box.setWindowTitle("7天全功能免激活试用详情")
                 msg_box.setIcon(QMessageBox.Icon.Information)
                 msg_box.setText(
-                    f"⏱️ Coil-Architect Pro 全功能免激活试用中\n\n"
+                    f"⏱️ ANSV Coil-Architect Pro 全功能免激活试用中\n\n"
                     f"• 试用模式: 7天免激活全功能评估\n"
                     f"• 试用周期: {start_date} 至 {exp_date}\n"
                     f"• 剩余天数: 还有 {days_left} 天\n"
-                    f"• 功能状态: 电磁求解器、2D孪生图纸、方案对比抽屉与 Excel 导出等 100% 全功能已解锁！\n\n"
-                    f"是否需要现在输入正式商业激活码进行升级？"
+                    f"• 功能状态: 双核物理求解器、2D孪生图纸、方案对比矩阵与 Excel 导出等 100% 全功能已解锁！\n\n"
+                    f"是否需要现在查看商业订购方案或输入正式商业激活码？"
                 )
-                btn_upgrade = msg_box.addButton("输入商业激活码", QMessageBox.ButtonRole.AcceptRole)
+                btn_upgrade = msg_box.addButton("🛒 订购商业版 / 输入激活码", QMessageBox.ButtonRole.AcceptRole)
                 btn_continue = msg_box.addButton("继续试用", QMessageBox.ButtonRole.RejectRole)
                 msg_box.setDefaultButton(btn_continue)
 
