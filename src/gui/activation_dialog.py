@@ -139,7 +139,7 @@ class ActivationDialog(QDialog):
         tiers_box = QVBoxLayout()
         tiers_box.setSpacing(5)
 
-        def make_tier_item(badge_txt, badge_bg, badge_fg, name, rmb_price, usd_price, desc):
+        def make_tier_item(badge_txt, badge_bg, badge_fg, name, orig_price, promo_price, desc):
             row = QFrame()
             row.setStyleSheet("""
                 QFrame {
@@ -149,7 +149,7 @@ class ActivationDialog(QDialog):
                 }
             """)
             r_layout = QHBoxLayout(row)
-            r_layout.setContentsMargins(8, 6, 8, 6)
+            r_layout.setContentsMargins(8, 5, 8, 5)
             r_layout.setSpacing(8)
 
             badge = QLabel(badge_txt)
@@ -167,8 +167,8 @@ class ActivationDialog(QDialog):
             v_info.setSpacing(1)
             t_line = QLabel(
                 f"<b>{name}</b>  "
-                f"<span style='color: #0284C7; font-weight: 800;'>{rmb_price}</span> "
-                f"<span style='color: #64748B; font-size: 10.5px;'>({usd_price})</span>"
+                f"<span style='color: #0284C7; font-weight: 800;'>{promo_price}</span> "
+                f"<span style='color: #94A3B8; text-decoration: line-through; font-size: 10px;'>{orig_price}</span>"
             )
             t_line.setStyleSheet("font-size: 11px; color: #1E293B;")
             d_line = QLabel(desc)
@@ -181,35 +181,37 @@ class ActivationDialog(QDialog):
             return row
 
         tiers_box.addWidget(make_tier_item(
-            "⚡ 季度", "#E0F2FE", "#0369A1", "项目季度版 (90天)", "¥ 2,180", "$349", "短期项目攻关 / EVT-DVT 单案打样"
+            "⚡ 季度", "#E0F2FE", "#0369A1", "项目季度版 (90天)", "¥2,180 ($349)", "🔥8折: ¥ 1,744 ($279)", "短期项目攻关 / EVT-DVT 单案验算"
         ))
         tiers_box.addWidget(make_tier_item(
-            "🌟 主推", "#FEF3C7", "#92400E", "年度商业版 (365天)", "¥ 5,800", "$899", "全物理模型 · 优先一对一支持 · 免费升级"
+            "🌟 主推", "#FEF3C7", "#92400E", "年度商业版 (365天)", "¥5,800 ($899)", "🔥8折: ¥ 4,680 ($719)", "全套物理模型 · 优先一对一支持 · 免费升级"
         ))
         tiers_box.addWidget(make_tier_item(
-            "🛡️ 买断", "#DCFCE7", "#166534", "企业单机买断 (永久)", "¥ 16,800", "$2,699", "终身授权 · 涉密工位内网脱网运行 · 首年维护"
+            "🛡️ 买断", "#DCFCE7", "#166534", "企业单机买断 (永久)", "¥16,800 ($2,699)", "🔥8折: ¥ 13,440 ($2,159)", "终身授权 · 涉密工位内网脱网运行 · 首年维护"
         ))
         left_layout.addLayout(tiers_box)
 
-        # 冲抵特权提示卡
-        offset_bar = QFrame()
-        offset_bar.setStyleSheet("""
+        # 限期 8 折首发特惠提示卡 (红金高亮)
+        promo_bar = QFrame()
+        promo_bar.setStyleSheet("""
             QFrame {
-                background-color: #FFFBEB;
-                border: 1px solid #FDE68A;
+                background-color: #FEF2F2;
+                border: 1px solid #FECACA;
                 border-radius: 5px;
             }
         """)
-        o_layout = QHBoxLayout(offset_bar)
-        o_layout.setContentsMargins(8, 6, 8, 6)
-        o_layout.setSpacing(6)
-        lbl_offset = QLabel(
-            "🎁 <b>专属冲抵权益</b>：订购年度或企业版的客户，后续委托 ANSV 进行专项仿真代工或样品打样时，<b>首期软件费用可全额冲抵技术服务费！</b>"
+        p_layout = QHBoxLayout(promo_bar)
+        p_layout.setContentsMargins(8, 6, 8, 6)
+        p_layout.setSpacing(6)
+        lbl_promo = QLabel(
+            "🔥 <b>限期 8 折首发特惠 (Limited-Time 20% OFF)</b>：<br>"
+            "联系工程师开通即享全版本 <b>限时 8 折直降</b>（年度版立省 ¥1,120，仅需 <b>¥4,680 / $719</b>）！"
+            "后续委托 ANSV 进行工程代工仿真或打样，首期软件费仍可冲抵技术服务费！"
         )
-        lbl_offset.setWordWrap(True)
-        lbl_offset.setStyleSheet("color: #92400E; font-size: 10.5px; line-height: 1.3;")
-        o_layout.addWidget(lbl_offset)
-        left_layout.addWidget(offset_bar)
+        lbl_promo.setWordWrap(True)
+        lbl_promo.setStyleSheet("color: #991B1B; font-size: 10.5px; line-height: 1.35;")
+        p_layout.addWidget(lbl_promo)
+        left_layout.addWidget(promo_bar)
 
         # 联系通道 Tab 切换 (微信咨询 vs WhatsApp International)
         tab_box = QFrame()
@@ -563,8 +565,8 @@ class ActivationDialog(QDialog):
 
     def _copy_order_template(self):
         template = (
-            f"【ANSV Coil-Architect Pro 商业授权订购申请】\n"
-            f"• 意向方案 (Tier): 年度商业版 / Annual Commercial ($899 / ¥5,800)\n"
+            f"【ANSV Coil-Architect Pro 商业授权 8 折特惠申请】\n"
+            f"• 申请方案 (Tier): 年度商业版 / Annual Commercial (限时8折: ¥4,680 / $719)\n"
             f"• 本机特征码 (Machine Code): {self.machine_code}\n"
             f"• 申请人或单位 (Client / Organization): [请填写 / Your Name or Company]\n"
             f"• 官方技术支持 (Support): WeChat: {WECHAT_CONTACT_ID} | WhatsApp: {WHATSAPP_CONTACT_ID} | {OFFICIAL_URL}"
