@@ -106,9 +106,9 @@
 - **Excel 智能列宽自适应**：导出的 Excel 工作簿采用工业级排版，根据中英文字符宽度动态计算列宽，打开即刻整齐美观，无需手动拉宽单元格。
 
 <p align="center">
-  <img src="docs/images/drawer_export_preview.png" alt="方案比对抽屉与导出操作" width="95%" />
+  <img src="docs/images/comparison_matrix_window.png" alt="多方案横向比对与工程评审矩阵窗口" width="98%" />
   <br>
-  <em>图 4：方案对比抽屉 —— 支持多方案参数锁定、基准偏差对比、一键导出自适应 Excel 与 CSV 报表</em>
+  <em>图 4：多方案横向比对与工程评审矩阵（独立大窗模式 · 固化方案参数锁定 · 基准偏差对比与一键参数还原）</em>
 </p>
 
 ---
