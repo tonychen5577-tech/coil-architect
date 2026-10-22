@@ -119,9 +119,9 @@ class ComparisonPopoutWindow(QDialog):
         tb_layout.setContentsMargins(10, 6, 10, 6)
         tb_layout.setSpacing(8)
 
-        lbl_title = QLabel("📊 多方案横向比对与工程评审矩阵")
-        lbl_title.setStyleSheet("font-size: 13px; font-weight: 800; color: #0284C7;")
-        tb_layout.addWidget(lbl_title)
+        self.lbl_title = QLabel("📊 多方案横向比对与工程评审矩阵")
+        self.lbl_title.setStyleSheet("font-size: 13px; font-weight: 800; color: #0284C7;")
+        tb_layout.addWidget(self.lbl_title)
 
         self.lbl_pop_count = QLabel(drawer.lbl_count.text() if hasattr(drawer, "lbl_count") else "(已固化 0 组)")
         self.lbl_pop_count.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B;")
@@ -129,7 +129,8 @@ class ComparisonPopoutWindow(QDialog):
 
         tb_layout.addStretch()
 
-        btn_cap = QPushButton("📌 固化当前方案")
+        self.btn_cap = QPushButton("📌 固化当前方案")
+        btn_cap = self.btn_cap
         btn_cap.setStyleSheet("""
             QPushButton {
                 background-color: #0284C7;
@@ -145,7 +146,8 @@ class ComparisonPopoutWindow(QDialog):
         btn_cap.clicked.connect(drawer.capture_current_scheme)
         tb_layout.addWidget(btn_cap)
 
-        btn_copy = QPushButton("📋 复制对比表")
+        self.btn_copy = QPushButton("📋 复制对比表")
+        btn_copy = self.btn_copy
         btn_copy.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -161,7 +163,8 @@ class ComparisonPopoutWindow(QDialog):
         btn_copy.clicked.connect(drawer.copy_table_to_clipboard)
         tb_layout.addWidget(btn_copy)
 
-        btn_excel = QPushButton("📊 导出 Excel")
+        self.btn_excel = QPushButton("📊 导出 Excel")
+        btn_excel = self.btn_excel
         btn_excel.setStyleSheet("""
             QPushButton {
                 background-color: #F0FDF4;
@@ -177,7 +180,8 @@ class ComparisonPopoutWindow(QDialog):
         btn_excel.clicked.connect(drawer.export_excel)
         tb_layout.addWidget(btn_excel)
 
-        btn_csv = QPushButton("📄 导出 CSV")
+        self.btn_csv = QPushButton("📄 导出 CSV")
+        btn_csv = self.btn_csv
         btn_csv.setStyleSheet("""
             QPushButton {
                 background-color: #F0F9FF;
@@ -193,7 +197,8 @@ class ComparisonPopoutWindow(QDialog):
         btn_csv.clicked.connect(drawer.export_csv)
         tb_layout.addWidget(btn_csv)
 
-        btn_clear = QPushButton("🗑 清空")
+        self.btn_clear = QPushButton("🗑 清空")
+        btn_clear = self.btn_clear
         btn_clear.setStyleSheet("""
             QPushButton {
                 background-color: #FFF1F2;
@@ -212,7 +217,8 @@ class ComparisonPopoutWindow(QDialog):
         tb_layout.addSpacing(10)
 
         # 嵌入底部抽屉按钮
-        btn_dock = QPushButton("⇲ 嵌入底部抽屉")
+        self.btn_dock = QPushButton("⇲ 嵌入底部抽屉")
+        btn_dock = self.btn_dock
         btn_dock.setToolTip("将本评审矩阵窗口重新嵌入到主工作台底部抽屉")
         btn_dock.setStyleSheet("""
             QPushButton {
@@ -240,6 +246,24 @@ class ComparisonPopoutWindow(QDialog):
         self.table_layout = QVBoxLayout(self.table_container)
         self.table_layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.table_container, 1)
+
+    def retranslate_ui(self):
+        from src.core.i18n import t
+        self.setWindowTitle(f"{t('dialog_compare_title', '📊 固化方案独立对比与工程评审矩阵')}")
+        if hasattr(self, "lbl_title"):
+            self.lbl_title.setText(t("dialog_compare_title", "📊 固化方案独立对比与工程评审矩阵"))
+        if hasattr(self, "btn_cap"):
+            self.btn_cap.setText(t("btn_pin_scheme", "📌 固化当前方案"))
+        if hasattr(self, "btn_copy"):
+            self.btn_copy.setText(t("btn_copy_table", "📋 复制对比表"))
+        if hasattr(self, "btn_excel"):
+            self.btn_excel.setText(t("btn_export_excel", "📊 导出 Excel"))
+        if hasattr(self, "btn_csv"):
+            self.btn_csv.setText(t("btn_export_csv", "📄 导出 CSV"))
+        if hasattr(self, "btn_clear"):
+            self.btn_clear.setText(t("btn_clear_schemes", "🗑 清空"))
+        if hasattr(self, "btn_dock"):
+            self.btn_dock.setText(t("btn_embed_window", "⇲ 嵌入底部抽屉"))
 
     def closeEvent(self, event):
         """窗口关闭时自动安全嵌入回抽屉"""
@@ -551,10 +575,50 @@ class ComparisonDrawer(QFrame):
         # 默认收起
         self.content_container.setVisible(False)
 
+    ROW_I18N = {
+        "绕线拓扑": "row_topology",
+        "铜线裸径 d (mm)": "row_bare_dia",
+        "漆包外径 D (mm)": "row_outer_dia",
+        "径向层数 I (层)": "row_layers",
+        "每层匝数 J (匝)": "row_turns_per_layer",
+        "绕线模式": "row_winding_mode",
+        "张力系数 η": "row_tension",
+        "成型总匝数 N (匝)": "row_total_turns",
+        "外廓长宽/对边 (mm)": "row_outer_dims",
+        "轴向成型厚度 H (mm)": "row_coil_height",
+        "20℃直流电阻 R20 (Ω)": "row_r20",
+        "等效电感 L (μH)": "row_inductance",
+        "纯铜填充率 (%)": "row_copper_fill",
+        "DFM 制造公差": "row_dfm_status",
+        "方案操作": "row_action",
+    }
+
+    def retranslate_ui(self):
+        """动态多语言重载"""
+        from src.core.i18n import t
+        arrow = "▼ 📊 " if self._is_expanded else "▶ 📊 "
+        self.btn_toggle.setText(f"{arrow}{t('drawer_title', '方案比对抽屉')}")
+        self.lbl_count.setText(f"({t('drawer_pinned_count', '已固化')} {len(self.snapshots)} {t('drawer_pinned_unit', '组')})")
+        self.btn_capture.setText(t("btn_pin_scheme", "📌 固化当前方案"))
+        self.btn_copy.setText(t("btn_copy_table", "📋 复制对比表"))
+        self.btn_export.setText(t("btn_export_excel", "📊 导出 Excel"))
+        self.btn_export_csv.setText(t("btn_export_csv", "📄 导出 CSV"))
+        self.btn_clear.setText(t("btn_clear_schemes", "🗑 清空"))
+        self.btn_popout.setText(t("btn_popout_window", "⛶ 弹出大窗"))
+        if hasattr(self, "btn_fold"):
+            self.btn_fold.setText(t("btn_fold_drawer", "收起 ▼") if self._is_expanded else t("btn_unfold_drawer", "展开 ▲"))
+        if self.popout_window:
+            self.popout_window.retranslate_ui()
+        self._init_row_headers()
+        self._rebuild_table_columns()
+
     def _init_row_headers(self):
         """填充行标签"""
+        from src.core.i18n import t
         for row_idx, (title, group, _) in enumerate(self.ROW_DEFINITIONS):
-            item = QTableWidgetItem(title)
+            key = self.ROW_I18N.get(title)
+            disp_title = t(key, title) if key else title
+            item = QTableWidgetItem(disp_title)
             item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             if group == "input":
                 item.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
@@ -674,12 +738,10 @@ class ComparisonDrawer(QFrame):
 
         self._is_expanded = not self._is_expanded
         self.content_container.setVisible(self._is_expanded)
-        if self._is_expanded:
-            self.btn_toggle.setText("▼ 📊 方案比对抽屉")
-            self.btn_fold.setText("▼ 收起")
-        else:
-            self.btn_toggle.setText("▶ 📊 方案比对抽屉")
-            self.btn_fold.setText("▲ 展开")
+        from src.core.i18n import t
+        arrow = "▼ 📊 " if self._is_expanded else "▶ 📊 "
+        self.btn_toggle.setText(f"{arrow}{t('drawer_title', '方案比对抽屉')}")
+        self.btn_fold.setText(t("btn_fold_drawer", "▼ 收起") if self._is_expanded else t("btn_unfold_drawer", "▲ 展开"))
 
     def set_expanded(self, expanded: bool):
         """显式设置展开状态"""
@@ -715,7 +777,9 @@ class ComparisonDrawer(QFrame):
             return
 
         scheme_num = len(self.snapshots) + 1
-        name = f"方案 {scheme_num}"
+        from src.core.i18n import t
+        prefix = t("scheme_prefix", "方案")
+        name = f"{prefix} {scheme_num}"
         created_at = datetime.now().strftime("%H:%M:%S")
 
         # 若是第一组，默认自动设为基线
@@ -737,7 +801,8 @@ class ComparisonDrawer(QFrame):
         if not self._is_expanded:
             self.set_expanded(True)
 
-        self.lbl_count.setText(f"(已固化 {len(self.snapshots)} 组)")
+        from src.core.i18n import t
+        self.lbl_count.setText(f"({t('drawer_pinned_count', '已固化')} {len(self.snapshots)} {t('drawer_pinned_unit', '组')})")
         if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
             self.popout_window.lbl_pop_count.setText(self.lbl_count.text())
         self.status_message.emit(f"✓ 成功固化 [{name}]！可随时点击下方 [⏪ 还原] 或指定基准方案")
@@ -754,9 +819,10 @@ class ComparisonDrawer(QFrame):
         self.table.setColumnCount(total_cols)
 
         # 设置列标题
-        headers = ["参数 / 指标项目", "实时微调 (Live) ⚡"]
+        from src.core.i18n import t
+        headers = [t("col_metric", "参数 / 指标项目"), t("col_live_tuning", "实时微调 (Live) ⚡")]
         for s in self.snapshots:
-            base_badge = " [基准 📌]" if s.is_baseline else ""
+            base_badge = f" [{t('col_baseline', '基准 📌')}]" if s.is_baseline else ""
             headers.append(f"{s.name}{base_badge}\n({s.created_at})")
         self.table.setHorizontalHeaderLabels(headers)
 
@@ -832,7 +898,8 @@ class ComparisonDrawer(QFrame):
         h.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if is_live:
-            btn_save = QPushButton("📌 固化此方案")
+            from src.core.i18n import t
+            btn_save = QPushButton(t("btn_pin_scheme", "📌 固化此方案"))
             btn_save.setFixedWidth(84)
             btn_save.setStyleSheet("""
                 QPushButton {
@@ -857,7 +924,8 @@ class ComparisonDrawer(QFrame):
 
             # 设为基准按钮
             if not s.is_baseline:
-                btn_set_base = QPushButton("★ 设为基线")
+                from src.core.i18n import t
+                btn_set_base = QPushButton(t("btn_set_baseline", "★ 设为基线"))
                 btn_set_base.setFixedWidth(54)
                 btn_set_base.setStyleSheet("""
                     QPushButton {
@@ -880,14 +948,16 @@ class ComparisonDrawer(QFrame):
                 btn_set_base.clicked.connect(lambda _, idx=snapshot_idx: self._set_as_baseline(idx))
                 h.addWidget(btn_set_base)
             else:
-                lbl_is_base = QLabel("📌 基准方案")
+                from src.core.i18n import t
+                lbl_is_base = QLabel(t("col_baseline", "📌 基准方案"))
                 lbl_is_base.setFixedWidth(54)
                 lbl_is_base.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 lbl_is_base.setStyleSheet("font-size: 10px; font-weight: 700; color: #059669; padding: 1px;")
                 h.addWidget(lbl_is_base)
 
             # 还原此方案按钮
-            btn_restore = QPushButton("⏪ 还原")
+            from src.core.i18n import t
+            btn_restore = QPushButton(t("btn_restore_scheme", "⏪ 还原"))
             btn_restore.setFixedWidth(48)
             btn_restore.setStyleSheet("""
                 QPushButton {

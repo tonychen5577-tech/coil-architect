@@ -2080,10 +2080,26 @@ class CoilDualCanvasWidget(QFrame):
 
         layout.addWidget(self.tab_macro, 1)
 
+    def retranslate_ui(self):
+        """动态多语言重载选项卡标题"""
+        from src.core.i18n import t
+        is_circ = getattr(self, "_last_is_circ", False)
+        if is_circ:
+            self.tab_macro.setTabText(0, t("tab_2d_circular", "2D 外径轮廓 (X-Y)"))
+        else:
+            self.tab_macro.setTabText(0, t("tab_2d_contour", "2D 跑道外廓 (X-Y)"))
+        self.tab_macro.setTabText(1, t("tab_2d_section", "2D 截面与限高 (DFM)"))
+        self.tab_macro.setTabText(2, t("tab_3d_isometric", "3D 空间斜视 (Y-Space)"))
+
     def updateCoil(self, inputs: CoilInputs, outputs: CoilOutputs):
         # 动态更新 Tab 0 标题
         is_circ = (inputs.coil_type == CoilType.CIRCULAR)
-        self.tab_macro.setTabText(0, "2D 外径轮廓 (X-Y)" if is_circ else "2D 跑道外廓 (X-Y)")
+        self._last_is_circ = is_circ
+        from src.core.i18n import t
+        if is_circ:
+            self.tab_macro.setTabText(0, t("tab_2d_circular", "2D 外径轮廓 (X-Y)"))
+        else:
+            self.tab_macro.setTabText(0, t("tab_2d_contour", "2D 跑道外廓 (X-Y)"))
 
         self.micro_canvas.updateData(inputs, outputs)
         self.racetrack_canvas.updateData(inputs, outputs)

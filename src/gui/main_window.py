@@ -29,6 +29,7 @@ from .about_dialog import AboutDialog
 from src.gui.icon_helper import get_ansv_logo_pixmap
 from src.core.ota_updater import OtaUpdater, OtaChecker
 from src.version import APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, APP_AUTHOR, OFFICIAL_URL, COPYRIGHT_TEXT, CORE_ENGINE_AUTHOR
+from src.core.i18n import i18n, t, LANG_ZH, LANG_EN
 from src.utils.logger import get_logger
 from pathlib import Path
 
@@ -243,6 +244,261 @@ class MainWindow(QMainWindow):
         from PyQt6.QtGui import QKeySequence, QShortcut
         self.sc_manual = QShortcut(QKeySequence("F1"), self)
         self.sc_manual.activated.connect(self._open_user_manual)
+
+        # 5. 接入全局国际化响应式中英双语调度
+        i18n.language_changed.connect(self.retranslate_ui)
+        self.retranslate_ui()
+
+    def _on_language_selector_changed(self, index: int):
+        """语言下拉框切换响应"""
+        new_lang = self.combo_lang.currentData()
+        if new_lang and new_lang != i18n.current_language:
+            i18n.set_language(new_lang)
+
+    def _update_combo_items(self, combo: QComboBox, items: list):
+        """无缝刷新 QComboBox 选项文本并保持当前选中项不变，防信号级联"""
+        curr_data = combo.currentData()
+        curr_idx = combo.currentIndex()
+        combo.blockSignals(True)
+        combo.clear()
+        for text, data in items:
+            combo.addItem(text, data)
+        for i in range(combo.count()):
+            if combo.itemData(i) == curr_data:
+                combo.setCurrentIndex(i)
+                break
+        else:
+            if 0 <= curr_idx < combo.count():
+                combo.setCurrentIndex(curr_idx)
+        combo.blockSignals(False)
+
+    def retranslate_ui(self):
+        """
+        根据全局 i18n 当前语言设置，无缝重载主界面所有文本、标签、下拉选项与子组件
+        """
+        # 1. 主窗口标题
+        self.setWindowTitle(f"{t('app_window_title', 'ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站')} v{APP_VERSION} ({APP_BUILD})")
+
+        # 2. 顶部工具栏
+        if hasattr(self, "lbl_sub"):
+            self.lbl_sub.setText(t("platform_full_name", "微型执行器与精密传动仿真验证平台"))
+        if hasattr(self, "lbl_proj"):
+            self.lbl_proj.setText(t("toolbar_project", "🏷️ 项目:"))
+        if hasattr(self, "txt_project_name"):
+            self.txt_project_name.setPlaceholderText(t("txt_project_placeholder", "项目代号"))
+            self.txt_project_name.setToolTip(t("txt_project_tooltip", "当前工程项目代号/名称（导出 Excel/CSV 报表与方案比对时将自动注入文件名与表格抬头）"))
+        if hasattr(self, "lbl_preset"):
+            self.lbl_preset.setText(t("toolbar_preset", "📐 预设:"))
+        if hasattr(self, "combo_presets"):
+            preset_items = [
+                (t("preset_1", "1. 手机VCM马达"), "1. 手机VCM马达"),
+                (t("preset_2", "2. 手机LRA圆线圈"), "2. 手机LRA圆线圈"),
+                (t("preset_3", "3. 手机LRA跑道线圈"), "3. 手机LRA跑道线圈"),
+                (t("preset_4", "4. VCM八角形线圈"), "4. VCM八角形线圈"),
+                (t("preset_5", "5. CAD异形线圈"), "5. CAD异形线圈"),
+            ]
+            self._update_combo_items(self.combo_presets, preset_items)
+        if hasattr(self, "btn_open"):
+            self.btn_open.setText(t("btn_load_project", "📂 载入算例"))
+        if hasattr(self, "btn_save"):
+            self.btn_save.setText(t("btn_save_project", "💾 保存算例"))
+        if hasattr(self, "btn_export"):
+            self.btn_export.setText(t("btn_export_report", "📊 导出报表"))
+        if hasattr(self, "btn_about"):
+            self.btn_about.setText(t("btn_about_system", "ℹ️ 关于系统"))
+        self._refresh_license_status()
+
+        # 保持语言下拉框选中项同步
+        if hasattr(self, "combo_lang"):
+            target_idx = 1 if i18n.current_language == LANG_EN else 0
+            if self.combo_lang.currentIndex() != target_idx:
+                self.combo_lang.blockSignals(True)
+                self.combo_lang.setCurrentIndex(target_idx)
+                self.combo_lang.blockSignals(False)
+
+        # 3. 左侧参数面板 - 卡片1: 几何与排线
+        if hasattr(self, "lbl_geo"):
+            self.lbl_geo.setText(t("sec_geom_params", "▶ 线圈几何与排线参数"))
+        if hasattr(self, "lbl_type"):
+            self.lbl_type.setText(t("lbl_topology_type", "线圈拓扑类型:"))
+        if hasattr(self, "combo_coil_type"):
+            types_list = [
+                (t("topo_racetrack", "跑道型线圈 (Racetrack)"), CoilType.RACETRACK),
+                (t("topo_circular", "圆形线圈 (Circular)"), CoilType.CIRCULAR),
+                (t("topo_octagonal", "八角形线圈 (Octagonal)"), CoilType.OCTAGONAL),
+                (t("topo_arbitrary", "CAD异形线圈"), CoilType.ARBITRARY_PERIMETER),
+            ]
+            self._update_combo_items(self.combo_coil_type, types_list)
+        if hasattr(self, "sb_inner_len"):
+            self.sb_inner_len.setTitle(t("lbl_inner_length", "线圈内长 (IL)"))
+        if hasattr(self, "sb_inner_wid"):
+            self.sb_inner_wid.setTitle(t("lbl_inner_width", "线圈内宽 (IW)"))
+
+        if hasattr(self, "lbl_oct_hint"):
+            self.lbl_oct_hint.setText(t("lbl_oct_hint", "📐 图4规范: 4平直边 + 4斜边 + 8圆角 (配合四角三角磁钢)"))
+        if hasattr(self, "sb_oct_id1"):
+            self.sb_oct_id1.setTitle(t("lbl_oct_id1", "对边内径 ID1"))
+        if hasattr(self, "sb_oct_id2"):
+            self.sb_oct_id2.setTitle(t("lbl_oct_id2", "对角内径 ID2"))
+        if hasattr(self, "sb_oct_r1"):
+            self.sb_oct_r1.setTitle(t("lbl_oct_r1", "拐角内圆角 R1"))
+        if hasattr(self, "lbl_oct_derived"):
+            l1_val = getattr(self, "_oct_l1", 2.62)
+            l2_val = getattr(self, "_oct_l2", 2.74)
+            self.lbl_oct_derived.setText(t("lbl_oct_derived", "📐 几何推导尺寸: 平直长 L1 = {l1:.2f} mm  |  斜边长 L2 = {l2:.2f} mm", l1=l1_val, l2=l2_val))
+
+        if hasattr(self, "lbl_perim_hint"):
+            self.lbl_perim_hint.setText(t("lbl_perim_hint", "📐 异形线圈周长推算: MLT = 展开内周长 + π × 绕组厚度"))
+        if hasattr(self, "sb_perim_in"):
+            self.sb_perim_in.setTitle(t("lbl_perim_cin", "展开内周长 C_in"))
+        if hasattr(self, "sb_perim_outer_len"):
+            self.sb_perim_outer_len.setTitle(t("lbl_perim_max_x", "参考外廓长 Max_X"))
+        if hasattr(self, "sb_perim_outer_wid"):
+            self.sb_perim_outer_wid.setTitle(t("lbl_perim_max_y", "参考外廓宽 Max_Y"))
+
+        if hasattr(self, "sb_radial_layers"):
+            self.sb_radial_layers.setTitle(t("lbl_radial_layers", "径向层数"))
+            self.sb_radial_layers.setUnit(t("unit_layer", "层"))
+        if hasattr(self, "sb_axial_turns"):
+            self.sb_axial_turns.setTitle(t("lbl_turns_per_layer", "每层匝数"))
+            self.sb_axial_turns.setUnit(t("unit_turn", "匝"))
+
+        if hasattr(self, "lbl_mode"):
+            self.lbl_mode.setText(t("lbl_winding_mode", "密排排法模式:"))
+        if hasattr(self, "combo_mode"):
+            modes_list = [
+                (t("mode_hcp", "异数交错密排 (HCP)"), WindingMode.VARIABLE),
+                (t("mode_orthogonal", "同数交错密排"), WindingMode.EVEN),
+            ]
+            self._update_combo_items(self.combo_mode, modes_list)
+
+        if hasattr(self, "chk_crossover"):
+            self.chk_crossover.setText(t("chk_crossover", "计入 60° 换层交叉线"))
+        if hasattr(self, "chk_mold_clamping"):
+            self.chk_mold_clamping.setText(t("chk_die_press", "启用模具限位压实"))
+        if hasattr(self, "sb_mold_height"):
+            self.sb_mold_height.setTitle(t("lbl_die_press_thk", "模具压实厚度"))
+
+        # 左侧参数面板 - 卡片2: 线材与张力
+        if hasattr(self, "lbl_wire"):
+            self.lbl_wire.setText(t("sec_wire_params", "▶ 漆包线线材与张力"))
+        if hasattr(self, "sb_bare_dia"):
+            self.sb_bare_dia.setTitle(t("lbl_bare_dia", "铜线裸径 (d)"))
+        if hasattr(self, "sb_max_od"):
+            self.sb_max_od.setTitle(t("lbl_outer_dia", "漆包外径 (D)"))
+        if hasattr(self, "sb_tension"):
+            self.sb_tension.setTitle(t("lbl_tension_ratio", "张力拉伸系数"))
+            self.sb_tension.setUnit(t("unit_ratio", "系数"))
+        if hasattr(self, "lbl_rho"):
+            self.lbl_rho.setText(t("lbl_copper_grade", "铜材电导等级:"))
+        if hasattr(self, "combo_copper_grade"):
+            cu_grades = [
+                (t("grade_ofhc", "高导电率无氧铜 OFHC"), 0.016959),
+                (t("grade_mfr", "厂家出厂典型实测"), 0.016920),
+                (t("grade_spec", "国内厂家规格书基准"), 0.017100),
+                (t("grade_iacs", "国际标准退火纯铜 IACS"), 0.017241),
+                (t("grade_custom", "自定义实测电阻率"), -1.0),
+            ]
+            self._update_combo_items(self.combo_copper_grade, cu_grades)
+        if hasattr(self, "sb_copper_rho"):
+            self.sb_copper_rho.setTitle(t("lbl_copper_rho", "20℃铜电阻率"))
+
+        # 左侧参数面板 - 卡片3: 工作环境与散热条件
+        if hasattr(self, "lbl_thermal"):
+            self.lbl_thermal.setText(t("sec_thermal_env", "▶ 工作环境与散热条件"))
+        if hasattr(self, "lbl_env"):
+            self.lbl_env.setText(t("lbl_cooling_condition", "散热对流工况:"))
+        if hasattr(self, "combo_thermal_env"):
+            env_items = [
+                (t("env_weak_convection", "模组内微弱对流"), 25.0),
+                (t("env_fpc_enclosure", "贴FPC+钢片封装"), 40.0),
+                (t("env_free_convection", "悬空自然对流"), 15.0),
+                (t("env_metal_case", "紧密接触金属外壳"), 50.0),
+                (t("env_custom", "自定义对流散热"), -1.0),
+            ]
+            self._update_combo_items(self.combo_thermal_env, env_items)
+        if hasattr(self, "sb_ambient_temp"):
+            self.sb_ambient_temp.setTitle(t("lbl_ambient_temp", "环境温度"))
+        if hasattr(self, "sb_drive_current"):
+            self.sb_drive_current.setTitle(t("lbl_test_current", "测试电流"))
+        if hasattr(self, "sb_convection_h"):
+            self.sb_convection_h.setTitle(t("lbl_convection_coeff", "散热对流系数"))
+
+        # 左侧参数面板 - 卡片4: DFM 装配公差与限值
+        if hasattr(self, "lbl_dfm_title"):
+            self.lbl_dfm_title.setText(t("sec_dfm_assembly", "▶ 装配空间与公差约束 (DFM)"))
+        if hasattr(self, "chk_dfm_enabled"):
+            self.chk_dfm_enabled.setText(t("chk_enable_dfm", "启用 DFM 装配公差与限值检查"))
+        if hasattr(self, "sb_limit_x"):
+            self.sb_limit_x.setTitle(t("lbl_limit_x", "X向装配限值 (Max L)"))
+        if hasattr(self, "sb_limit_y"):
+            self.sb_limit_y.setTitle(t("lbl_limit_y", "Y向装配限值 (Max W)"))
+        if hasattr(self, "sb_limit_z"):
+            self.sb_limit_z.setTitle(t("lbl_limit_z", "Z向装配限高 (Max H)"))
+        if hasattr(self, "sb_limit_v"):
+            self.sb_limit_v.setTitle(t("lbl_limit_v", "驱动电压上限 (Max V)"))
+        if hasattr(self, "lbl_temp_class"):
+            self.lbl_temp_class.setText(t("lbl_insulation_temp_class", "漆包线耐温等级:"))
+        if hasattr(self, "combo_temp_class"):
+            temp_classes = [
+                (t("temp_class_130", "130级 (B级 / 130℃)"), 130.0),
+                (t("temp_class_155", "155级 (F级 / 155℃)"), 155.0),
+                (t("temp_class_180", "180级 (H级 / 180℃)"), 180.0),
+                (t("temp_class_200", "200级 (C级 / 200℃)"), 200.0),
+                (t("temp_class_custom", "自定义耐温限值"), None),
+            ]
+            self._update_combo_items(self.combo_temp_class, temp_classes)
+        if hasattr(self, "sb_limit_t"):
+            self.sb_limit_t.setTitle(t("lbl_limit_temp", "耐温安全上限"))
+
+        # 4. 右侧面板 - 仿真计算结果 (16 宫格卡片)
+        if hasattr(self, "lbl_twin_title"):
+            self.lbl_twin_title.setText(t("sec_sim_results", "▶ 仿真计算结果"))
+        if hasattr(self, "card_ol"):
+            self.card_ol.setTitle(t("metric_outer_len", "外廓长度 (L)"))
+        if hasattr(self, "card_ow"):
+            self.card_ow.setTitle(t("metric_outer_width", "外廓宽度 (W)"))
+        if hasattr(self, "card_thk"):
+            self.card_thk.setTitle(t("metric_coil_height", "线圈厚度 (H)"))
+        if hasattr(self, "card_n"):
+            self.card_n.setTitle(t("metric_total_turns", "线圈总匝数 (N)"))
+            self.card_n.setUnit(t("unit_turn", "匝"))
+        if hasattr(self, "card_r20"):
+            self.card_r20.setTitle(t("metric_dcr_20", "20℃直流电阻"))
+        if hasattr(self, "card_r_init"):
+            self.card_r_init.setTitle(t("metric_init_res", "初始测试电阻"))
+        if hasattr(self, "card_dcr_hot"):
+            self.card_dcr_hot.setTitle(t("metric_steady_res", "工作稳态电阻"))
+        if hasattr(self, "card_inductance"):
+            self.card_inductance.setTitle(t("metric_inductance", "线圈电感量 (L)"))
+        if hasattr(self, "card_v_term"):
+            self.card_v_term.setTitle(t("metric_term_voltage", "工作端电压 (V)"))
+        if hasattr(self, "card_power"):
+            self.card_power.setTitle(t("metric_joule_heat", "发热功耗 (P)"))
+        if hasattr(self, "card_ampere_turns"):
+            self.card_ampere_turns.setTitle(t("metric_ampere_turns", "安匝数 (NI)"))
+        if hasattr(self, "card_t_final"):
+            self.card_t_final.setTitle(t("metric_steady_temp", "稳态工作温度 (T)"))
+        if hasattr(self, "card_weight"):
+            self.card_weight.setTitle(t("metric_weight", "线圈重量"))
+        if hasattr(self, "card_wire_fill"):
+            self.card_wire_fill.setTitle(t("metric_wire_fill", "漆包线占空比"))
+        if hasattr(self, "card_cu_fill"):
+            self.card_cu_fill.setTitle(t("metric_copper_fill", "纯铜截面填充率"))
+        if hasattr(self, "card_mlt"):
+            self.card_mlt.setTitle(t("metric_mlt", "单匝平均周长"))
+
+        # 5. 子组件刷新
+        if hasattr(self, "canvas_widget") and hasattr(self.canvas_widget, "retranslate_ui"):
+            self.canvas_widget.retranslate_ui()
+        if hasattr(self, "dfm_strip") and hasattr(self.dfm_strip, "retranslate_ui"):
+            self.dfm_strip.retranslate_ui()
+        if hasattr(self, "comparison_drawer") and hasattr(self.comparison_drawer, "retranslate_ui"):
+            self.comparison_drawer.retranslate_ui()
+
+        # 6. 状态栏刷新
+        if hasattr(self, "status_bar"):
+            self.status_bar.showMessage(t("status_ready", "就绪 | 双核物理引擎待命"))
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -652,7 +908,8 @@ class MainWindow(QMainWindow):
         title_box.setSpacing(2)
         title_box.setContentsMargins(0, 0, 0, 0)
 
-        lbl_brand = QLabel()
+        self.lbl_brand = QLabel()
+        lbl_brand = self.lbl_brand
         lbl_brand.setObjectName("lblTopToolbarBrand")
         lbl_brand.setTextFormat(Qt.TextFormat.RichText)
         lbl_brand.setText(
@@ -664,7 +921,8 @@ class MainWindow(QMainWindow):
         )
         lbl_brand.setStyleSheet("line-height: 1.1; background: transparent; border: none;")
 
-        lbl_sub = QLabel("微型执行器与精密传动仿真验证平台")
+        self.lbl_sub = QLabel("微型执行器与精密传动仿真验证平台")
+        lbl_sub = self.lbl_sub
         lbl_sub.setObjectName("lblTopToolbarSub")
         lbl_sub.setStyleSheet("font-size: 10px; font-weight: 600; color: #64748B; line-height: 1.1; background: transparent; border: none;")
 
@@ -675,7 +933,8 @@ class MainWindow(QMainWindow):
         layout.addSpacing(10)
 
         # 2. 项目名称输入区 (锁死尺寸，防止横向拉伸挤占按钮空间)
-        lbl_proj = QLabel("🏷️ 项目:")
+        self.lbl_proj = QLabel("🏷️ 项目:")
+        lbl_proj = self.lbl_proj
         lbl_proj.setStyleSheet("font-size: 11px; font-weight: 700; color: #1E293B;")
         lbl_proj.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(lbl_proj)
@@ -705,7 +964,8 @@ class MainWindow(QMainWindow):
         layout.addSpacing(4)
 
         # 3. 快速预设方案下拉框 (按用户要求优化超长文本框：从 270px 收敛至 145px)
-        lbl_preset = QLabel("📐 预设:")
+        self.lbl_preset = QLabel("📐 预设:")
+        lbl_preset = self.lbl_preset
         lbl_preset.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
         lbl_preset.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(lbl_preset)
@@ -719,7 +979,7 @@ class MainWindow(QMainWindow):
             "5. CAD异形线圈"
         ])
         self.combo_presets.currentTextChanged.connect(self._load_preset)
-        self.combo_presets.setFixedWidth(145)
+        self.combo_presets.setFixedWidth(162)
         self.combo_presets.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         layout.addWidget(self.combo_presets)
 
@@ -729,7 +989,7 @@ class MainWindow(QMainWindow):
         # 5. 算例与报表操作按钮组 (锁死固定尺寸，文字 100% 完整显示)
         self.btn_open = QPushButton("📂 载入算例")
         self.btn_open.setToolTip("载入 .ansvcoil 专属算例工程文件 (支持单实例 IPC 导入)")
-        self.btn_open.setFixedWidth(82)
+        self.btn_open.setFixedWidth(86)
         self.btn_open.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.btn_open.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_open.clicked.connect(self._import_project)
@@ -737,7 +997,7 @@ class MainWindow(QMainWindow):
 
         self.btn_save = QPushButton("💾 保存算例")
         self.btn_save.setToolTip("将当前仿真参数与约束保存为 .ansvcoil 专属算例工程文件")
-        self.btn_save.setFixedWidth(82)
+        self.btn_save.setFixedWidth(86)
         self.btn_save.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.btn_save.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_save.clicked.connect(self._export_project)
@@ -746,7 +1006,7 @@ class MainWindow(QMainWindow):
         self.btn_export = QPushButton("📊 导出报表")
         self.btn_export.setToolTip("导出 Excel (含二维工程制图) 与 CSV 仿真评审报告")
         self.btn_export.setProperty("class", "SuccessBtn")
-        self.btn_export.setFixedWidth(92)
+        self.btn_export.setFixedWidth(116)
         self.btn_export.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.btn_export.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 700;")
         self.btn_export.clicked.connect(self._export_report)
@@ -771,6 +1031,34 @@ class MainWindow(QMainWindow):
         self.btn_about.clicked.connect(self._show_about_dialog)
         layout.addWidget(self.btn_about)
 
+        # 8. 语言无缝即时切换下拉框 (中英双语，持久化保存至 AppData)
+        self.combo_lang = QComboBox()
+        self.combo_lang.setObjectName("comboLanguage")
+        self.combo_lang.addItem("🇨🇳 简体中文", LANG_ZH)
+        self.combo_lang.addItem("🇬🇧 English", LANG_EN)
+        self.combo_lang.setFixedWidth(106)
+        self.combo_lang.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.combo_lang.setToolTip("切换系统显示语言 / Switch Language (中文 / English)")
+        self.combo_lang.setStyleSheet("""
+            QComboBox {
+                background-color: #F8FAFC;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-size: 11px;
+                font-weight: 600;
+                color: #0F172A;
+            }
+            QComboBox:hover {
+                border-color: #0284C7;
+                background-color: #F0F9FF;
+            }
+        """)
+        idx = 1 if i18n.current_language == LANG_EN else 0
+        self.combo_lang.setCurrentIndex(idx)
+        self.combo_lang.currentIndexChanged.connect(self._on_language_selector_changed)
+        layout.addWidget(self.combo_lang)
+
         return bar
 
     def _refresh_license_status(self):
@@ -788,7 +1076,7 @@ class MainWindow(QMainWindow):
             if is_trial:
                 days_left = lic_data.get("days_left", 7)
                 exp_date = lic_data.get("exp_date", "")
-                self.btn_license.setText(f"⏱️ 7天试用 (剩 {days_left} 天)")
+                self.btn_license.setText(t("btn_license_trial", "⏱️ 试用期剩 {days} 天", days=days_left))
                 self.btn_license.setStyleSheet("""
                     QPushButton {
                         background-color: #F0F9FF;
@@ -813,7 +1101,7 @@ class MainWindow(QMainWindow):
             else:
                 lic_type = lic_data.get("type", "商业版") if lic_data else "商业版"
                 exp_date = lic_data.get("exp_date", "永久有效") if lic_data else "永久有效"
-                self.btn_license.setText(f"🛡️ 商业授权 ({lic_type})")
+                self.btn_license.setText(t("btn_license_commercial", "🛡️ 商业授权 ({type})", type=lic_type))
                 self.btn_license.setStyleSheet("""
                     QPushButton {
                         background-color: #ECFDF5;
@@ -832,7 +1120,7 @@ class MainWindow(QMainWindow):
                 self.btn_license.setToolTip(f"商业授权有效 | 类型: {lic_type}\n有效期至: {exp_date}\n点击可查看授权详情")
         else:
             is_trial_expired = lic_data.get("is_trial", False) if lic_data else False
-            btn_txt = "⚠️ 试用已到期" if is_trial_expired else "⚠️ 未激活 (点击激活)"
+            btn_txt = t("btn_license_expired", "⚠️ 试用已到期") if is_trial_expired else t("btn_license_unauthorized", "⚠️ 未激活 (点击激活)")
             self.btn_license.setText(btn_txt)
             self.btn_license.setStyleSheet("""
                 QPushButton {
@@ -1001,11 +1289,13 @@ class MainWindow(QMainWindow):
         grp_geo.setProperty("class", "CardFrame")
         layout_geo = QVBoxLayout(grp_geo)
         layout_geo.setSpacing(6)
-        lbl_geo = QLabel("▶ 线圈几何与排线参数")
+        self.lbl_geo = QLabel("▶ 线圈几何与排线参数")
+        lbl_geo = self.lbl_geo
         lbl_geo.setProperty("class", "SectionTitle")
         layout_geo.addWidget(lbl_geo)
 
-        lbl_type = QLabel("线圈拓扑类型:")
+        self.lbl_type = QLabel("线圈拓扑类型:")
+        lbl_type = self.lbl_type
         lbl_type.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 2px;")
         layout_geo.addWidget(lbl_type)
         self.combo_coil_type = QComboBox()
@@ -1027,7 +1317,8 @@ class MainWindow(QMainWindow):
         layout_oct = QVBoxLayout(self.w_oct_panel)
         layout_oct.setContentsMargins(0, 0, 0, 0)
         layout_oct.setSpacing(4)
-        lbl_oct_hint = QLabel("📐 图4规范: 4平直边 + 4斜边 + 8圆角 (配合四角三角磁钢)")
+        self.lbl_oct_hint = QLabel("📐 图4规范: 4平直边 + 4斜边 + 8圆角 (配合四角三角磁钢)")
+        lbl_oct_hint = self.lbl_oct_hint
         lbl_oct_hint.setStyleSheet("font-size: 10px; font-weight: 700; color: #0284C7; background: #F0F9FF; padding: 4px 6px; border-radius: 4px; border: 1px solid #BAE6FD;")
         layout_oct.addWidget(lbl_oct_hint)
 
@@ -1066,7 +1357,8 @@ class MainWindow(QMainWindow):
         layout_perim = QVBoxLayout(self.w_perim_panel)
         layout_perim.setContentsMargins(0, 0, 0, 0)
         layout_perim.setSpacing(4)
-        lbl_perim_hint = QLabel("📐 异形线圈周长推算: MLT = 展开内周长 + π × 绕组厚度")
+        self.lbl_perim_hint = QLabel("📐 异形线圈周长推算: MLT = 展开内周长 + π × 绕组厚度")
+        lbl_perim_hint = self.lbl_perim_hint
         lbl_perim_hint.setStyleSheet("font-size: 10px; font-weight: 700; color: #0D9488; background: #F0FDFA; padding: 4px 6px; border-radius: 4px; border: 1px solid #99F6E4;")
         layout_perim.addWidget(lbl_perim_hint)
 
@@ -1090,7 +1382,8 @@ class MainWindow(QMainWindow):
         layout_geo.addWidget(self.sb_radial_layers)
         layout_geo.addWidget(self.sb_axial_turns)
 
-        lbl_mode = QLabel("密排排法模式:")
+        self.lbl_mode = QLabel("密排排法模式:")
+        lbl_mode = self.lbl_mode
         lbl_mode.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
         layout_geo.addWidget(lbl_mode)
 
@@ -1129,7 +1422,8 @@ class MainWindow(QMainWindow):
         grp_wire.setProperty("class", "CardFrame")
         layout_wire = QVBoxLayout(grp_wire)
         layout_wire.setSpacing(6)
-        lbl_wire = QLabel("▶ 漆包线线材与张力")
+        self.lbl_wire = QLabel("▶ 漆包线线材与张力")
+        lbl_wire = self.lbl_wire
         lbl_wire.setProperty("class", "SectionTitle")
         layout_wire.addWidget(lbl_wire)
 
@@ -1141,7 +1435,8 @@ class MainWindow(QMainWindow):
         layout_wire.addWidget(self.sb_max_od)
         layout_wire.addWidget(self.sb_tension)
 
-        lbl_rho = QLabel("铜材电导等级:")
+        self.lbl_rho = QLabel("铜材电导等级:")
+        lbl_rho = self.lbl_rho
         lbl_rho.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
         layout_wire.addWidget(lbl_rho)
 
@@ -1165,11 +1460,13 @@ class MainWindow(QMainWindow):
         grp_thermal.setProperty("class", "CardFrame")
         layout_thermal = QVBoxLayout(grp_thermal)
         layout_thermal.setSpacing(6)
-        lbl_thermal = QLabel("▶ 工作环境与散热条件")
+        self.lbl_thermal = QLabel("▶ 工作环境与散热条件")
+        lbl_thermal = self.lbl_thermal
         lbl_thermal.setProperty("class", "SectionTitle")
         layout_thermal.addWidget(lbl_thermal)
 
-        lbl_env = QLabel("散热对流工况:")
+        self.lbl_env = QLabel("散热对流工况:")
+        lbl_env = self.lbl_env
         lbl_env.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 2px;")
         layout_thermal.addWidget(lbl_env)
 
@@ -1198,7 +1495,8 @@ class MainWindow(QMainWindow):
         self.grp_dfm.setProperty("class", "CardFrame")
         layout_dfm = QVBoxLayout(self.grp_dfm)
         layout_dfm.setSpacing(6)
-        lbl_dfm = QLabel("▶ 装配空间与公差约束 (DFM)")
+        self.lbl_dfm_title = QLabel("▶ 装配空间与公差约束 (DFM)")
+        lbl_dfm = self.lbl_dfm_title
         lbl_dfm.setProperty("class", "SectionTitle")
         layout_dfm.addWidget(lbl_dfm)
 
@@ -1221,7 +1519,8 @@ class MainWindow(QMainWindow):
         self.sb_limit_v = FloatSliderBox("驱动电压上限 (Max V)", "V", 0.5, 12.0, 2.80, 0.05)
 
         # 漆包线绝缘耐温等级快捷选择
-        lbl_temp_class = QLabel("漆包线耐温等级:")
+        self.lbl_temp_class = QLabel("漆包线耐温等级:")
+        lbl_temp_class = self.lbl_temp_class
         lbl_temp_class.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
         layout_dfm_panel.addWidget(lbl_temp_class)
 
@@ -1293,7 +1592,8 @@ class MainWindow(QMainWindow):
         layout_twin.setContentsMargins(8, 6, 8, 6)
         layout_twin.setSpacing(6)
 
-        lbl_twin_title = QLabel("▶ 仿真计算结果")
+        self.lbl_twin_title = QLabel("▶ 仿真计算结果")
+        lbl_twin_title = self.lbl_twin_title
         lbl_twin_title.setStyleSheet("font-size: 13px; font-weight: 700; color: #0284C7;")
         layout_twin.addWidget(lbl_twin_title)
 

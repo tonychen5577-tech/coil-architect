@@ -169,6 +169,12 @@ class FloatSliderBox(QWidget):
         self.slider.setToolTip(text)
         self.spin.setToolTip(text)
 
+    def setTitle(self, title: str):
+        self.lbl_title.setText(str(title))
+
+    def setUnit(self, unit: str):
+        self.lbl_unit.setText(str(unit))
+
     def _on_slider_changed(self, int_val: int):
         if self._block_signals:
             return
@@ -297,6 +303,12 @@ class IntSliderBox(QWidget):
         self.lbl_unit.setToolTip(text)
         self.slider.setToolTip(text)
         self.spin.setToolTip(text)
+
+    def setTitle(self, title: str):
+        self.lbl_title.setText(str(title))
+
+    def setUnit(self, unit: str):
+        self.lbl_unit.setText(str(unit))
 
     def _on_slider_changed(self, val: int):
         if self._block_signals:

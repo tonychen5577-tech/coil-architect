@@ -347,7 +347,9 @@ class ActivationDialog(QDialog):
 
         self.btn_subtab_wx.clicked.connect(lambda: switch_tab(0))
         self.btn_subtab_wa.clicked.connect(lambda: switch_tab(1))
-        switch_tab(0)
+        from src.core.i18n import i18n
+        default_tab = 1 if i18n.is_english() else 0
+        switch_tab(default_tab)
 
         # 底部支持支付方式声明
         lbl_pay_tips = QLabel("💳 支付通道: 微信支付 · 支付宝 · PayPal (International USD)")

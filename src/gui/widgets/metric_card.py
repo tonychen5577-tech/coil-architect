@@ -120,6 +120,13 @@ class MetricCard(QFrame):
         self.lbl_val.setToolTip("")
         self.lbl_unit.setToolTip("")
 
+    def setTitle(self, title: str):
+        self.lbl_title.setText(str(title))
+
+    def setUnit(self, unit: str):
+        self.unit = str(unit)
+        self.lbl_unit.setText(str(unit))
+
     def setValue(self, value_text: str):
         self.lbl_val.setText(str(value_text))
 
