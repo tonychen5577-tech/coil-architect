@@ -63,7 +63,7 @@ class SingleInstanceChecker:
                         buff = ctypes.create_unicode_buffer(length + 1)
                         user32.GetWindowTextW(hwnd, buff, length + 1)
                         title = buff.value
-                        if "Coil-Architect" in title or "电磁线圈多物理场仿真工作站" in title:
+                        if "Coil-Architect" in title or "微型线圈设计与电热仿真工作站" in title or "电磁线圈多物理场仿真工作站" in title:
                             found_hwnd.append(hwnd)
                             return False  # 停止枚举
                 return True

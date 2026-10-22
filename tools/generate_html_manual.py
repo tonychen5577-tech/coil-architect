@@ -560,7 +560,7 @@ def build_html_manual(
         </article>
 
         <div class="manual-footer">
-            <p><b>ANSV Coil-Architect Pro</b> · 电磁线圈多物理场仿真工作站</p>
+            <p><b>ANSV Coil-Architect Pro</b> · 微型线圈设计与电热仿真工作站</p>
             <p>官方技术支持网站: <a href="https://ansv.net" target="_blank">ansv.net</a> · 官方技术邮箱: support@ansv.net</p>
             <p style="margin-top: 6px; font-size: 11.5px; color: #94A3B8;">Copyright © 2026 ANSV Transmissions & Micro-Actuators Lab. All Rights Reserved.</p>
         </div>

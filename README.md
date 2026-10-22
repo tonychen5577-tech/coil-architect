@@ -1,6 +1,8 @@
 <div align="center">
 
-# ⚡ ANSV Coil-Architect Pro | 微型电磁线圈多物理场仿真工作站
+<img src="docs/images/ansv_logo.png" alt="ANSV Official Logo" width="128" />
+
+# ⚡ ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站
 ### 针对微型执行器、潜望马达 (VCM)、触觉振动 (LRA) 与精密电磁阀的专用线圈设计与 DFM 制造验证软件 (v1.1.0)
 
 [![Release](https://img.shields.io/badge/Release-v1.1.0-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)

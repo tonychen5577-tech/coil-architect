@@ -26,6 +26,7 @@ from .widgets.coil_canvas import CoilDualCanvasWidget
 from .widgets.comparison_drawer import ComparisonDrawer, SchemeSnapshot
 from .utils import atomic_write_json, atomic_write_text
 from .about_dialog import AboutDialog
+from src.gui.icon_helper import get_ansv_logo_pixmap
 from src.core.ota_updater import OtaUpdater, OtaChecker
 from src.version import APP_NAME, APP_TITLE, APP_VERSION, APP_BUILD, APP_AUTHOR, OFFICIAL_URL, COPYRIGHT_TEXT, CORE_ENGINE_AUTHOR
 from src.utils.logger import get_logger
@@ -638,19 +639,40 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(6)
 
-        # 1. Logo / 标题垂直紧凑排列 (高度压缩，横向锁死 160px，彻底释放顶部横向空间)
+        # 1. 40px ANSV 纯净官方科技圆环 Logo (透明底平滑缩放，无多余边框)
+        lbl_logo = QLabel()
+        lbl_logo.setObjectName("lblTopToolbarAnsvLogo")
+        lbl_logo.setPixmap(get_ansv_logo_pixmap(40))
+        lbl_logo.setFixedSize(40, 40)
+        lbl_logo.setStyleSheet("background: transparent; border: none;")
+        layout.addWidget(lbl_logo)
+
+        # 2. 标题区 (第一行: ANSV 英文首字母加粗天蓝高亮解码；第二行: ANSV 官方中文全称)
         title_box = QVBoxLayout()
-        title_box.setSpacing(1)
+        title_box.setSpacing(2)
         title_box.setContentsMargins(0, 0, 0, 0)
-        lbl_brand = QLabel("🌀 Coil-Architect Pro")
-        lbl_brand.setStyleSheet("font-size: 14px; font-weight: 800; color: #0284C7; line-height: 1.1;")
-        lbl_sub = QLabel("精密线圈多物理场仿真工作站")
-        lbl_sub.setStyleSheet("font-size: 10px; font-weight: 600; color: #64748B; line-height: 1.1;")
+
+        lbl_brand = QLabel()
+        lbl_brand.setObjectName("lblTopToolbarBrand")
+        lbl_brand.setTextFormat(Qt.TextFormat.RichText)
+        lbl_brand.setText(
+            "<span style='color:#0284C7; font-weight:900; font-size:13px;'>A</span><span style='color:#475569; font-weight:600; font-size:11px;'>ctuator </span>"
+            "<span style='color:#0284C7; font-weight:900; font-size:13px;'>N</span><span style='color:#475569; font-weight:600; font-size:11px;'>umerical </span>"
+            "<span style='color:#0284C7; font-weight:900; font-size:13px;'>S</span><span style='color:#475569; font-weight:600; font-size:11px;'>imulation </span>"
+            "<span style='color:#94A3B8; font-weight:600; font-size:11px;'>&amp; </span>"
+            "<span style='color:#0284C7; font-weight:900; font-size:13px;'>V</span><span style='color:#475569; font-weight:600; font-size:11px;'>alidation</span>"
+        )
+        lbl_brand.setStyleSheet("line-height: 1.1; background: transparent; border: none;")
+
+        lbl_sub = QLabel("微型执行器与精密传动仿真验证平台")
+        lbl_sub.setObjectName("lblTopToolbarSub")
+        lbl_sub.setStyleSheet("font-size: 10px; font-weight: 600; color: #64748B; line-height: 1.1; background: transparent; border: none;")
+
         title_box.addWidget(lbl_brand)
         title_box.addWidget(lbl_sub)
         layout.addLayout(title_box)
 
-        layout.addSpacing(6)
+        layout.addSpacing(10)
 
         # 2. 项目名称输入区 (锁死尺寸，防止横向拉伸挤占按钮空间)
         lbl_proj = QLabel("🏷️ 项目:")

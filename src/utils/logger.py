@@ -257,7 +257,7 @@ def export_diagnostic_bundle(target_dir: Optional[Path] = None) -> Path:
             f"ANSV Coil-Architect Pro 诊断体检报告包 (生成时间: {fingerprint.get('timestamp')})",
             "=" * 72,
             f"平台全称: ANSV 微型执行器与精密传动仿真验证平台",
-            f"软件模块: Coil-Architect Pro 电磁线圈多物理场仿真工作站",
+            f"软件模块: ANSV Coil-Architect Pro 微型线圈设计与电热仿真工作站",
             f"软件版本: v{fingerprint.get('app_version', '-')} (Build {fingerprint.get('app_build', '-')})",
             f"Git指纹:  {fingerprint.get('git_commit', '-')} (构建于: {fingerprint.get('build_time', '-')})",
             f"机器代码: {fingerprint.get('machine_id', '-')}",

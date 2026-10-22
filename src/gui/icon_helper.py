@@ -97,6 +97,45 @@ def get_app_icon_pixmap(size: int = 48) -> QPixmap:
     icon = get_app_icon()
     return icon.pixmap(size, size)
 
+def get_ansv_logo_path() -> Path:
+    """寻找 ANSV 官方品牌徽标路径 (多级智能探测)"""
+    candidates = []
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        meipass = Path(sys._MEIPASS)
+        candidates.extend([
+            meipass / "resources" / "ansv_logo.png",
+            meipass / "ansv_logo.png"
+        ])
+    root_dir = Path(__file__).resolve().parent.parent.parent
+    candidates.extend([
+        root_dir / "resources" / "ansv_logo.png",
+        root_dir / "docs" / "images" / "ansv_logo.png"
+    ])
+    cwd = Path.cwd()
+    candidates.extend([
+        cwd / "resources" / "ansv_logo.png",
+        cwd / "docs" / "images" / "ansv_logo.png"
+    ])
+    for p in candidates:
+        if p.exists():
+            return p
+    return candidates[0] if candidates else Path("resources/ansv_logo.png")
+
+
+def get_ansv_logo_pixmap(size: int = 40) -> QPixmap:
+    """获取指定尺寸的高清 ANSV 官方品牌徽标 QPixmap (高质量平滑缩放)"""
+    path = get_ansv_logo_path()
+    if path.exists():
+        pix = QPixmap(str(path))
+        if not pix.isNull():
+            return pix.scaled(
+                size, size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+    return get_app_icon_pixmap(size)
+
+
 
 def set_windows_app_user_model_id(app_id: str = "ansv.net.coilarchitect.station.1.1"):
     """

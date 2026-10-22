@@ -30,7 +30,7 @@ from src.version import (
     WECHAT_CONTACT_ID, WHATSAPP_CONTACT_ID, CORE_ENGINE_AUTHOR, get_git_commit
 )
 from src.core.license_manager import get_machine_code, get_mac_address, get_station_info
-from src.gui.icon_helper import get_app_icon, get_app_icon_pixmap
+from src.gui.icon_helper import get_app_icon, get_app_icon_pixmap, get_ansv_logo_pixmap
 from src.gui.utils import adapt_dialog_geometry
 
 
@@ -90,7 +90,7 @@ class AboutDialog(QDialog):
         header_layout.setSpacing(12)
 
         icon_label = QLabel()
-        icon_pm = get_app_icon_pixmap(46)
+        icon_pm = get_ansv_logo_pixmap(52)
         if not icon_pm.isNull():
             icon_label.setPixmap(icon_pm)
         header_layout.addWidget(icon_label)
@@ -118,7 +118,7 @@ class AboutDialog(QDialog):
         row_t1.addStretch()
         title_vbox.addLayout(row_t1)
 
-        lbl_desc = QLabel(f"{PLATFORM_NAME_EN} | 电磁线圈多物理场仿真工作站 ({APP_NAME})")
+        lbl_desc = QLabel(f"{PLATFORM_NAME_EN} | 微型线圈设计与电热仿真工作站 ({APP_NAME})")
         lbl_desc.setStyleSheet("color: #64748B; font-size: 11px; font-weight: 500;")
         title_vbox.addWidget(lbl_desc)
 
@@ -449,7 +449,7 @@ class AboutDialog(QDialog):
         right_layout.addLayout(make_row("软件系统:", PLATFORM_NAME, is_bold=True))
 
         # 2. 软件模块
-        right_layout.addLayout(make_row("工作站模块:", f"{APP_NAME} | 电磁线圈仿真"))
+        right_layout.addLayout(make_row("工作站模块:", f"{APP_NAME} | 微型线圈设计与电热仿真"))
 
         # 3. 软件版本 (含 Git Hash)
         git_hash = get_git_commit()
