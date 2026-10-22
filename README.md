@@ -1,5 +1,11 @@
 <div align="center">
 
+<p align="right">
+  <b>Language:</b>
+  <a href="README.md"><b>🇨🇳 简体中文</b></a> |
+  <a href="README_EN.md">🇬🇧 English</a>
+</p>
+
 <img src="docs/images/ansv_logo.png" alt="ANSV Official Logo" width="128" />
 
 # ⚡ ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站
@@ -110,8 +116,6 @@
   <br>
   <em>图 4：多方案横向比对与工程评审矩阵（独立大窗模式 · 固化方案参数锁定 · 基准偏差对比与一键参数还原）</em>
 </p>
-
----
 
 ---
 

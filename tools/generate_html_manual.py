@@ -591,5 +591,33 @@ def build_html_manual(
     return output_html_paths[0]
 
 
+def build_all_manuals():
+    """编译中文与英文全套离线说明书"""
+    print("====================================================================")
+    print("  [1/2] 正在编译中文说明书: README.md -> Coil-Architect-Pro_使用说明书.html")
+    print("====================================================================")
+    build_html_manual(
+        ROOT_DIR / "README.md",
+        [
+            ROOT_DIR / "docs" / "Coil-Architect-Pro_使用说明书.html",
+            ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_使用说明书.html",
+            ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README.html",
+        ]
+    )
+    if (ROOT_DIR / "README_EN.md").exists():
+        print("\n====================================================================")
+        print("  [2/2] 正在编译英文说明书: README_EN.md -> Coil-Architect-Pro_User_Manual.html")
+        print("====================================================================")
+        build_html_manual(
+            ROOT_DIR / "README_EN.md",
+            [
+                ROOT_DIR / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_User_Manual.html",
+                ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README_EN.html",
+            ]
+        )
+
+
 if __name__ == "__main__":
-    build_html_manual()
+    build_all_manuals()
+

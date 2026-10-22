@@ -857,24 +857,40 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _open_user_manual(self):
-        """打开离线 HTML 用户使用说明书"""
+        """根据当前语言环境打开对应语言的离线 HTML 用户使用说明书"""
         import sys
         from PyQt6.QtGui import QDesktopServices
         from PyQt6.QtCore import QUrl
         app_dir = Path(__file__).resolve().parent.parent.parent
-        candidates = [
-            app_dir / "Coil-Architect-Pro_使用说明书.html",
-            app_dir / "README.html",
-            app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
-            Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
-            Path(sys.executable).parent / "README.html",
-            Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
-        ]
+        is_en = i18n.is_english() if "i18n" in globals() else False
+        if is_en:
+            candidates = [
+                app_dir / "Coil-Architect-Pro_User_Manual.html",
+                app_dir / "README_EN.html",
+                app_dir / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                Path(sys.executable).parent / "Coil-Architect-Pro_User_Manual.html",
+                Path(sys.executable).parent / "README_EN.html",
+                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                app_dir / "Coil-Architect-Pro_使用说明书.html",
+                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
+            ]
+            fallback_url = "https://github.com/tonychen5577-tech/coil-architect/blob/main/README_EN.md"
+        else:
+            candidates = [
+                app_dir / "Coil-Architect-Pro_使用说明书.html",
+                app_dir / "README.html",
+                app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
+                Path(sys.executable).parent / "README.html",
+                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
+            ]
+            fallback_url = "https://github.com/tonychen5577-tech/coil-architect"
+
         for p in candidates:
             if p.exists():
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
                 return
-        QDesktopServices.openUrl(QUrl("https://github.com/tonychen5577-tech/coil-architect"))
+        QDesktopServices.openUrl(QUrl(fallback_url))
 
     def _show_about_dialog(self):
         """弹出 16:9 工业标准关于系统对话框"""

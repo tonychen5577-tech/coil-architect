@@ -732,7 +732,8 @@ class AboutDialog(QDialog):
         row2_layout.addStretch()
 
         # 主控按钮 1: 📖 使用说明书 (高亮主推，宽度充裕)
-        btn_manual = QPushButton("📖 使用说明书")
+        from src.core.i18n import i18n, t
+        btn_manual = QPushButton(t("about_btn_manual", "📖 使用说明书"))
         btn_manual.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_manual.setToolTip("在默认浏览器中打开本软件专属离线 HTML 用户手册与工程指南 (快捷键: F1)")
         btn_manual.setStyleSheet("""
@@ -889,24 +890,41 @@ class AboutDialog(QDialog):
         open_cloud_config_dialog(self)
 
     def _on_open_manual_clicked(self):
-        """一键在默认浏览器打开本地 HTML 用户说明书"""
+        """一键在默认浏览器打开对应语言的本地 HTML 用户说明书"""
         import sys
         from PyQt6.QtGui import QDesktopServices
         from PyQt6.QtCore import QUrl
+        from src.core.i18n import i18n
         app_dir = Path(__file__).resolve().parent.parent.parent
-        candidates = [
-            app_dir / "Coil-Architect-Pro_使用说明书.html",
-            app_dir / "README.html",
-            app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
-            Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
-            Path(sys.executable).parent / "README.html",
-            Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
-        ]
+        is_en = i18n.is_english()
+        if is_en:
+            candidates = [
+                app_dir / "Coil-Architect-Pro_User_Manual.html",
+                app_dir / "README_EN.html",
+                app_dir / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                Path(sys.executable).parent / "Coil-Architect-Pro_User_Manual.html",
+                Path(sys.executable).parent / "README_EN.html",
+                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                app_dir / "Coil-Architect-Pro_使用说明书.html",
+                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
+            ]
+            fallback_url = "https://github.com/tonychen5577-tech/coil-architect/blob/main/README_EN.md"
+        else:
+            candidates = [
+                app_dir / "Coil-Architect-Pro_使用说明书.html",
+                app_dir / "README.html",
+                app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
+                Path(sys.executable).parent / "README.html",
+                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
+            ]
+            fallback_url = "https://github.com/tonychen5577-tech/coil-architect"
+
         for p in candidates:
             if p.exists():
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(p.resolve())))
                 return
-        QDesktopServices.openUrl(QUrl("https://github.com/tonychen5577-tech/coil-architect"))
+        QDesktopServices.openUrl(QUrl(fallback_url))
 
     def _on_check_update_clicked(self):
         """唤起检查更新与 Git 版本提交记录窗口"""

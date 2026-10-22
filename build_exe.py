@@ -255,18 +255,11 @@ def step4_security_audit_and_zip() -> Path:
         print("  ✓ [PASSED] 核心物理求解器、几何排布与商业授权核心 100% 为原生 C 机器码 (.pyd)！")
         print("  ✓ [PASSED] 无任何核心 .py 裸源码，彻底免疫 uncompyle6 / pycdc 等字节码逆向工具！")
 
-    # 4.1 制作并编译 GitHub README 为独立离线 HTML 说明书
-    print("\n[Manual] 正在编译 GitHub README 为独立离线 HTML 说明书...")
+    # 4.1 制作并编译 GitHub README 为独立离线中英双语 HTML 说明书
+    print("\n[Manual] 正在编译 GitHub README 为独立离线中英双语 HTML 说明书...")
     try:
-        from tools.generate_html_manual import build_html_manual
-        build_html_manual(
-            ROOT_DIR / "README.md",
-            [
-                app_dir / "Coil-Architect-Pro_使用说明书.html",
-                app_dir / "README.html",
-                ROOT_DIR / "docs" / "Coil-Architect-Pro_使用说明书.html",
-            ]
-        )
+        from tools.generate_html_manual import build_all_manuals
+        build_all_manuals()
     except Exception as e:
         print(f"  ⚠️  [Warn] HTML 说明书编译失败: {e}")
 
