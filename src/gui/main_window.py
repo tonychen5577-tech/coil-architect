@@ -496,9 +496,17 @@ class MainWindow(QMainWindow):
         if hasattr(self, "comparison_drawer") and hasattr(self.comparison_drawer, "retranslate_ui"):
             self.comparison_drawer.retranslate_ui()
 
-        # 6. 状态栏刷新
+        # 6. 状态栏与云端指示灯刷新
+        if hasattr(self, "_refresh_cloud_status_ui"):
+            self._refresh_cloud_status_ui()
         if hasattr(self, "status_bar"):
             self.status_bar.showMessage(t("status_ready", "就绪 | 双核物理引擎待命"))
+
+        # 7. 重新触发当前拓扑动态标签与仿真计算 (确保 KPI 卡片标题与动态限值标签 100% 同步到当前语言)
+        if hasattr(self, "combo_coil_type"):
+            self._on_coil_type_changed(self.combo_coil_type.currentIndex())
+        else:
+            self.run_simulation()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -620,27 +628,11 @@ class MainWindow(QMainWindow):
     def _setup_statusbar_copyright(self):
         """配置右下角三行常驻版权信息与云端实时状态 (规范 04.二)"""
         # 授权服务器在线状态指示与快捷检测按钮
-        self.btn_cloud_status = QPushButton("⏳ 授权服务器连接中...")
-        self.btn_cloud_status.setStyleSheet("""
-            QPushButton {
-                background-color: #F8FAFC;
-                color: #64748B;
-                border: 1px solid #CBD5E1;
-                border-radius: 4px;
-                padding: 3px 10px;
-                font-size: 11px;
-                font-weight: 600;
-                margin-right: 14px;
-            }
-            QPushButton:hover {
-                background-color: #F1F5F9;
-                color: #0284C7;
-                border-color: #0284C7;
-            }
-        """)
-        self.btn_cloud_status.setToolTip("点击立即检测授权服务器连通性与最新商业状态")
+        self._last_cloud_state = None  # None = connecting, or (ok, msg, target)
+        self.btn_cloud_status = QPushButton()
         self.btn_cloud_status.clicked.connect(self._on_cloud_status_clicked)
         self.status_bar.addPermanentWidget(self.btn_cloud_status)
+        self._refresh_cloud_status_ui()
 
         copyright_widget = QWidget()
         copy_layout = QVBoxLayout(copyright_widget)
@@ -666,13 +658,42 @@ class MainWindow(QMainWindow):
 
         self.status_bar.addPermanentWidget(copyright_widget)
 
-    def _on_cloud_status_received(self, ok: bool, msg: str, target: str):
-        """线程安全槽：刷新状态栏授权服务器连接状态"""
+    def _refresh_cloud_status_ui(self):
+        """根据当前语言与最近一次云端心跳状态刷新右下角状态指示灯"""
         if not hasattr(self, "btn_cloud_status"):
             return
+        is_en = i18n.is_english()
+        state = getattr(self, "_last_cloud_state", None)
+        if state is None:
+            self.btn_cloud_status.setText("⏳ Connecting License Server..." if is_en else "⏳ 授权服务器连接中...")
+            self.btn_cloud_status.setStyleSheet("""
+                QPushButton {
+                    background-color: #F8FAFC;
+                    color: #64748B;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 4px;
+                    padding: 3px 10px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    margin-right: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #F1F5F9;
+                    color: #0284C7;
+                    border-color: #0284C7;
+                }
+            """)
+            self.btn_cloud_status.setToolTip(
+                "Click to diagnose license server connectivity & commercial status"
+                if is_en else
+                "点击立即检测授权服务器连通性与最新商业状态"
+            )
+            return
+
+        ok, msg, target = state
         if ok:
             domain = target.replace("https://", "").replace("http://", "")
-            self.btn_cloud_status.setText("🟢 授权服务器已连接")
+            self.btn_cloud_status.setText("🟢 License Server Connected" if is_en else "🟢 授权服务器已连接")
             self.btn_cloud_status.setStyleSheet("""
                 QPushButton {
                     background-color: #ECFDF5;
@@ -689,13 +710,18 @@ class MainWindow(QMainWindow):
                 }
             """)
             self.btn_cloud_status.setToolTip(
+                f"Connected to Official License Center: {domain}\n"
+                "✓ 100% of coil simulation data remains strictly on your local workstation.\n"
+                "✓ Only performs license verification & OTA checks (every 30 mins).\n"
+                "Click to open Network & Database Diagnostics (Ctrl+D)."
+                if is_en else
                 f"已连接至官方授权中心: {domain}\n"
                 "✓ 本工位机线圈物理仿真设计数据 100% 留存在本地，绝不上云。\n"
                 "✓ 仅执行商业授权校验与版本检测 (每 30 分钟心跳一次)。\n"
                 "点击可打开数据库通信与网络诊断中心 (Ctrl+D)。"
             )
         else:
-            self.btn_cloud_status.setText("⚪ 数据库未连通 (点击诊断)")
+            self.btn_cloud_status.setText("⚪ Server Offline (Diagnose)" if is_en else "⚪ 数据库未连通 (点击诊断)")
             self.btn_cloud_status.setStyleSheet("""
                 QPushButton {
                     background-color: #FEF2F2;
@@ -713,9 +739,18 @@ class MainWindow(QMainWindow):
             """)
             self.btn_cloud_status.setToolTip(
                 f"{msg}\n"
+                "Database connection is currently offline in this network environment.\n"
+                "Click to open Network & Environment Diagnostics (Shortcut: Ctrl+D)."
+                if is_en else
+                f"{msg}\n"
                 "当前内网环境下数据库未建立连接。\n"
                 "点击立即打开数据库通信与环境诊断中心 (快捷键: Ctrl+D)。"
             )
+
+    def _on_cloud_status_received(self, ok: bool, msg: str, target: str):
+        """线程安全槽：刷新状态栏授权服务器连接状态"""
+        self._last_cloud_state = (ok, msg, target)
+        self._refresh_cloud_status_ui()
 
     def _on_cloud_status_clicked(self):
         """点击底部授权状态指示按钮打开网络通信与环境诊断中心"""
@@ -1785,7 +1820,7 @@ class MainWindow(QMainWindow):
 
             if hasattr(self, "lbl_oct_derived"):
                 self.lbl_oct_derived.setText(
-                    f"📐 闭式几何推导参考尺寸: 平直长 L1 = {calc_l1:.2f} mm  |  斜边长 L2 = {calc_l2:.2f} mm"
+                    t("lbl_oct_derived", "📐 几何推导尺寸: 平直长 L1 = {l1:.2f} mm  |  斜边长 L2 = {l2:.2f} mm", l1=calc_l1, l2=calc_l2)
                 )
 
             # 几何与装配空间联动：当八角形内径增大时，自动延展外廓 DFM 空间限值
@@ -1821,22 +1856,23 @@ class MainWindow(QMainWindow):
         self.sb_inner_len.setVisible(is_std)
         self.sb_inner_wid.setVisible(is_std)
 
+        is_en = i18n.is_english()
         if coil_type == CoilType.CIRCULAR:
-            self.sb_inner_len.lbl_title.setText("线圈内径 (Inner Dia ID)")
-            self.sb_inner_wid.lbl_title.setText("线圈内宽 (圆线圈锁定为内径)")
+            self.sb_inner_len.lbl_title.setText("Inner Diameter (ID)" if is_en else "线圈内径 (Inner Dia ID)")
+            self.sb_inner_wid.lbl_title.setText("Inner Width (= ID)" if is_en else "线圈内宽 (圆线圈锁定为内径)")
             self.sb_inner_wid.setEnabled(False)
             self.sb_inner_wid.setValue(self.sb_inner_len.value())
-            self.sb_limit_x.lbl_title.setText("外径结构空间上限 (Max OD)")
-            self.sb_limit_y.lbl_title.setText("Y 空间上限 (圆线圈等同X向)")
+            self.sb_limit_x.lbl_title.setText("Max Outer Dia (Max OD)" if is_en else "外径结构空间上限 (Max OD)")
+            self.sb_limit_y.lbl_title.setText("Y Limit (= Max OD)" if is_en else "Y 空间上限 (圆线圈等同X向)")
             self.sb_limit_y.setEnabled(False)
             self.sb_limit_z.setEnabled(True)
-            self.sb_limit_z.lbl_title.setText("Z 向装配限高上限 (Max Z)")
+            self.sb_limit_z.lbl_title.setText(t("lbl_limit_z", "Z向装配限高 (Max H)"))
         elif coil_type == CoilType.OCTAGONAL:
-            self.sb_limit_x.lbl_title.setText("X/对边外形空间上限 (Max X/OD1)")
-            self.sb_limit_y.lbl_title.setText("Y/对角外形空间上限 (Max Y/OD2)")
+            self.sb_limit_x.lbl_title.setText("Max Flat Width (Max OD1)" if is_en else "X/对边外形空间上限 (Max X/OD1)")
+            self.sb_limit_y.lbl_title.setText("Max Diag Width (Max OD2)" if is_en else "Y/对角外形空间上限 (Max Y/OD2)")
             self.sb_limit_y.setEnabled(True)
             self.sb_limit_z.setEnabled(True)
-            self.sb_limit_z.lbl_title.setText("Z 向装配限高上限 (Max Z)")
+            self.sb_limit_z.lbl_title.setText(t("lbl_limit_z", "Z向装配限高 (Max H)"))
             # 自动根据 ID1/ID2 预设合理的 VCM 模组空间上限 (通常 9.5~10.5 mm)
             if hasattr(self, "sb_oct_id1"):
                 id1_v = self.sb_oct_id1.value()
@@ -1847,23 +1883,23 @@ class MainWindow(QMainWindow):
                 if self.sb_limit_y.value() < req_lim:
                     self.sb_limit_y.setValue(req_lim)
         elif coil_type == CoilType.ARBITRARY_PERIMETER:
-            self.sb_limit_x.lbl_title.setText("X 向参考装配上限 (Max X)")
-            self.sb_limit_y.lbl_title.setText("Y 向参考装配上限 (Max Y)")
+            self.sb_limit_x.lbl_title.setText("Ref Max X Limit" if is_en else "X 向参考装配上限 (Max X)")
+            self.sb_limit_y.lbl_title.setText("Ref Max Y Limit" if is_en else "Y 向参考装配上限 (Max Y)")
             self.sb_limit_y.setEnabled(True)
             self.sb_limit_z.setEnabled(True)
-            self.sb_limit_z.lbl_title.setText("Z 向装配限高上限 (Max Z)")
+            self.sb_limit_z.lbl_title.setText(t("lbl_limit_z", "Z向装配限高 (Max H)"))
             if hasattr(self, "sb_perim_outer_len") and self.sb_limit_x.value() < self.sb_perim_outer_len.value() + 1.0:
                 self.sb_limit_x.setValue(max(9.00, round(self.sb_perim_outer_len.value() + 2.0, 2)))
                 self.sb_limit_y.setValue(max(8.00, round(self.sb_perim_outer_wid.value() + 2.0, 2)))
         else:
-            self.sb_inner_len.lbl_title.setText("线圈内长 (Inner_Len)")
-            self.sb_inner_wid.lbl_title.setText("线圈内宽 (Inner_Wid)")
+            self.sb_inner_len.lbl_title.setText(t("lbl_inner_length", "线圈内长 (IL)"))
+            self.sb_inner_wid.lbl_title.setText(t("lbl_inner_width", "线圈内宽 (IW)"))
             self.sb_inner_wid.setEnabled(True)
-            self.sb_limit_x.lbl_title.setText("X 向结构空间上限 (Max X)")
-            self.sb_limit_y.lbl_title.setText("Y 向结构空间上限 (Max Y)")
+            self.sb_limit_x.lbl_title.setText(t("lbl_limit_x", "X向装配限值 (Max L)"))
+            self.sb_limit_y.lbl_title.setText(t("lbl_limit_y", "Y向装配限值 (Max W)"))
             self.sb_limit_y.setEnabled(True)
             self.sb_limit_z.setEnabled(True)
-            self.sb_limit_z.lbl_title.setText("Z 向装配限高上限 (Max Z)")
+            self.sb_limit_z.lbl_title.setText(t("lbl_limit_z", "Z向装配限高 (Max H)"))
             # 跑道型防呆：内长必须 >= 内宽
             if self.sb_inner_wid.value() > self.sb_inner_len.value():
                 self.sb_inner_len.setValue(self.sb_inner_wid.value())
@@ -1990,36 +2026,37 @@ class MainWindow(QMainWindow):
             self.outputs = CoilPhysicsEngine.calculate(self.inputs)
 
             # 1. 刷新 16 宫格 KPI 卡片
+            is_en = i18n.is_english()
             is_circular = (self.inputs.coil_type == CoilType.CIRCULAR)
             is_oct = (self.inputs.coil_type == CoilType.OCTAGONAL)
             is_perim = (self.inputs.coil_type == CoilType.ARBITRARY_PERIMETER)
 
             if is_circular:
-                self.card_ol.lbl_title.setText("线圈外径 (OD)")
+                self.card_ol.lbl_title.setText("Outer Dia (OD)" if is_en else "线圈外径 (OD)")
                 self.card_ol.setValue(f"{self.outputs.outer_len:.3f}")
-                self.card_ow.lbl_title.setText("平均中径 (MD)")
+                self.card_ow.lbl_title.setText("Mean Dia (MD)" if is_en else "平均中径 (MD)")
                 self.card_ow.setValue(f"{self.outputs.mean_dia_mm:.3f}")
             elif is_oct:
-                self.card_ol.lbl_title.setText("对边外宽 OD1")
+                self.card_ol.lbl_title.setText("Flat Width (OD1)" if is_en else "对边外宽 OD1")
                 self.card_ol.setValue(f"{self.outputs.oct_od1:.3f}")
-                self.card_ow.lbl_title.setText("对角外宽 OD2")
+                self.card_ow.lbl_title.setText("Diag Width (OD2)" if is_en else "对角外宽 OD2")
                 self.card_ow.setValue(f"{self.outputs.oct_od2:.3f}")
             elif is_perim:
-                self.card_ol.lbl_title.setText("参考外长 (L)")
+                self.card_ol.lbl_title.setText("Ref Outer Len (L)" if is_en else "参考外长 (L)")
                 self.card_ol.setValue(f"{self.outputs.outer_len:.3f}")
-                self.card_ow.lbl_title.setText("展开内周长")
+                self.card_ow.lbl_title.setText("Inner Perim (Cin)" if is_en else "展开内周长")
                 self.card_ow.setValue(f"{self.outputs.c_inner_mm:.2f}")
             else:
-                self.card_ol.lbl_title.setText("外廓长度 (L)")
+                self.card_ol.lbl_title.setText(t("metric_outer_len", "外廓长度 (L)"))
                 self.card_ol.setValue(f"{self.outputs.outer_len:.3f}")
-                self.card_ow.lbl_title.setText("外廓宽度 (W)")
+                self.card_ow.lbl_title.setText(t("metric_outer_width", "外廓宽度 (W)"))
                 self.card_ow.setValue(f"{self.outputs.outer_wid:.3f}")
 
             if self.outputs.is_mold_clamped:
-                self.card_thk.lbl_title.setText("模压厚度 (H)")
+                self.card_thk.lbl_title.setText("Clamped Height (H)" if is_en else "模压厚度 (H)")
                 self.card_thk.setValue(f"{self.outputs.thickness_h:.3f}")
             else:
-                self.card_thk.lbl_title.setText("线圈厚度 (H)")
+                self.card_thk.lbl_title.setText(t("metric_coil_height", "线圈厚度 (H)"))
                 self.card_thk.setValue(f"{self.outputs.thickness_h:.3f}")
 
             # 动态更新模具压实厚度下限极限与安全提示
@@ -2030,13 +2067,19 @@ class MainWindow(QMainWindow):
                     self.sb_mold_height.min_val = h_min
                     self.sb_mold_height.slider.setMinimum(int(round(h_min * self.sb_mold_height.scale)))
                     self.sb_mold_height.spin.setMinimum(h_min)
-                self.sb_mold_height.lbl_title.setText(f"模具压实厚度 (≥{h_safe:.2f}mm)")
+                self.sb_mold_height.lbl_title.setText(
+                    f"Die-Press Thk (≥{h_safe:.2f}mm)" if is_en else f"模具压实厚度 (≥{h_safe:.2f}mm)"
+                )
 
             self.card_n.setValue(str(self.outputs.total_turns))
 
             # 20℃冷态电阻 (米阻展示于 Tooltip，标题极简纯粹)
-            self.card_r20.lbl_title.setText("20℃直流电阻")
-            self.card_r20.setToolTip(f"【20℃直流电阻】\n当前阻值: {self.outputs.r20:.3f} Ω\n标称米阻: {self.outputs.rho_per_meter:.3f} Ω/m\n线圈线长: {self.outputs.total_wire_len_m:.3f} m")
+            self.card_r20.lbl_title.setText(t("metric_dcr_20", "20℃直流电阻"))
+            self.card_r20.setToolTip(
+                f"[DC Resistance @20℃]\nCurrent R20: {self.outputs.r20:.3f} Ω\nSpecific Res: {self.outputs.rho_per_meter:.3f} Ω/m\nTotal Wire Length: {self.outputs.total_wire_len_m:.3f} m"
+                if is_en else
+                f"【20℃直流电阻】\n当前阻值: {self.outputs.r20:.3f} Ω\n标称米阻: {self.outputs.rho_per_meter:.3f} Ω/m\n线圈线长: {self.outputs.total_wire_len_m:.3f} m"
+            )
             self.card_r20.setValue(f"{self.outputs.r20:.3f}")
             self.card_r_init.setValue(f"{self.outputs.r_init:.3f}")
             self.card_dcr_hot.setValue(f"{self.outputs.dcr_hot:.3f}")

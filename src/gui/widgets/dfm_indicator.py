@@ -1,11 +1,12 @@
 """
 Coil-Architect Pro - DFM Status Indicator Widget
-DFM 结构空间与电气安全卡控芯片条 (交通灯红绿状态联动)
+DFM 结构空间与电气安全卡控芯片条 (交通灯红绿状态联动 · 中英双语自适应)
 """
 
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QSizePolicy
 from ...core.models import DFMCheckResult
+from src.core.i18n import i18n, t
 
 
 class DFMChip(QFrame):
@@ -19,7 +20,7 @@ class DFMChip(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setMinimumWidth(0)
         self.setFixedHeight(28)
-        
+
         self.setStyleSheet("""
             #DFMChip {
                 background-color: #F8FAFC;
@@ -55,6 +56,7 @@ class DFMChip(QFrame):
         layout.addStretch()  # 弹性空间置于最右侧，确保左侧图文紧凑左对齐
 
     def setStatus(self, passed: bool, curr_val: float, limit_val: float, unit: str, enabled: bool = True):
+        is_en = i18n.is_english()
         val_str = f"{curr_val:.3f}" if unit == "mm" else f"{curr_val:.2f}"
         if not enabled:
             self.dot.setText("○")
@@ -71,9 +73,13 @@ class DFMChip(QFrame):
                     padding: 0px;
                 }
             """)
-            self.lbl_text.setText(f"{self.name}: {val_str}{unit} (参考{limit_val:.2f})")
+            if is_en:
+                self.lbl_text.setText(f"{self.name}: {val_str}{unit} (Ref {limit_val:.2f})")
+                self.setToolTip(f"[{self.name}]\nCurrent: {curr_val:.3f} {unit}\nReference Limit: {limit_val:.2f} {unit}\nStatus: Free Design Mode (DFM Limits Off)")
+            else:
+                self.lbl_text.setText(f"{self.name}: {val_str}{unit} (参考{limit_val:.2f})")
+                self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n参考空间: {limit_val:.2f} {unit}\n状态: 自由设计模式 (DFM 卡限未开启)")
             self.lbl_text.setStyleSheet("font-size: 10px; font-weight: 500; color: #64748B; background: transparent; border: none;")
-            self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n参考空间: {limit_val:.2f} {unit}\n状态: 自由设计模式 (DFM 卡限未开启)")
         elif passed:
             self.dot.setText("●")
             self.dot.setStyleSheet("color: #059669; font-size: 11px; background: transparent; border: none;")
@@ -91,7 +97,10 @@ class DFMChip(QFrame):
             """)
             self.lbl_text.setText(f"{self.name}: {val_str}{unit} (≤{limit_val:.2f})")
             self.lbl_text.setStyleSheet("font-size: 10px; font-weight: 600; color: #166534; background: transparent; border: none;")
-            self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n装配上限: {limit_val:.2f} {unit}\n余量: {limit_val - curr_val:+.3f} {unit}\n状态: 合格通过 ✓")
+            if is_en:
+                self.setToolTip(f"[{self.name}]\nCurrent: {curr_val:.3f} {unit}\nMax Limit: {limit_val:.2f} {unit}\nMargin: {limit_val - curr_val:+.3f} {unit}\nStatus: Passed ✓")
+            else:
+                self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n装配上限: {limit_val:.2f} {unit}\n余量: {limit_val - curr_val:+.3f} {unit}\n状态: 合格通过 ✓")
         else:
             self.dot.setText("✖")
             self.dot.setStyleSheet("color: #DC2626; font-size: 11px; font-weight: bold; background: transparent; border: none;")
@@ -107,12 +116,17 @@ class DFMChip(QFrame):
                     padding: 0px;
                 }
             """)
-            self.lbl_text.setText(f"{self.name}超标: {val_str}{unit} (限{limit_val:.2f})")
+            if is_en:
+                self.lbl_text.setText(f"{self.name} Over: {val_str}{unit} (Max {limit_val:.2f})")
+                self.setToolTip(f"[{self.name}]\nCurrent: {curr_val:.3f} {unit}\nMax Limit: {limit_val:.2f} {unit}\nExceeded by: {curr_val - limit_val:+.3f} {unit}\nStatus: 🚨 Limit Exceeded! Adjust parameters.")
+            else:
+                self.lbl_text.setText(f"{self.name}超标: {val_str}{unit} (限{limit_val:.2f})")
+                self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n卡控上限: {limit_val:.2f} {unit}\n超标量: {curr_val - limit_val:+.3f} {unit}\n状态: 🚨 严重超差，请调校参数！")
             self.lbl_text.setStyleSheet("font-size: 10px; font-weight: 700; color: #991B1B; background: transparent; border: none;")
-            self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n卡控上限: {limit_val:.2f} {unit}\n超标量: {curr_val - limit_val:+.3f} {unit}\n状态: 🚨 严重超差，请调校参数！")
 
     def setAdaptiveStatus(self, curr_val: float, recommend_envelope: float, unit: str):
         """Z-LRA 专用：自适应免卡控状态展示 (提示线圈占位与线圈距磁轭 0.58mm 推荐总净空)"""
+        is_en = i18n.is_english()
         val_str = f"{curr_val:.3f}" if unit == "mm" else f"{curr_val:.2f}"
         self.dot.setText("●")
         self.dot.setStyleSheet("color: #0284C7; font-size: 11px; background: transparent; border: none;")
@@ -128,9 +142,13 @@ class DFMChip(QFrame):
                 padding: 0px;
             }
         """)
-        self.lbl_text.setText(f"{self.name}: {val_str}{unit} (推荐≥{recommend_envelope:.2f})")
+        if is_en:
+            self.lbl_text.setText(f"{self.name}: {val_str}{unit} (Rec ≥{recommend_envelope:.2f})")
+            self.setToolTip(f"[{self.name}]\nCoil Thickness: {curr_val:.3f} {unit}\nRecommended Clearance: ≥{recommend_envelope:.2f} {unit} (incl. 0.58mm yoke gap)\nStatus: Adaptive Mode")
+        else:
+            self.lbl_text.setText(f"{self.name}: {val_str}{unit} (推荐≥{recommend_envelope:.2f})")
+            self.setToolTip(f"【{self.name}】\n当前线圈厚度: {curr_val:.3f} {unit}\n推荐总净空: ≥{recommend_envelope:.2f} {unit} (含距磁轭 0.58mm)\n状态: 自适应免卡控模式")
         self.lbl_text.setStyleSheet("font-size: 10px; font-weight: 600; color: #0369A1; background: transparent; border: none;")
-        self.setToolTip(f"【{self.name}】\n当前线圈厚度: {curr_val:.3f} {unit}\n推荐总净空: ≥{recommend_envelope:.2f} {unit} (含距磁轭 0.58mm)\n状态: 自适应免卡控模式")
 
     def minimumSizeHint(self) -> QSize:
         return QSize(60, 26)
@@ -221,7 +239,6 @@ class DFMStatusStrip(QFrame):
 
     def retranslate_ui(self):
         """动态多语言刷新"""
-        from src.core.i18n import t
         if hasattr(self, "title_lbl"):
             self.title_lbl.setText(t("dfm_section_title", "🛡 结构装配与 DFM 制造公差"))
         if hasattr(self, "btn_cfg"):
@@ -239,7 +256,7 @@ class DFMStatusStrip(QFrame):
 
     def updateDFM(self, dfm: DFMCheckResult, r20: float, turns: int):
         self._last_dfm_data = (dfm, r20, turns)
-        from src.core.i18n import t
+        is_en = i18n.is_english()
         if hasattr(self, "chip_x"):
             self.chip_x.name = t("dfm_chip_x", "X向")
             self.chip_y.name = t("dfm_chip_y", "Y向")
@@ -257,12 +274,13 @@ class DFMStatusStrip(QFrame):
             self.chip_z.setStatus(dfm.z_passed, dfm.z_val, dfm.z_limit, "mm", enabled=is_enabled)
 
         self.chip_v.setStatus(dfm.voltage_passed, dfm.voltage_val, dfm.voltage_limit, "V", enabled=is_enabled)
-
-        self.chip_t.name = "耐温"
-        self.chip_t.setStatus(dfm.temp_passed, dfm.temp_val, dfm.temp_limit, "℃", enabled=is_enabled)
+        self.chip_t.setStatus(dfm.temp_passed, dfm.temp_val, dfm.temp_limit, "°C" if is_en else "℃", enabled=is_enabled)
 
         if not is_enabled:
-            self.summary_lbl.setText(t("dfm_free_mode", "✔ 求解完成 | R20 = {r20:.3f} Ω | 匝数 = {turns} 匝 | 自由参数模式 (DFM限值未开启)", r20=r20, turns=turns))
+            if is_en:
+                self.summary_lbl.setText(f"✔ Solved | R20 = {r20:.3f} Ω | Turns = {turns} T | Free Parameter Mode (DFM Limits Off)")
+            else:
+                self.summary_lbl.setText(f"✔ 求解完成 | R20 = {r20:.3f} Ω | 匝数 = {turns} 匝 | 自由参数模式 (DFM限值未开启)")
             self.summary_lbl.setStyleSheet("font-size: 11px; font-weight: 600; color: #0284C7;")
         elif dfm.all_passed:
             self.summary_lbl.setText(t("dfm_all_passed", "✔ 求解完成 | R20 = {r20:.3f} Ω | 匝数 = {turns} 匝 | DFM 尺寸与公差全部合格", r20=r20, turns=turns))

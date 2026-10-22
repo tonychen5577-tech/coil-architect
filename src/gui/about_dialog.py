@@ -41,7 +41,11 @@ class AboutDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"关于系统 — {PLATFORM_NAME}")
+        from src.core.i18n import i18n
+        self.is_en = i18n.is_english()
+        self.setWindowTitle(
+            f"About System — {PLATFORM_NAME_EN}" if self.is_en else f"关于系统 — {PLATFORM_NAME}"
+        )
         self.setWindowIcon(get_app_icon())
         self.setModal(True)
 
@@ -60,6 +64,7 @@ class AboutDialog(QDialog):
         adapt_dialog_geometry(self, target_w=980, target_h=600, min_w=860, min_h=540)
 
     def _init_ui(self):
+        is_en = self.is_en
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
 
@@ -100,7 +105,7 @@ class AboutDialog(QDialog):
 
         row_t1 = QHBoxLayout()
         row_t1.setSpacing(8)
-        lbl_brand = QLabel(PLATFORM_NAME)
+        lbl_brand = QLabel(PLATFORM_NAME_EN if is_en else PLATFORM_NAME)
         lbl_brand.setStyleSheet("color: #0F172A; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;")
         
         lbl_ver_badge = QLabel(f"{APP_VERSION}")
@@ -118,16 +123,28 @@ class AboutDialog(QDialog):
         row_t1.addStretch()
         title_vbox.addLayout(row_t1)
 
-        lbl_desc = QLabel(f"{PLATFORM_NAME_EN} | 微型线圈设计与电热仿真工作站 ({APP_NAME})")
+        lbl_desc = QLabel(
+            f"Micro-Coil Design & Electro-Thermal Simulation Workstation ({APP_NAME})"
+            if is_en else
+            f"{PLATFORM_NAME_EN} | 微型线圈设计与电热仿真工作站 ({APP_NAME})"
+        )
         lbl_desc.setStyleSheet("color: #64748B; font-size: 11px; font-weight: 500;")
         title_vbox.addWidget(lbl_desc)
 
         header_layout.addLayout(title_vbox)
         header_layout.addStretch()
 
-        btn_url = QPushButton(f"🌐 官方网址: {OFFICIAL_URL.replace('https://', '')}")
+        btn_url = QPushButton(
+            f"🌐 Website: {OFFICIAL_URL.replace('https://', '')}"
+            if is_en else
+            f"🌐 官方网址: {OFFICIAL_URL.replace('https://', '')}"
+        )
         btn_url.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_url.setToolTip(f"官方主页: {OFFICIAL_URL}\n技术支持与商务合作邮箱: {OFFICIAL_EMAIL}")
+        btn_url.setToolTip(
+            f"Official Portal: {OFFICIAL_URL}\nTechnical Support & Business Email: {OFFICIAL_EMAIL}"
+            if is_en else
+            f"官方主页: {OFFICIAL_URL}\n技术支持与商务合作邮箱: {OFFICIAL_EMAIL}"
+        )
         btn_url.setStyleSheet("""
             QPushButton {
                 color: #0284C7;
@@ -178,8 +195,8 @@ class AboutDialog(QDialog):
         tab_h = QHBoxLayout()
         tab_h.setSpacing(4)
 
-        btn_tab_official = QPushButton("📢 官方公众号")
-        btn_tab_wechat = QPushButton("💬 微信技术咨询")
+        btn_tab_official = QPushButton("📢 Official Account" if is_en else "📢 官方公众号")
+        btn_tab_wechat = QPushButton("💬 WeChat Support" if is_en else "💬 微信技术咨询")
         btn_tab_whatsapp = QPushButton("🌐 WhatsApp")
 
         for b in [btn_tab_official, btn_tab_wechat, btn_tab_whatsapp]:
@@ -208,12 +225,12 @@ class AboutDialog(QDialog):
         # 头部卡片标题与动态复制按钮
         wc_header = QHBoxLayout()
         wc_header.setSpacing(6)
-        lbl_wc_icon = QLabel("🟢 官方微信公众号")
+        lbl_wc_icon = QLabel("🟢 Official WeChat Account" if is_en else "🟢 官方微信公众号")
         lbl_wc_icon.setStyleSheet("font-size: 11px; font-weight: 800; color: #166534;")
         wc_header.addWidget(lbl_wc_icon)
         wc_header.addStretch()
 
-        btn_copy_wc = QPushButton("📋 复制公众号")
+        btn_copy_wc = QPushButton("📋 Copy ID" if is_en else "📋 复制公众号")
         btn_copy_wc.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_wc.setStyleSheet("""
             QPushButton {
@@ -235,12 +252,17 @@ class AboutDialog(QDialog):
 
         # 二维码与信息卡片
         qr_container = QFrame()
+        qr_container.setObjectName("qrContainer")
         qr_container.setStyleSheet("""
-            QFrame {
+            QFrame#qrContainer {
                 background-color: #FFFFFF;
                 border: 1px solid #CBD5E1;
                 border-radius: 6px;
                 padding: 4px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
             }
         """)
         qr_row = QHBoxLayout(qr_container)
@@ -277,26 +299,34 @@ class AboutDialog(QDialog):
         res_dir = Path(__file__).resolve().parent.parent.parent / "resources"
         channels = {
             "official": {
-                "title": "🟢 官方微信公众号",
+                "title": "🟢 Official WeChat Account" if is_en else "🟢 官方微信公众号",
                 "title_color": "#166534",
-                "name_html": f"公众号: <b style='color:#15803D;'>{WECHAT_OFFICIAL_ACCOUNT}</b>",
+                "name_html": (
+                    f"Account: <b style='color:#15803D;'>{WECHAT_OFFICIAL_ACCOUNT}</b>"
+                    if is_en else
+                    f"公众号: <b style='color:#15803D;'>{WECHAT_OFFICIAL_ACCOUNT}</b>"
+                ),
                 "copy_text": WECHAT_OFFICIAL_ACCOUNT,
-                "btn_text": "📋 复制公众号",
-                "tip": "手机微信「扫一扫」关注官方公众号",
-                "val_title": "关注「ANSV」官方公众号，您可以获取：",
+                "btn_text": "📋 Copy Account" if is_en else "📋 复制公众号",
+                "tip": "Scan via WeChat to follow our official engineering channel" if is_en else "手机微信「扫一扫」关注官方公众号",
+                "val_title": "Follow ANSV Official Channel to unlock:" if is_en else "关注「ANSV」官方公众号，您可以获取：",
                 "qr_paths": [
                     Path(r"C:\Workspace\07_AI_Work\ansv-web\static\images\official-account-qr.jpg"),
                     res_dir / "official-account-qr.jpg"
                 ]
             },
             "wechat": {
-                "title": "💬 工程师专属微信咨询",
+                "title": "💬 Engineer WeChat Support" if is_en else "💬 工程师专属微信咨询",
                 "title_color": "#0369A1",
-                "name_html": f"微信号: <b style='color:#0284C7;'>{WECHAT_CONTACT_ID}</b>",
+                "name_html": (
+                    f"WeChat ID: <b style='color:#0284C7;'>{WECHAT_CONTACT_ID}</b>"
+                    if is_en else
+                    f"微信号: <b style='color:#0284C7;'>{WECHAT_CONTACT_ID}</b>"
+                ),
                 "copy_text": WECHAT_CONTACT_ID,
-                "btn_text": "📋 复制微信号",
-                "tip": "微信扫码添加工程师微信 (陈亚明 · 微型执行器)",
-                "val_title": "一对一技术支持、算例定制与工程咨询：",
+                "btn_text": "📋 Copy WeChat ID" if is_en else "📋 复制微信号",
+                "tip": "Scan via WeChat to connect with Senior Engineer (Yaming.Chen)" if is_en else "微信扫码添加工程师微信 (陈亚明 · 微型执行器)",
+                "val_title": "1-on-1 engineering support, custom solver & consulting:" if is_en else "一对一技术支持、算例定制与工程咨询：",
                 "qr_paths": [
                     res_dir / "wechat_personal_qr.png"
                 ]
@@ -306,9 +336,9 @@ class AboutDialog(QDialog):
                 "title_color": "#15803D",
                 "name_html": f"WhatsApp: <b style='color:#16A34A;'>{WHATSAPP_CONTACT_ID}</b>",
                 "copy_text": WHATSAPP_CONTACT_ID,
-                "btn_text": "📋 复制 WhatsApp",
-                "tip": "Scan via WhatsApp Camera (Chen Yaming - ANSV)",
-                "val_title": "Global technical support & instant consultation：",
+                "btn_text": "📋 Copy WhatsApp" if is_en else "📋 复制 WhatsApp",
+                "tip": "Scan via WhatsApp Camera (Yaming.Chen - ANSV)",
+                "val_title": "Global technical support & instant consultation:",
                 "qr_paths": [
                     res_dir / "whatsapp_qr.png"
                 ]
@@ -338,7 +368,7 @@ class AboutDialog(QDialog):
                         loaded = True
                         break
             if not loaded:
-                lbl_qr_img.setText("二维码加载中")
+                lbl_qr_img.setText("Loading QR..." if is_en else "二维码加载中")
 
             # 激活状态高亮
             for b, k in [(btn_tab_official, "official"), (btn_tab_wechat, "wechat"), (btn_tab_whatsapp, "whatsapp")]:
@@ -366,22 +396,31 @@ class AboutDialog(QDialog):
         btn_tab_official.clicked.connect(lambda: switch_channel("official"))
         btn_tab_wechat.clicked.connect(lambda: switch_channel("wechat"))
         btn_tab_whatsapp.clicked.connect(lambda: switch_channel("whatsapp"))
-        btn_copy_wc.clicked.connect(lambda: self._copy_to_clipboard(self._current_channel_copy, btn_copy_wc, "已复制"))
+        btn_copy_wc.clicked.connect(lambda: self._copy_to_clipboard(self._current_channel_copy, btn_copy_wc, "Copied" if is_en else "已复制"))
 
-        # 默认初始化为官方公众号
-        switch_channel("official")
+        # 默认初始化：英文环境下优先展示 WhatsApp 国际通道，中文环境下展示官方公众号
+        switch_channel("whatsapp" if is_en else "official")
 
         # 5 大权益说明 (精简版 · 条理清晰)
         benefits_v = QVBoxLayout()
         benefits_v.setSpacing(4)
 
-        benefits = [
-            ("🔬", "硬核技术深度拆解", "LRA / VCM / 传动多物理场仿真（电-磁-热-力）与一线复盘"),
-            ("🛠️", "独家工程工具与算例", "Coil-Architect 线圈解算器、Motor-Insight 动力学工具"),
-            ("⚠️", "量产避坑与失效诊断", "断簧/虚焊/脆断等根因诊断（RCA）与 DFM 工艺红线"),
-            ("📑", "前沿专利与拆解报告", "国内外旗舰硬件执行器结构 Teardown 与专利深度透视"),
-            ("💬", "工程师技术答疑通道", "一对一技术咨询通道、行业交流群与专家同行技术研讨")
-        ]
+        if is_en:
+            benefits = [
+                ("🔬", "In-Depth Multiphysics Insights", "LRA / VCM / Precision Drive coupled simulation (EM-Thermal-Mech)"),
+                ("🛠️", "Exclusive Engineering Solvers", "Coil-Architect Pro & Motor-Insight dynamic verification suites"),
+                ("⚠️", "Mass-Production DFM & RCA", "Spring fracture, cold solder & wire break root-cause diagnosis"),
+                ("📑", "Flagship Teardowns & Patents", "Global flagship actuator structural teardowns & patent reviews"),
+                ("💬", "Direct Engineer Consultation", "1-on-1 technical support via WhatsApp / WeChat & peer community")
+            ]
+        else:
+            benefits = [
+                ("🔬", "硬核技术深度拆解", "LRA / VCM / 传动多物理场仿真（电-磁-热-力）与一线复盘"),
+                ("🛠️", "独家工程工具与算例", "Coil-Architect 线圈解算器、Motor-Insight 动力学工具"),
+                ("⚠️", "量产避坑与失效诊断", "断簧/虚焊/脆断等根因诊断（RCA）与 DFM 工艺红线"),
+                ("📑", "前沿专利与拆解报告", "国内外旗舰硬件执行器结构 Teardown 与专利深度透视"),
+                ("💬", "工程师技术答疑通道", "一对一技术咨询通道、行业交流群与专家同行技术研讨")
+            ]
 
         for icon, title, desc in benefits:
             row = QHBoxLayout()
@@ -428,7 +467,7 @@ class AboutDialog(QDialog):
             row = QHBoxLayout()
             row.setSpacing(6)
             k_lbl = QLabel(key_text)
-            k_lbl.setFixedWidth(68)
+            k_lbl.setFixedWidth(82 if is_en else 68)
             k_lbl.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
             row.addWidget(k_lbl)
 
@@ -445,18 +484,27 @@ class AboutDialog(QDialog):
             row.addStretch()
             return row
 
+        key_w = 82 if is_en else 68
+
         # 1. 软件系统全称
-        right_layout.addLayout(make_row("软件系统:", PLATFORM_NAME, is_bold=True))
+        right_layout.addLayout(make_row(
+            "Platform:" if is_en else "软件系统:",
+            PLATFORM_NAME_EN if is_en else PLATFORM_NAME,
+            is_bold=True
+        ))
 
         # 2. 软件模块
-        right_layout.addLayout(make_row("工作站模块:", f"{APP_NAME} | 微型线圈设计与电热仿真"))
+        right_layout.addLayout(make_row(
+            "Workstation:" if is_en else "工作站模块:",
+            f"{APP_NAME} | Micro-Coil Design & Electro-Thermal Solver" if is_en else f"{APP_NAME} | 微型线圈设计与电热仿真"
+        ))
 
         # 3. 软件版本 (含 Git Hash)
         git_hash = get_git_commit()
         row_ver = QHBoxLayout()
         row_ver.setSpacing(6)
-        k_ver = QLabel("软件版本:")
-        k_ver.setFixedWidth(68)
+        k_ver = QLabel("Version:" if is_en else "软件版本:")
+        k_ver.setFixedWidth(key_w)
         k_ver.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
         row_ver.addWidget(k_ver)
         v_ver = QLabel(f"{APP_VERSION}")
@@ -469,13 +517,13 @@ class AboutDialog(QDialog):
         right_layout.addLayout(row_ver)
 
         # 4. 构建时间
-        right_layout.addLayout(make_row("构建时间:", BUILD_TIME))
+        right_layout.addLayout(make_row("Build Time:" if is_en else "构建时间:", BUILD_TIME))
 
         # 5. 核心架构
         row_arch = QHBoxLayout()
         row_arch.setSpacing(6)
-        k_arch = QLabel("核心架构:")
-        k_arch.setFixedWidth(68)
+        k_arch = QLabel("Architecture:" if is_en else "核心架构:")
+        k_arch.setFixedWidth(key_w)
         k_arch.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
         row_arch.addWidget(k_arch)
         v_arch = QLabel(CORE_ENGINE_AUTHOR)
@@ -491,8 +539,8 @@ class AboutDialog(QDialog):
         mid = get_machine_code()
         row_mid = QHBoxLayout()
         row_mid.setSpacing(6)
-        k_mid = QLabel("机器码:")
-        k_mid.setFixedWidth(68)
+        k_mid = QLabel("Machine ID:" if is_en else "机器码:")
+        k_mid.setFixedWidth(key_w)
         k_mid.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
         row_mid.addWidget(k_mid)
         v_mid = QLabel(mid)
@@ -502,7 +550,7 @@ class AboutDialog(QDialog):
             font-weight: 700; background-color: #E0F2FE; border-radius: 3px;
             padding: 1px 6px; border: 1px solid #BAE6FD;
         """)
-        btn_copy_mid = QPushButton("复制机器码")
+        btn_copy_mid = QPushButton("Copy ID" if is_en else "复制机器码")
         btn_copy_mid.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_mid.setStyleSheet("""
             QPushButton {
@@ -511,7 +559,7 @@ class AboutDialog(QDialog):
             }
             QPushButton:hover { background: #E0F2FE; color: #0284C7; }
         """)
-        btn_copy_mid.clicked.connect(lambda: self._copy_to_clipboard(mid, btn_copy_mid, "已复制机器码"))
+        btn_copy_mid.clicked.connect(lambda: self._copy_to_clipboard(mid, btn_copy_mid, "Copied" if is_en else "已复制机器码"))
         row_mid.addWidget(v_mid)
         row_mid.addWidget(btn_copy_mid)
         row_mid.addStretch()
@@ -521,8 +569,8 @@ class AboutDialog(QDialog):
         mac_addr = get_mac_address()
         row_mac = QHBoxLayout()
         row_mac.setSpacing(6)
-        k_mac = QLabel("本机MAC:")
-        k_mac.setFixedWidth(68)
+        k_mac = QLabel("Local MAC:" if is_en else "本机MAC:")
+        k_mac.setFixedWidth(key_w)
         k_mac.setStyleSheet("color: #64748B; font-weight: 600; font-size: 10.5px;")
         row_mac.addWidget(k_mac)
         v_mac = QLabel(mac_addr)
@@ -532,7 +580,7 @@ class AboutDialog(QDialog):
             font-weight: 600; background-color: #F1F5F9; border-radius: 3px;
             padding: 1px 6px; border: 1px solid #CBD5E1;
         """)
-        btn_copy_mac = QPushButton("复制MAC")
+        btn_copy_mac = QPushButton("Copy MAC" if is_en else "复制MAC")
         btn_copy_mac.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_mac.setStyleSheet("""
             QPushButton {
@@ -541,7 +589,7 @@ class AboutDialog(QDialog):
             }
             QPushButton:hover { background: #F1F5F9; color: #0F172A; }
         """)
-        btn_copy_mac.clicked.connect(lambda: self._copy_to_clipboard(mac_addr, btn_copy_mac, "已复制MAC"))
+        btn_copy_mac.clicked.connect(lambda: self._copy_to_clipboard(mac_addr, btn_copy_mac, "Copied" if is_en else "已复制MAC"))
         row_mac.addWidget(v_mac)
         row_mac.addWidget(btn_copy_mac)
         row_mac.addStretch()
@@ -549,11 +597,20 @@ class AboutDialog(QDialog):
 
         # 8. 授权工位与授权状态
         st_info = get_station_info()
-        cust_name = st_info.get("customer", "内部核准机构")
-        line_stat = st_info.get("station", "专业研发工作站 (Pro Station)")
-        status_txt = st_info.get("status_text", "🛡️ 正式商业授权")
-        right_layout.addLayout(make_row("授权工位:", f"{cust_name} · {line_stat}"))
-        right_layout.addLayout(make_row("授权状态:", status_txt))
+        cust_name = st_info.get("customer", "Authorized Org" if is_en else "内部核准机构")
+        line_stat = st_info.get("station", "Pro R&D Workstation" if is_en else "专业研发工作站 (Pro Station)")
+        status_txt = st_info.get("status_text", "🛡️ Commercial License" if is_en else "🛡️ 正式商业授权")
+        if is_en:
+            if cust_name == "内部核准机构":
+                cust_name = "Authorized R&D Center"
+            if "专业研发工作站" in line_stat:
+                line_stat = "Pro R&D Workstation"
+            if "未激活" in status_txt or "评估" in status_txt:
+                status_txt = "🔓 Evaluation Mode (Unactivated)"
+            elif "正式商业授权" in status_txt:
+                status_txt = "🛡️ Active Commercial License"
+        right_layout.addLayout(make_row("Workstation ID:" if is_en else "授权工位:", f"{cust_name} · {line_stat}"))
+        right_layout.addLayout(make_row("License Status:" if is_en else "授权状态:", status_txt))
 
         # 分割线
         div_line = QFrame()
@@ -563,28 +620,45 @@ class AboutDialog(QDialog):
 
         # 9. 软件核心特色 (通俗易懂 · 紧凑展示)
         feat_card = QFrame()
+        feat_card.setObjectName("featCard")
         feat_card.setStyleSheet("""
-            QFrame {
+            QFrame#featCard {
                 background-color: #FFFFFF;
                 border: 1px solid #E2E8F0;
                 border-radius: 5px;
                 padding: 4px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
             }
         """)
         fc_box = QVBoxLayout(feat_card)
         fc_box.setContentsMargins(6, 4, 6, 4)
         fc_box.setSpacing(3)
 
-        lbl_fc_t = QLabel("💡 平台特色功能 (通俗易懂 · 工程实战)")
+        lbl_fc_t = QLabel(
+            "💡 Key Platform Capabilities (Production-Proven)"
+            if is_en else
+            "💡 平台特色功能 (通俗易懂 · 工程实战)"
+        )
         lbl_fc_t.setStyleSheet("font-size: 10px; font-weight: 700; color: #0284C7;")
         fc_box.addWidget(lbl_fc_t)
 
-        mini_feats = [
-            ("📱 八角/跑道物理拓扑", "精确倒推多层多列漆包线排布与内外边距"),
-            ("🧬 铜线拉伸减径补偿", "微米级真实漆膜与拉细预测，电阻仿真极准"),
-            ("🛡️ 磁钢干涉 DFM 预警", "气隙红线主动诊断，一键 ISO 129 截面标注"),
-            ("📊 多方案微调折叠抽屉", "固化对比无缝切换，Excel 报表列宽自适应")
-        ]
+        if is_en:
+            mini_feats = [
+                ("📱 Multi-Topology Packing", "Racetrack, Circular, Octagonal & Arbitrary CAD perimeter solver"),
+                ("🧬 Wire Necking Compensation", "Micron-level enamel & tension thinning model for exact DCR"),
+                ("🛡️ Magnet Clearance DFM", "Real-time air-gap & housing collision check with ISO 129 section"),
+                ("📊 Scheme Comparison Matrix", "One-click freeze, side-by-side delta analysis & Excel export")
+            ]
+        else:
+            mini_feats = [
+                ("📱 八角/跑道物理拓扑", "精确倒推多层多列漆包线排布与内外边距"),
+                ("🧬 铜线拉伸减径补偿", "微米级真实漆膜与拉细预测，电阻仿真极准"),
+                ("🛡️ 磁钢干涉 DFM 预警", "气隙红线主动诊断，一键 ISO 129 截面标注"),
+                ("📊 多方案微调折叠抽屉", "固化对比无缝切换，Excel 报表列宽自适应")
+            ]
         for f_title, f_sub in mini_feats:
             f_row = QHBoxLayout()
             f_row.setSpacing(4)
@@ -628,9 +702,13 @@ class AboutDialog(QDialog):
         row1_layout.addStretch()
 
         # 辅助按钮 1: 🖥️ 桌面快捷方式
-        btn_shortcut = QPushButton("🖥️ 桌面快捷方式")
+        btn_shortcut = QPushButton("🖥️ Desktop Shortcut" if is_en else "🖥️ 桌面快捷方式")
         btn_shortcut.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_shortcut.setToolTip("在当前电脑桌面上创建本系统专属高清快捷方式")
+        btn_shortcut.setToolTip(
+            "Create a high-DPI desktop shortcut for Coil-Architect Pro"
+            if is_en else
+            "在当前电脑桌面上创建本系统专属高清快捷方式"
+        )
         btn_shortcut.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -652,9 +730,13 @@ class AboutDialog(QDialog):
         row1_layout.addWidget(btn_shortcut)
 
         # 辅助按钮 2: 🔗 关联 .ansvcoil 算例
-        btn_assoc = QPushButton("🔗 关联 .ansvcoil 算例")
+        btn_assoc = QPushButton("🔗 Associate .ansvcoil" if is_en else "🔗 关联 .ansvcoil 算例")
         btn_assoc.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_assoc.setToolTip("在 Windows 系统中注册 .ansvcoil 专属算例格式与科技感图标，支持双击算例直接唤起工作站")
+        btn_assoc.setToolTip(
+            "Register .ansvcoil project extension in Windows so double-clicking opens Coil-Architect Pro"
+            if is_en else
+            "在 Windows 系统中注册 .ansvcoil 专属算例格式与科技感图标，支持双击算例直接唤起工作站"
+        )
         btn_assoc.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -675,9 +757,13 @@ class AboutDialog(QDialog):
         row1_layout.addWidget(btn_assoc)
 
         # 辅助按钮 3: 📄 导出诊断日志
-        btn_export_logs = QPushButton("📄 导出诊断日志")
+        btn_export_logs = QPushButton("📄 Export Logs" if is_en else "📄 导出诊断日志")
         btn_export_logs.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_export_logs.setToolTip("一键打包全景运行日志与系统体检指纹 (.zip) 供研发快速定位排查")
+        btn_export_logs.setToolTip(
+            "Package full runtime logs & environment diagnostics (.zip) for technical support"
+            if is_en else
+            "一键打包全景运行日志与系统体检指纹 (.zip) 供研发快速定位排查"
+        )
         btn_export_logs.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -698,9 +784,13 @@ class AboutDialog(QDialog):
         row1_layout.addWidget(btn_export_logs)
 
         # 辅助按钮 4: 🌐 网络数据库诊断
-        btn_cloud_diag = QPushButton("🌐 网络数据库诊断")
+        btn_cloud_diag = QPushButton("🌐 Network Diagnostics" if is_en else "🌐 网络数据库诊断")
         btn_cloud_diag.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_cloud_diag.setToolTip("打开企业内网数据库与通信环境诊断中心 (快捷键: Ctrl+D)")
+        btn_cloud_diag.setToolTip(
+            "Open Enterprise Network & License Server Diagnostics Center (Shortcut: Ctrl+D)"
+            if is_en else
+            "打开企业内网数据库与通信环境诊断中心 (快捷键: Ctrl+D)"
+        )
         btn_cloud_diag.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -726,16 +816,24 @@ class AboutDialog(QDialog):
         row2_layout.setContentsMargins(0, 0, 0, 0)
         row2_layout.setSpacing(10)
 
-        lbl_f1_tip = QLabel("💡 提示：在任意界面按 F1 键可随时一键唤起离线 HTML 用户说明书与工程实战指南")
+        lbl_f1_tip = QLabel(
+            "💡 Tip: Press F1 anywhere to open the offline HTML User Manual & Engineering Guide"
+            if is_en else
+            "💡 提示：在任意界面按 F1 键可随时一键唤起离线 HTML 用户说明书与工程实战指南"
+        )
         lbl_f1_tip.setStyleSheet("color: #64748B; font-size: 10.5px;")
         row2_layout.addWidget(lbl_f1_tip)
         row2_layout.addStretch()
 
         # 主控按钮 1: 📖 使用说明书 (高亮主推，宽度充裕)
-        from src.core.i18n import i18n, t
+        from src.core.i18n import t
         btn_manual = QPushButton(t("about_btn_manual", "📖 使用说明书"))
         btn_manual.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_manual.setToolTip("在默认浏览器中打开本软件专属离线 HTML 用户手册与工程指南 (快捷键: F1)")
+        btn_manual.setToolTip(
+            "Open the offline HTML User Manual & Engineering Guide in your default browser (Shortcut: F1)"
+            if is_en else
+            "在默认浏览器中打开本软件专属离线 HTML 用户手册与工程指南 (快捷键: F1)"
+        )
         btn_manual.setStyleSheet("""
             QPushButton {
                 background-color: #F0F9FF;
@@ -758,9 +856,13 @@ class AboutDialog(QDialog):
         row2_layout.addWidget(btn_manual)
 
         # 主控按钮 2: 🚀 检查更新
-        btn_chk_update = QPushButton("🚀 检查更新")
+        btn_chk_update = QPushButton("🚀 Check Updates" if is_en else "🚀 检查更新")
         btn_chk_update.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_chk_update.setToolTip("检查软件更新并查看 Git 提交历史记录 (Changelog)")
+        btn_chk_update.setToolTip(
+            "Check for OTA updates and view Git release changelog"
+            if is_en else
+            "检查软件更新并查看 Git 提交历史记录 (Changelog)"
+        )
         btn_chk_update.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -782,7 +884,7 @@ class AboutDialog(QDialog):
         row2_layout.addWidget(btn_chk_update)
 
         # 主控按钮 3: 确定
-        btn_ok = QPushButton("确定")
+        btn_ok = QPushButton("OK" if is_en else "确定")
         btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_ok.setStyleSheet("""
             QPushButton {

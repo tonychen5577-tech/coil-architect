@@ -16,6 +16,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QFrame, QTabWidget
 from ...core.models import CoilInputs, CoilOutputs, WindingMode, CoilType
+from src.core.i18n import i18n, t
 
 
 def draw_iso_arrow(painter: QPainter, tip_x: float, tip_y: float, dir_x: float, dir_y: float, length: float = 7.0, half_width: float = 2.4):
@@ -185,12 +186,13 @@ class MicroPackingCanvas(QWidget):
         font_title = QFont("Segoe UI", 9, QFont.Weight.Bold)
         painter.setFont(font_title)
 
+        is_en = i18n.is_english()
         if self.view_mode == "zx":
-            view_title = "Z-X 长向剖面 (X向装配公差)"
+            view_title = "Z-X Long Section (X-Axis Clearance)" if is_en else "Z-X 长向剖面 (X向装配公差)"
         elif self.view_mode == "zy":
-            view_title = "Z-Y 宽向剖面 (Y向装配公差)"
+            view_title = "Z-Y Width Section (Y-Axis Clearance)" if is_en else "Z-Y 宽向剖面 (Y向装配公差)"
         else:
-            view_title = "单侧微观高倍详图"
+            view_title = "Single-Side Micro Detail Zoom" if is_en else "单侧微观高倍详图"
 
         painter.drawText(14, 24, view_title)
 
@@ -205,7 +207,10 @@ class MicroPackingCanvas(QWidget):
         painter.setFont(font_pill)
 
         slot_w = pill_w / 3.0
-        tabs = [("zx", "Z-X 长向", 0), ("zy", "Z-Y 宽向", 1), ("single", "单侧放大", 2)]
+        if is_en:
+            tabs = [("zx", "Z-X Long", 0), ("zy", "Z-Y Width", 1), ("single", "Detail Zoom", 2)]
+        else:
+            tabs = [("zx", "Z-X 长向", 0), ("zy", "Z-Y 宽向", 1), ("single", "单侧放大", 2)]
         for mode_key, text, idx in tabs:
             slot_rect = QRectF(w - pill_w - 14 + idx * slot_w, 8, slot_w, 24)
             if self.view_mode == mode_key:
@@ -242,25 +247,25 @@ class MicroPackingCanvas(QWidget):
                     span_outer = self.outputs.oct_od1 if self.outputs.oct_od1 > 0 else span_inner + 2.0 * phys_w
                     lim_span = self.inputs.max_x_len_limit
                     axis_name = "X"
-                    span_name = "对边跨"
-                    outer_label = f"外跨 OD1: {span_outer:.3f} mm"
-                    inner_label = f"内跨 ID1: {span_inner:.2f}"
+                    span_name = "Flat" if is_en else "对边跨"
+                    outer_label = (f"Outer OD1: {span_outer:.3f} mm" if is_en else f"外跨 OD1: {span_outer:.3f} mm")
+                    inner_label = (f"Inner ID1: {span_inner:.2f}" if is_en else f"内跨 ID1: {span_inner:.2f}")
                 elif c_type == CoilType.ARBITRARY_PERIMETER:
                     span_outer = max(1.0, self.outputs.outer_len)
                     span_inner = max(0.3, span_outer - 2.0 * phys_w)
                     lim_span = self.inputs.max_x_len_limit
                     axis_name = "X"
-                    span_name = "长"
-                    outer_label = f"外长 OL: {span_outer:.3f} mm"
-                    inner_label = f"参考内长: {span_inner:.2f}"
+                    span_name = "Len" if is_en else "长"
+                    outer_label = (f"Outer OL: {span_outer:.3f} mm" if is_en else f"外长 OL: {span_outer:.3f} mm")
+                    inner_label = (f"Ref IL: {span_inner:.2f}" if is_en else f"参考内长: {span_inner:.2f}")
                 else:
                     span_inner = self.inputs.inner_len
                     span_outer = self.outputs.outer_len if self.outputs.outer_len > 0 else span_inner + 2.0 * phys_w
                     lim_span = self.inputs.max_x_len_limit
                     axis_name = "X"
-                    span_name = "长"
-                    outer_label = f"外长 OL: {span_outer:.3f} mm"
-                    inner_label = f"内长 IL: {span_inner:.2f}"
+                    span_name = "Len" if is_en else "长"
+                    outer_label = (f"Outer OL: {span_outer:.3f} mm" if is_en else f"外长 OL: {span_outer:.3f} mm")
+                    inner_label = (f"Inner IL: {span_inner:.2f}" if is_en else f"内长 IL: {span_inner:.2f}")
             else:
                 # Y 向参数: 内宽 IW / 对角 ID2, 外宽 OW / OD2, 限制 Max_Y
                 if c_type == CoilType.OCTAGONAL:
@@ -268,33 +273,33 @@ class MicroPackingCanvas(QWidget):
                     span_outer = self.outputs.oct_od2 if self.outputs.oct_od2 > 0 else span_inner + 2.0 * phys_w
                     lim_span = self.inputs.max_y_wid_limit
                     axis_name = "Y"
-                    span_name = "对角跨"
-                    outer_label = f"对角 OD2: {span_outer:.3f} mm"
-                    inner_label = f"对角 ID2: {span_inner:.2f}"
+                    span_name = "Diag" if is_en else "对角跨"
+                    outer_label = (f"Diag OD2: {span_outer:.3f} mm" if is_en else f"对角 OD2: {span_outer:.3f} mm")
+                    inner_label = (f"Diag ID2: {span_inner:.2f}" if is_en else f"对角 ID2: {span_inner:.2f}")
                 elif c_type == CoilType.ARBITRARY_PERIMETER:
                     span_outer = max(1.0, self.outputs.outer_wid)
                     span_inner = max(0.3, span_outer - 2.0 * phys_w)
                     lim_span = self.inputs.max_y_wid_limit
                     axis_name = "Y"
-                    span_name = "宽"
-                    outer_label = f"外宽 OW: {span_outer:.3f} mm"
-                    inner_label = f"参考内宽: {span_inner:.2f}"
+                    span_name = "Wid" if is_en else "宽"
+                    outer_label = (f"Outer OW: {span_outer:.3f} mm" if is_en else f"外宽 OW: {span_outer:.3f} mm")
+                    inner_label = (f"Ref IW: {span_inner:.2f}" if is_en else f"参考内宽: {span_inner:.2f}")
                 elif c_type == CoilType.CIRCULAR:
                     span_inner = max(0.3, self.inputs.inner_len)
                     span_outer = max(span_inner + 2.0 * phys_w, self.outputs.outer_len)
                     lim_span = self.inputs.max_x_len_limit
                     axis_name = "Y"
-                    span_name = "径"
-                    outer_label = f"外径 OD: {span_outer:.3f} mm"
-                    inner_label = f"内径 ID: {span_inner:.2f}"
+                    span_name = "Dia" if is_en else "径"
+                    outer_label = (f"Outer OD: {span_outer:.3f} mm" if is_en else f"外径 OD: {span_outer:.3f} mm")
+                    inner_label = (f"Inner ID: {span_inner:.2f}" if is_en else f"内径 ID: {span_inner:.2f}")
                 else:
                     span_inner = max(0.3, self.inputs.inner_wid)
                     span_outer = max(span_inner + 2.0 * phys_w, self.outputs.outer_wid)
                     lim_span = self.inputs.max_y_wid_limit
                     axis_name = "Y"
-                    span_name = "宽"
-                    outer_label = f"外宽 OW: {span_outer:.3f} mm"
-                    inner_label = f"内宽 IW: {span_inner:.2f}"
+                    span_name = "Wid" if is_en else "宽"
+                    outer_label = (f"Outer OW: {span_outer:.3f} mm" if is_en else f"外宽 OW: {span_outer:.3f} mm")
+                    inner_label = (f"Inner IW: {span_inner:.2f}" if is_en else f"内宽 IW: {span_inner:.2f}")
 
             lim_z = self.inputs.max_z_h_limit
 
@@ -332,7 +337,7 @@ class MicroPackingCanvas(QWidget):
             painter.setPen(QColor("#64748B"))
             font_datum = QFont("Segoe UI", 7, QFont.Weight.Bold)
             painter.setFont(font_datum)
-            painter.drawText(int(x_left_outer - datum_extend - 64), int(origin_y + 3), "▼ Z=0 基准")
+            painter.drawText(int(x_left_outer - datum_extend - 64), int(origin_y + 3), "▼ Z=0 Datum" if is_en else "▼ Z=0 基准")
 
             # 2. 中孔轴心点划线 (空心内腔)
             painter.setPen(QPen(QColor("#94A3B8"), 1, Qt.PenStyle.DashDotLine))
@@ -356,7 +361,7 @@ class MicroPackingCanvas(QWidget):
             painter.setPen(QColor("#64748B"))
             y_core_text = min(origin_y - h_coil_px / 2.0 - 8, y_lim_z - 18)
             painter.fillRect(QRectF(cx - 38, y_core_text, 76, 16), QColor(255, 255, 255, 240))
-            painter.drawText(QRectF(cx - 50, y_core_text, 100, 16), Qt.AlignmentFlag.AlignCenter, "自粘脱胎空心")
+            painter.drawText(QRectF(cx - 56, y_core_text, 112, 16), Qt.AlignmentFlag.AlignCenter, "Air-Core Winding" if is_en else "自粘脱胎空心")
 
             # 4. 绘制横向空间上限边界线 (Max_X 或 Max_Y 垂直虚线，卡控边界)
             w_lim_span_px = lim_span * scale
@@ -381,11 +386,11 @@ class MicroPackingCanvas(QWidget):
             color_span = QColor("#0284C7") if not is_dfm_active else (QColor("#059669") if span_safe else QColor("#DC2626"))
             painter.setPen(color_span)
             if is_dfm_active:
-                t_span = f"◀ {axis_name}向边界 Max_{axis_name}: {lim_span:.2f} (余量: {delta_span:+.3f}) ▶"
+                t_span = (f"◀ {axis_name}-Limit Max_{axis_name}: {lim_span:.2f} (Margin: {delta_span:+.3f}) ▶" if is_en else f"◀ {axis_name}向边界 Max_{axis_name}: {lim_span:.2f} (余量: {delta_span:+.3f}) ▶")
             else:
-                t_span = f"◀ 参考边界 {axis_name}: {lim_span:.2f} (余量: {delta_span:+.3f}) ▶"
+                t_span = (f"◀ Ref {axis_name}-Limit: {lim_span:.2f} (Margin: {delta_span:+.3f}) ▶" if is_en else f"◀ 参考边界 {axis_name}: {lim_span:.2f} (余量: {delta_span:+.3f}) ▶")
             painter.drawText(
-                QRectF(10, y_lim_z - 16, 260, 14), 
+                QRectF(10, y_lim_z - 16, 280, 14), 
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, 
                 t_span
             )
@@ -394,9 +399,9 @@ class MicroPackingCanvas(QWidget):
             color_z = QColor("#0284C7") if not is_dfm_active else (QColor("#059669") if z_safe else QColor("#DC2626"))
             painter.setPen(color_z)
             if is_dfm_active:
-                t_z = f"Max Z 限高: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f})"
+                t_z = (f"Max Z Limit: {lim_z:.2f} mm (ΔZ: {delta_z:+.3f})" if is_en else f"Max Z 限高: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f})")
             else:
-                t_z = f"参考限高 Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f})"
+                t_z = (f"Ref Z Limit: {lim_z:.2f} mm (ΔZ: {delta_z:+.3f})" if is_en else f"参考限高 Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f})")
             painter.drawText(
                 QRectF(w - 230, y_lim_z - 16, 218, 14), 
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, 
@@ -485,7 +490,7 @@ class MicroPackingCanvas(QWidget):
             painter.drawText(
                 QRectF(10, dim_y2 + 2, w - 20, 14), 
                 Qt.AlignmentFlag.AlignCenter, 
-                f"{outer_label} (Max_{axis_name}: {lim_span:.2f}, 余量: {delta_span:+.3f})" if is_dfm_active else f"{outer_label} (参考: {lim_span:.2f}, 余量: {delta_span:+.3f})"
+                (f"{outer_label} (Max_{axis_name}: {lim_span:.2f}, Margin: {delta_span:+.3f})" if is_en else f"{outer_label} (Max_{axis_name}: {lim_span:.2f}, 余量: {delta_span:+.3f})") if is_dfm_active else (f"{outer_label} (Ref: {lim_span:.2f}, Margin: {delta_span:+.3f})" if is_en else f"{outer_label} (参考: {lim_span:.2f}, 余量: {delta_span:+.3f})")
             )
 
             # 右侧高度标注 H (ISO 129 延伸界线 + 闭合实心箭头)
@@ -505,7 +510,7 @@ class MicroPackingCanvas(QWidget):
 
             painter.setPen(QColor("#0284C7"))
             painter.setFont(font_subdim)
-            painter.drawText(z_line_x + 5, int((z_bottom + z_top) / 2.0 - 2), "高度 H")
+            painter.drawText(z_line_x + 5, int((z_bottom + z_top) / 2.0 - 2), "Height H" if is_en else "高度 H")
             painter.drawText(z_line_x + 5, int((z_bottom + z_top) / 2.0 + 12), f"{phys_h:.3f} mm")
 
         # -------------------------------------------------------------
@@ -536,8 +541,8 @@ class MicroPackingCanvas(QWidget):
             font_sub = QFont("Segoe UI", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
             painter.setPen(QColor("#64748B"))
-            painter.drawText(int(origin_x - 52), int(origin_y - (phys_h * scale) / 2), "内壁边界")
-            painter.drawText(int(origin_x - 52), int(origin_y + 11), "Z=0 基准")
+            painter.drawText(int(origin_x - 56), int(origin_y - (phys_h * scale) / 2), "Inner Wall" if is_en else "内壁边界")
+            painter.drawText(int(origin_x - 56), int(origin_y + 11), "Z=0 Datum" if is_en else "Z=0 基准")
 
             # Max_Z 限高线
             is_dfm_active = getattr(self.inputs, "dfm_enabled", False)
@@ -555,9 +560,9 @@ class MicroPackingCanvas(QWidget):
             painter.setPen(color_z_txt)
             painter.setFont(QFont("Consolas", 7, QFont.Weight.Bold))
             if is_dfm_active:
-                painter.drawText(int(origin_x), int(y_lim_z - 3), f"Max Z 限高: {lim_z:.2f} mm (ΔZ: {lim_z - phys_h:+.3f})")
+                painter.drawText(int(origin_x), int(y_lim_z - 3), f"Max Z Limit: {lim_z:.2f} mm (ΔZ: {lim_z - phys_h:+.3f})" if is_en else f"Max Z 限高: {lim_z:.2f} mm (ΔZ: {lim_z - phys_h:+.3f})")
             else:
-                painter.drawText(int(origin_x), int(y_lim_z - 3), f"参考限高 Z: {lim_z:.2f} mm (ΔZ: {lim_z - phys_h:+.3f})")
+                painter.drawText(int(origin_x), int(y_lim_z - 3), f"Ref Z Limit: {lim_z:.2f} mm (ΔZ: {lim_z - phys_h:+.3f})" if is_en else f"参考限高 Z: {lim_z:.2f} mm (ΔZ: {lim_z - phys_h:+.3f})")
 
             # 2. 渲染微观线圈排布
             wire_r_px = max(1.5, (b_act * scale) / 2.0)
@@ -603,7 +608,7 @@ class MicroPackingCanvas(QWidget):
             x_end = origin_x + phys_w * scale
             painter.drawLine(int(origin_x), int(origin_y + 16), int(x_end), int(origin_y + 16))
             painter.setPen(QColor("#0284C7"))
-            painter.drawText(int(origin_x + (phys_w * scale) / 2 - 35), int(origin_y + 30), f"X 厚度 E: {self.outputs.e_env:.3f} mm")
+            painter.drawText(int(origin_x + (phys_w * scale) / 2 - 35), int(origin_y + 30), f"Build E: {self.outputs.e_env:.3f} mm" if is_en else f"X 厚度 E: {self.outputs.e_env:.3f} mm")
 
             z_line_x = int(x_end + 18)
             z_bottom = int(origin_y)
@@ -612,8 +617,11 @@ class MicroPackingCanvas(QWidget):
             painter.drawLine(z_line_x, z_bottom, z_line_x, z_top)
             painter.drawLine(z_line_x - 3, z_top + 6, z_line_x, z_top)
             painter.drawLine(z_line_x + 3, z_top + 6, z_line_x, z_top)
-            f_mode_text = "含0.5D偏移" if self.inputs.winding_mode == WindingMode.EVEN else "边界平齐"
-            painter.drawText(z_line_x + 6, int((z_bottom + z_top) / 2 - 4), "Z 高度 F")
+            if is_en:
+                f_mode_text = "0.5D Offset" if self.inputs.winding_mode == WindingMode.EVEN else "Flush Ends"
+            else:
+                f_mode_text = "含0.5D偏移" if self.inputs.winding_mode == WindingMode.EVEN else "边界平齐"
+            painter.drawText(z_line_x + 6, int((z_bottom + z_top) / 2 - 4), "Height F" if is_en else "Z 高度 F")
             painter.setPen(QColor("#64748B"))
             font_f_sub = QFont("Segoe UI", 7, QFont.Weight.Bold)
             painter.setFont(font_f_sub)
@@ -710,20 +718,21 @@ class MacroRacetrackCanvas(QWidget):
         delta_x = lim_x - ol
         delta_y = lim_y - ow
 
+        is_en = i18n.is_english()
         if not is_dfm_active:
-            status_prefix = "参考结构空间 (DFM未开启)"
+            status_prefix = "Ref Envelope (DFM Off)" if is_en else "参考结构空间 (DFM未开启)"
             text_lim = f"{status_prefix}: X_Max {lim_x:.2f} mm (ΔX:{delta_x:+.3f}) | Y_Max {lim_y:.2f} mm (ΔY:{delta_y:+.3f})"
             color_txt = QColor("#0284C7")
             border_txt = QColor("#BAE6FD")
             bg_txt = QColor(240, 249, 255, 235)
         elif all_pass:
-            status_prefix = "装配空间上限"
+            status_prefix = "Assembly Envelope Limit" if is_en else "装配空间上限"
             text_lim = f"{status_prefix}: X_Max {lim_x:.2f} mm (ΔX:{delta_x:+.3f}) | Y_Max {lim_y:.2f} mm (ΔY:{delta_y:+.3f})"
             color_txt = QColor("#059669")
             border_txt = QColor("#10B981")
             bg_txt = QColor(255, 255, 255, 235)
         else:
-            status_prefix = "⚠️ DFM超差警告"
+            status_prefix = "⚠️ DFM Limit Exceeded" if is_en else "⚠️ DFM超差警告"
             text_lim = f"{status_prefix}: X_Max {lim_x:.2f} mm (ΔX:{delta_x:+.3f}) | Y_Max {lim_y:.2f} mm (ΔY:{delta_y:+.3f})"
             color_txt = QColor("#DC2626")
             border_txt = QColor("#EF4444")
@@ -772,12 +781,12 @@ class MacroRacetrackCanvas(QWidget):
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
             painter.setPen(QColor("#0F172A"))
-            painter.drawText(12, h - 19, f"【外包络】外径 OD: Φ {od_val:.3f} mm  |  展开中径 Dm: Φ {self.outputs.mean_dia_mm:.3f} mm")
+            painter.drawText(12, h - 19, f"[Outer Envelope] Outer Dia OD: Φ {od_val:.3f} mm  |  Mean Dia Dm: Φ {self.outputs.mean_dia_mm:.3f} mm" if is_en else f"【外包络】外径 OD: Φ {od_val:.3f} mm  |  展开中径 Dm: Φ {self.outputs.mean_dia_mm:.3f} mm")
 
             painter.setPen(QColor("#475569"))
             font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
-            painter.drawText(12, h - 6, f"【内腔基准】内径 ID: Φ {id_val:.2f} mm")
+            painter.drawText(12, h - 6, f"[Inner Bore] Inner Dia ID: Φ {id_val:.2f} mm" if is_en else f"【内腔基准】内径 ID: Φ {id_val:.2f} mm")
 
         elif self.inputs.coil_type == CoilType.OCTAGONAL:
             id1 = max(0.2, self.inputs.oct_id1)
@@ -860,7 +869,7 @@ class MacroRacetrackCanvas(QWidget):
             for m_poly in mag_corners:
                 c_x = (m_poly[0].x() + m_poly[1].x() + m_poly[2].x()) / 3.0
                 c_y = (m_poly[0].y() + m_poly[1].y() + m_poly[2].y()) / 3.0
-                painter.drawText(QRectF(c_x - 20, c_y - 8, 40, 16), Qt.AlignmentFlag.AlignCenter, "磁钢")
+                painter.drawText(QRectF(c_x - 24, c_y - 8, 48, 16), Qt.AlignmentFlag.AlignCenter, "Magnet" if is_en else "磁钢")
 
             # 2. 绘制八角形线圈实体
             in_pts = generate_octagonal_polygon_points(id1, id2, l1, l2, r1, num_arc_pts=10)
@@ -893,12 +902,12 @@ class MacroRacetrackCanvas(QWidget):
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
             painter.setPen(QColor("#0F172A"))
-            painter.drawText(12, h - 19, f"【外包络】对边 OD1: {od1:.3f} mm  |  对角 OD2: {od2:.3f} mm")
+            painter.drawText(12, h - 19, f"[Outer Envelope] Flat OD1: {od1:.3f} mm  |  Diagonal OD2: {od2:.3f} mm" if is_en else f"【外包络】对边 OD1: {od1:.3f} mm  |  对角 OD2: {od2:.3f} mm")
 
             painter.setPen(QColor("#475569"))
             font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
-            painter.drawText(12, h - 6, f"【内腔】ID1: {id1:.2f} | ID2: {id2:.2f} | 平直L1: {l1:.2f} | 45°斜边L2: {l2:.2f} | R1: {r1:.2f} mm")
+            painter.drawText(12, h - 6, f"[Inner Bore] ID1: {id1:.2f} | ID2: {id2:.2f} | Flat L1: {l1:.2f} | 45° Bevel L2: {l2:.2f} | R1: {r1:.2f} mm" if is_en else f"【内腔】ID1: {id1:.2f} | ID2: {id2:.2f} | 平直L1: {l1:.2f} | 45°斜边L2: {l2:.2f} | R1: {r1:.2f} mm")
 
         elif self.inputs.coil_type == CoilType.ARBITRARY_PERIMETER:
             ref_l = max(1.0, self.inputs.arbitrary_outer_len)
@@ -936,12 +945,12 @@ class MacroRacetrackCanvas(QWidget):
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
             painter.setPen(QColor("#0F172A"))
-            painter.drawText(12, h - 19, f"【周长解析】中线周长 MLT: {mlt:.3f} mm  |  展开外周长 C_out: {c_out:.3f} mm")
+            painter.drawText(12, h - 19, f"[Perimeter] Mean Turn Length MLT: {mlt:.3f} mm  |  Outer C_out: {c_out:.3f} mm" if is_en else f"【周长解析】中线周长 MLT: {mlt:.3f} mm  |  展开外周长 C_out: {c_out:.3f} mm")
 
             painter.setPen(QColor("#475569"))
             font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
-            painter.drawText(12, h - 6, f"【CAD内腔基准】展开内周长 C_in: {c_in:.3f} mm  |  参考外廓: {self.outputs.outer_len:.2f} × {self.outputs.outer_wid:.2f} mm")
+            painter.drawText(12, h - 6, f"[CAD Bore] Inner Perimeter C_in: {c_in:.3f} mm  |  Ref Envelope: {self.outputs.outer_len:.2f} × {self.outputs.outer_wid:.2f} mm" if is_en else f"【CAD内腔基准】展开内周长 C_in: {c_in:.3f} mm  |  参考外廓: {self.outputs.outer_len:.2f} × {self.outputs.outer_wid:.2f} mm")
 
         else:
             def create_racetrack_path(len_mm: float, wid_mm: float) -> QPainterPath:
@@ -1015,7 +1024,7 @@ class MacroRacetrackCanvas(QWidget):
                 font_cross = QFont("Microsoft YaHei", 7, QFont.Weight.Bold)
                 painter.setFont(font_cross)
                 painter.setPen(QColor("#0369A1"))
-                text_cross = f"60.00° 交叉线区域 (+{self.outputs.delta_w_crossover:.3f}mm)"
+                text_cross = (f"60.00° Crossover Zone (+{self.outputs.delta_w_crossover:.3f}mm)" if is_en else f"60.00° 交叉线区域 (+{self.outputs.delta_w_crossover:.3f}mm)")
                 fm_c = painter.fontMetrics()
                 tw_c = fm_c.horizontalAdvance(text_cross)
                 badge_x = cx - tw_c / 2.0
@@ -1030,13 +1039,13 @@ class MacroRacetrackCanvas(QWidget):
                 p_lead_in_start = QPointF(cx + (ol * scale) / 4.0, cy + r_outer_edge)
                 p_lead_in_end = QPointF(cx + (ol * scale) / 4.0 + 26, cy + r_outer_edge + 18)
                 painter.drawLine(p_lead_in_start, p_lead_in_end)
-                painter.drawText(int(p_lead_in_end.x() + 3), int(p_lead_in_end.y() + 4), "进线")
+                painter.drawText(int(p_lead_in_end.x() + 3), int(p_lead_in_end.y() + 4), "Lead In" if is_en else "进线")
 
                 # 出线 (顶侧偏右斜向引出)
                 p_lead_out_start = QPointF(cx + (ol * scale) / 4.0, cy - r_outer_edge)
                 p_lead_out_end = QPointF(cx + (ol * scale) / 4.0 + 22, cy - r_outer_edge - 18)
                 painter.drawLine(p_lead_out_start, p_lead_out_end)
-                painter.drawText(int(p_lead_out_end.x() + 3), int(p_lead_out_end.y() - 2), "出线")
+                painter.drawText(int(p_lead_out_end.x() + 3), int(p_lead_out_end.y() - 2), "Lead Out" if is_en else "出线")
 
                 painter.restore()
 
@@ -1049,14 +1058,14 @@ class MacroRacetrackCanvas(QWidget):
             painter.setFont(font_dim)
             painter.setPen(QColor("#0F172A"))
             if self.inputs.has_crossover_wire:
-                painter.drawText(12, h - 19, f"【外包络】外长 OL: {ol:.3f} mm  |  外宽 OW: {ow:.3f} mm (含60°交叉线 +{self.outputs.delta_w_crossover:.3f}mm)")
+                painter.drawText(12, h - 19, f"[Outer Envelope] Outer Length OL: {ol:.3f} mm  |  Outer Width OW: {ow:.3f} mm (incl. 60° Crossover +{self.outputs.delta_w_crossover:.3f}mm)" if is_en else f"【外包络】外长 OL: {ol:.3f} mm  |  外宽 OW: {ow:.3f} mm (含60°交叉线 +{self.outputs.delta_w_crossover:.3f}mm)")
             else:
-                painter.drawText(12, h - 19, f"【外包络】外长 OL: {ol:.3f} mm  |  外宽 OW: {ow:.3f} mm")
+                painter.drawText(12, h - 19, f"[Outer Envelope] Outer Length OL: {ol:.3f} mm  |  Outer Width OW: {ow:.3f} mm" if is_en else f"【外包络】外长 OL: {ol:.3f} mm  |  外宽 OW: {ow:.3f} mm")
 
             painter.setPen(QColor("#475569"))
             font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
-            painter.drawText(12, h - 6, f"【内腔基准】内长 IL: {il:.2f} mm  |  内宽 IW: {iw:.2f} mm")
+            painter.drawText(12, h - 6, f"[Inner Bore] Inner Length IL: {il:.2f} mm  |  Inner Width IW: {iw:.2f} mm" if is_en else f"【内腔基准】内长 IL: {il:.2f} mm  |  内宽 IW: {iw:.2f} mm")
 
 
 class MagnetSectionCanvas(QWidget):
@@ -1117,55 +1126,56 @@ class MagnetSectionCanvas(QWidget):
         f_thk = max(0.01, self.outputs.thickness_h)
         lim_z = self.inputs.max_z_h_limit
 
+        is_en = i18n.is_english()
         if c_type == CoilType.CIRCULAR:
             in_dim = max(0.1, self.inputs.inner_len)
             out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_len)
             lim_dim = self.inputs.max_x_len_limit
-            view_title = "圆线圈 2D 径向剖面与 DFM 装配限值 (OD × F)"
-            dim_in_name = "内径 ID"
-            dim_out_name = "外径 OD"
+            view_title = "Circular 2D Radial Section & DFM Clearance (OD × F)" if is_en else "圆线圈 2D 径向剖面与 DFM 装配限值 (OD × F)"
+            dim_in_name = "ID" if is_en else "内径 ID"
+            dim_out_name = "OD" if is_en else "外径 OD"
             dim_lim_name = "Max_OD"
         elif c_type == CoilType.OCTAGONAL:
             if self.section_mode == "zx":
                 in_dim = max(0.1, self.inputs.oct_id1)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.oct_od1)
                 lim_dim = self.inputs.max_x_len_limit
-                view_title = "八角形 2D 截面 (对边剖面 ID1/OD1 与限宽公差)"
-                dim_in_name = "对边内跨 ID1"
-                dim_out_name = "对边外跨 OD1"
+                view_title = "Octagonal 2D Section (Flat Span ID1/OD1 & Clearance)" if is_en else "八角形 2D 截面 (对边剖面 ID1/OD1 与限宽公差)"
+                dim_in_name = "Flat ID1" if is_en else "对边内跨 ID1"
+                dim_out_name = "Flat OD1" if is_en else "对边外跨 OD1"
                 dim_lim_name = "Max_X"
             else:
                 in_dim = max(0.1, self.inputs.oct_id2)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.oct_od2)
                 lim_dim = self.inputs.max_y_wid_limit
-                view_title = "八角形 2D 截面 (45°对角剖面 ID2/OD2 与限宽公差)"
-                dim_in_name = "对角内跨 ID2"
-                dim_out_name = "对角外跨 OD2"
+                view_title = "Octagonal 2D Section (45° Diagonal ID2/OD2 & Clearance)" if is_en else "八角形 2D 截面 (45°对角剖面 ID2/OD2 与限宽公差)"
+                dim_in_name = "Diag ID2" if is_en else "对角内跨 ID2"
+                dim_out_name = "Diag OD2" if is_en else "对角外跨 OD2"
                 dim_lim_name = "Max_Y"
         elif c_type == CoilType.ARBITRARY_PERIMETER:
             out_dim = max(1.0, self.outputs.outer_len)
             in_dim = max(0.1, out_dim - 2.0 * e_env)
             lim_dim = self.inputs.max_x_len_limit
-            view_title = "通用异形 2D 截面与 DFM 装配限高"
-            dim_in_name = "参考内跨"
-            dim_out_name = "参考外跨"
+            view_title = "Arbitrary Contour 2D Section & DFM Clearance" if is_en else "通用异形 2D 截面与 DFM 装配限高"
+            dim_in_name = "Ref Inner" if is_en else "参考内跨"
+            dim_out_name = "Ref Outer" if is_en else "参考外跨"
             dim_lim_name = "Max_X"
         else:
             if self.section_mode == "zx":
                 in_dim = max(0.1, self.inputs.inner_len)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_len)
                 lim_dim = self.inputs.max_x_len_limit
-                view_title = "跑道型 2D 截面 (Z-X 长向剖面与 X 向限宽)"
-                dim_in_name = "内长 IL"
-                dim_out_name = "外长 OL"
+                view_title = "Racetrack 2D Section (Z-X Long Section & X-Limit)" if is_en else "跑道型 2D 截面 (Z-X 长向剖面与 X 向限宽)"
+                dim_in_name = "IL" if is_en else "内长 IL"
+                dim_out_name = "OL" if is_en else "外长 OL"
                 dim_lim_name = "Max_X"
             else:
                 in_dim = max(0.1, self.inputs.inner_wid)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_wid)
                 lim_dim = self.inputs.max_y_wid_limit
-                view_title = "跑道型 2D 截面 (Z-Y 宽向剖面与 Y 向限宽)"
-                dim_in_name = "内宽 IW"
-                dim_out_name = "外宽 OW"
+                view_title = "Racetrack 2D Section (Z-Y Width Section & Y-Limit)" if is_en else "跑道型 2D 截面 (Z-Y 宽向剖面与 Y 向限宽)"
+                dim_in_name = "IW" if is_en else "内宽 IW"
+                dim_out_name = "OW" if is_en else "外宽 OW"
                 dim_lim_name = "Max_Y"
 
         delta_z = lim_z - f_thk
@@ -1183,8 +1193,12 @@ class MagnetSectionCanvas(QWidget):
             pill_zx = QRectF(w - 225, 8, 100, 22)
             pill_zy = QRectF(w - 115, 8, 100, 22)
 
-            t1 = "● 对边剖面" if self.section_mode == "zx" else "○ 对边剖面" if c_type == CoilType.OCTAGONAL else ("● Z-X 长向" if self.section_mode == "zx" else "○ Z-X 长向")
-            t2 = "● 对角剖面" if self.section_mode == "zy" else "○ 对角剖面" if c_type == CoilType.OCTAGONAL else ("● Z-Y 宽向" if self.section_mode == "zy" else "○ Z-Y 宽向")
+            if is_en:
+                t1 = ("● Flat Sec" if self.section_mode == "zx" else "○ Flat Sec") if c_type == CoilType.OCTAGONAL else ("● Z-X Long" if self.section_mode == "zx" else "○ Z-X Long")
+                t2 = ("● Diag Sec" if self.section_mode == "zy" else "○ Diag Sec") if c_type == CoilType.OCTAGONAL else ("● Z-Y Width" if self.section_mode == "zy" else "○ Z-Y Width")
+            else:
+                t1 = ("● 对边剖面" if self.section_mode == "zx" else "○ 对边剖面") if c_type == CoilType.OCTAGONAL else ("● Z-X 长向" if self.section_mode == "zx" else "○ Z-X 长向")
+                t2 = ("● 对角剖面" if self.section_mode == "zy" else "○ 对角剖面") if c_type == CoilType.OCTAGONAL else ("● Z-Y 宽向" if self.section_mode == "zy" else "○ Z-Y 宽向")
 
             painter.setPen(QPen(QColor("#0284C7") if self.section_mode == "zx" else QColor("#CBD5E1"), 1.2 if self.section_mode == "zx" else 1))
             painter.setBrush(QBrush(QColor("#E0F2FE") if self.section_mode == "zx" else QColor("#F8FAFC")))
@@ -1206,7 +1220,7 @@ class MagnetSectionCanvas(QWidget):
             painter.drawRoundedRect(pill_circ, 11, 11)
             painter.setFont(QFont("Microsoft YaHei", 7, QFont.Weight.Bold))
             painter.setPen(QColor("#0284C7"))
-            painter.drawText(pill_circ, Qt.AlignmentFlag.AlignCenter, "● 旋转对称剖面")
+            painter.drawText(pill_circ, Qt.AlignmentFlag.AlignCenter, "● Axisymmetric" if is_en else "● 旋转对称剖面")
         else:
             pill_arb = QRectF(w - 155, 8, 140, 22)
             painter.setPen(QPen(QColor("#0284C7"), 1.2))
@@ -1214,7 +1228,7 @@ class MagnetSectionCanvas(QWidget):
             painter.drawRoundedRect(pill_arb, 11, 11)
             painter.setFont(QFont("Microsoft YaHei", 7, QFont.Weight.Bold))
             painter.setPen(QColor("#0284C7"))
-            painter.drawText(pill_arb, Qt.AlignmentFlag.AlignCenter, "● CAD周长等效剖面")
+            painter.drawText(pill_arb, Qt.AlignmentFlag.AlignCenter, "● Equiv. Section" if is_en else "● CAD周长等效剖面")
 
         # 2. 动态自适应几何原点与防重叠底部堆叠布局 (保证任意高度与DPI缩放绝不重叠)
         is_dfm_active = getattr(self.inputs, "dfm_enabled", False)
@@ -1295,11 +1309,11 @@ class MagnetSectionCanvas(QWidget):
         if not is_dfm_active:
             color_z = QColor("#0284C7")
             bg_z = QColor("#F0F9FF")
-            z_tag_text = f"▲ 参考限高 {dim_lim_name}_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)"
+            z_tag_text = (f"▲ Ref Z Limit {dim_lim_name}_Z: {lim_z:.2f} mm (Margin ΔZ: {delta_z:+.3f} mm)" if is_en else f"▲ 参考限高 {dim_lim_name}_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)")
         else:
             color_z = QColor("#059669" if z_pass else "#DC2626")
             bg_z = QColor("#ECFDF5" if z_pass else "#FEF2F2")
-            z_tag_text = f"▲ 空间限高 {dim_lim_name}_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)"
+            z_tag_text = (f"▲ Max Z Limit {dim_lim_name}_Z: {lim_z:.2f} mm (Margin ΔZ: {delta_z:+.3f} mm)" if is_en else f"▲ 空间限高 {dim_lim_name}_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)")
 
         rect_lim_z_tag = QRectF(14, 34, 280, 16)
         painter.setPen(QPen(color_z, 1))
@@ -1514,23 +1528,23 @@ class MagnetSectionCanvas(QWidget):
         # 9. 状态指示胶囊 (Status Capsule) - 仅在高度充裕时独立悬浮，与上下图元严格保持间距
         if show_floating_badge:
             if not is_dfm_active:
-                badge_text = "ℹ DFM 模具卡限已关闭 (自由仿真设计模式: 专注于电阻与匝数寻优)"
+                badge_text = "ℹ DFM Limits Off (Free Parameter Mode: Optimize R20 & Turns)" if is_en else "ℹ DFM 模具卡限已关闭 (自由仿真设计模式: 专注于电阻与匝数寻优)"
                 b_color = QColor("#0284C7")
                 bg_color = QColor(240, 249, 255, 240)
             elif all_pass:
-                badge_text = f"✓ DFM 空间合格 (Z 向余量 ΔZ: +{delta_z:.3f} mm  |  侧向余量 Δ: +{delta_dim:.3f} mm)"
+                badge_text = (f"✓ DFM Clearance Passed (Z-Margin ΔZ: +{delta_z:.3f} mm  |  Lateral Δ: +{delta_dim:.3f} mm)" if is_en else f"✓ DFM 空间合格 (Z 向余量 ΔZ: +{delta_z:.3f} mm  |  侧向余量 Δ: +{delta_dim:.3f} mm)")
                 b_color = QColor("#059669")
                 bg_color = QColor(240, 253, 244, 240)
             elif not z_pass and not dim_pass:
-                badge_text = f"🚨 双向严重超差干涉! (Z向超出 {abs(delta_z):.3f} mm | 侧向超出 {abs(delta_dim):.3f} mm)"
+                badge_text = (f"🚨 Dual-Axis Interference! (Z Over {abs(delta_z):.3f} mm | Lateral Over {abs(delta_dim):.3f} mm)" if is_en else f"🚨 双向严重超差干涉! (Z向超出 {abs(delta_z):.3f} mm | 侧向超出 {abs(delta_dim):.3f} mm)")
                 b_color = QColor("#DC2626")
                 bg_color = QColor(254, 242, 242, 240)
             elif not z_pass:
-                badge_text = f"🚨 Z 向超差报警: 线圈高 {f_thk:.3f} mm > Max_Z {lim_z:.2f} mm (超出 {abs(delta_z):.3f} mm)"
+                badge_text = (f"🚨 Z-Height Exceeded: H {f_thk:.3f} mm > Max_Z {lim_z:.2f} mm (Over {abs(delta_z):.3f} mm)" if is_en else f"🚨 Z 向超差报警: 线圈高 {f_thk:.3f} mm > Max_Z {lim_z:.2f} mm (超出 {abs(delta_z):.3f} mm)")
                 b_color = QColor("#DC2626")
                 bg_color = QColor(254, 242, 242, 240)
             else:
-                badge_text = f"🚨 侧向超差报警: 线圈 {dim_out_name} {out_dim:.3f} mm > {dim_lim_name} {lim_dim:.2f} mm (超出 {abs(delta_dim):.3f} mm)"
+                badge_text = (f"🚨 Lateral Exceeded: {dim_out_name} {out_dim:.3f} mm > {dim_lim_name} {lim_dim:.2f} mm (Over {abs(delta_dim):.3f} mm)" if is_en else f"🚨 侧向超差报警: 线圈 {dim_out_name} {out_dim:.3f} mm > {dim_lim_name} {lim_dim:.2f} mm (超出 {abs(delta_dim):.3f} mm)")
                 b_color = QColor("#DC2626")
                 bg_color = QColor(254, 242, 242, 240)
 
@@ -1549,11 +1563,11 @@ class MagnetSectionCanvas(QWidget):
         painter.setFont(QFont("Microsoft YaHei", 7))
         painter.setPen(QColor("#475569"))
         if is_dfm_active:
-            line1 = f"线圈成型高度 F: {f_thk:.3f} mm  |  空间限高 Max_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)  |  成型壁厚 E: {e_env:.3f} mm"
-            line2 = f"线圈内腔基准: {in_dim:.2f} mm  |  实际外廓: {out_dim:.3f} mm  |  空间上限 {dim_lim_name}: {lim_dim:.2f} mm (余量 Δ: {delta_dim:+.3f} mm)"
+            line1 = (f"Coil Height F: {f_thk:.3f} mm  |  Max_Z: {lim_z:.2f} mm (Margin ΔZ: {delta_z:+.3f} mm)  |  Build E: {e_env:.3f} mm" if is_en else f"线圈成型高度 F: {f_thk:.3f} mm  |  空间限高 Max_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)  |  成型壁厚 E: {e_env:.3f} mm")
+            line2 = (f"Inner Bore: {in_dim:.2f} mm  |  Outer Span: {out_dim:.3f} mm  |  Limit {dim_lim_name}: {lim_dim:.2f} mm (Margin Δ: {delta_dim:+.3f} mm)" if is_en else f"线圈内腔基准: {in_dim:.2f} mm  |  实际外廓: {out_dim:.3f} mm  |  空间上限 {dim_lim_name}: {lim_dim:.2f} mm (余量 Δ: {delta_dim:+.3f} mm)")
         else:
-            line1 = f"【自由设计】成型高度 F: {f_thk:.3f} mm  |  壁厚 E: {e_env:.3f} mm  |  DFM 限值检查未开启"
-            line2 = f"线圈内腔基准: {in_dim:.2f} mm  |  实际外廓: {out_dim:.3f} mm  |  参考限值 {dim_lim_name}: {lim_dim:.2f} mm"
+            line1 = (f"[Free Mode] Height F: {f_thk:.3f} mm  |  Build E: {e_env:.3f} mm  |  DFM Check Off" if is_en else f"【自由设计】成型高度 F: {f_thk:.3f} mm  |  壁厚 E: {e_env:.3f} mm  |  DFM 限值检查未开启")
+            line2 = (f"Inner Bore: {in_dim:.2f} mm  |  Outer Span: {out_dim:.3f} mm  |  Ref {dim_lim_name}: {lim_dim:.2f} mm" if is_en else f"线圈内腔基准: {in_dim:.2f} mm  |  实际外廓: {out_dim:.3f} mm  |  参考限值 {dim_lim_name}: {lim_dim:.2f} mm")
 
         painter.drawText(QRectF(10, rect_bottom_card.top() + 3, w - 20, 13), Qt.AlignmentFlag.AlignCenter, line1)
         painter.drawText(QRectF(10, rect_bottom_card.top() + 16, w - 20, 13), Qt.AlignmentFlag.AlignCenter, line2)
@@ -1637,15 +1651,16 @@ class IsometricCoilCanvas(QWidget):
             v = cy + (x_mm + y_mm) * sin30 * scale - z_mm * scale
             return QPointF(u, v)
 
+        is_en = i18n.is_english()
         # 1. 标题与状态指示药丸
         painter.setPen(QColor("#0284C7"))
         font_title = QFont("Segoe UI", 9, QFont.Weight.Bold)
         painter.setFont(font_title)
-        painter.drawText(14, 22, "3D 空间立体斜视 (Y-Space 空间装配笼)")
+        painter.drawText(14, 22, "3D Isometric View (Y-Space Assembly Cage)" if is_en else "3D 空间立体斜视 (Y-Space 空间装配笼)")
 
         font_badge = QFont("Microsoft YaHei", 8, QFont.Weight.Bold)
         painter.setFont(font_badge)
-        badge_w = 165
+        badge_w = 175
         badge_h = 22
         badge_rect = QRectF(w - badge_w - 14, 8, badge_w, badge_h)
 
@@ -1654,19 +1669,19 @@ class IsometricCoilCanvas(QWidget):
             painter.setBrush(QBrush(QColor("#F0F9FF")))
             painter.drawRoundedRect(badge_rect, 11, 11)
             painter.setPen(QColor("#0284C7"))
-            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, "ℹ 自由仿真设计模式")
+            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, "ℹ Free Design Mode" if is_en else "ℹ 自由仿真设计模式")
         elif all_pass:
             painter.setPen(QPen(QColor("#10B981"), 1))
             painter.setBrush(QBrush(QColor("#ECFDF5")))
             painter.drawRoundedRect(badge_rect, 11, 11)
             painter.setPen(QColor("#047857"))
-            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, "✓ 3D 装配全部合规")
+            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, "✓ 3D Clearance Pass" if is_en else "✓ 3D 装配全部合规")
         else:
             painter.setPen(QPen(QColor("#EF4444"), 1))
             painter.setBrush(QBrush(QColor("#FEF2F2")))
             painter.drawRoundedRect(badge_rect, 11, 11)
             painter.setPen(QColor("#B91C1C"))
-            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, "⚠️ 空间干涉超差")
+            painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, "⚠️ 3D Interference" if is_en else "⚠️ 空间干涉超差")
 
         # 2. 绘制 3D 空间笼的背向虚线 (Back Edges of Bounding Box)
         lx = real_lim_x
@@ -1935,7 +1950,7 @@ class IsometricCoilCanvas(QWidget):
         elif delta_y >= 0:
             delta_y_text = f"+{delta_y:.3f} mm"
         else:
-            delta_y_text = f"{delta_y:.3f} mm (超差!)"
+            delta_y_text = (f"{delta_y:.3f} mm (Over!)" if is_en else f"{delta_y:.3f} mm (超差!)")
 
         mid_y_dim = QPointF((pt_y_dim_start.x() + pt_y_dim_end.x()) / 2.0, (pt_y_dim_start.y() + pt_y_dim_end.y()) / 2.0)
         font_y_dim = QFont("Consolas", 8, QFont.Weight.Bold)
@@ -1981,7 +1996,7 @@ class IsometricCoilCanvas(QWidget):
         painter.setPen(color_x_dim)
         painter.drawText(
             int(mid_x_dim.x() - 110), int(mid_x_dim.y() + 10), 
-            f"X限长: {real_lim_x:.2f} (OL: {ol:.3f}, ΔX: {delta_x:+.3f})"
+            (f"Max_X: {real_lim_x:.2f} (OL: {ol:.3f}, ΔX: {delta_x:+.3f})" if is_en else f"X限长: {real_lim_x:.2f} (OL: {ol:.3f}, ΔX: {delta_x:+.3f})")
         )
 
         # 7. Z 限高标注 (沿右侧立柱 pr_0 -> pr_z)
@@ -1992,7 +2007,7 @@ class IsometricCoilCanvas(QWidget):
         z_label_y = (pr_0.y() + pr_z.y()) / 2.0 + 4
         painter.drawText(
             int(z_label_x), int(z_label_y), 
-            f"Z限高: {real_lim_z:.2f} (F: {f_h:.3f}, ΔZ: {delta_z:+.3f})"
+            (f"Max_Z: {real_lim_z:.2f} (F: {f_h:.3f}, ΔZ: {delta_z:+.3f})" if is_en else f"Z限高: {real_lim_z:.2f} (F: {f_h:.3f}, ΔZ: {delta_z:+.3f})")
         )
 
         # 8. 左下角专属 Y 空间与三维装配全景看板
@@ -2005,19 +2020,19 @@ class IsometricCoilCanvas(QWidget):
             card_pen = QPen(QColor("#BAE6FD"), 1.2)
             card_brush = QBrush(QColor("#F0F9FF"))
             card_title_color = QColor("#0284C7")
-            card_title = "★ Y 空间配合参考 (自由模式)"
+            card_title = "★ Y-Space Fit Reference (Free Mode)" if is_en else "★ Y 空间配合参考 (自由模式)"
             delta_color = QColor("#0284C7")
         elif margin_y_pass:
             card_pen = QPen(QColor("#059669"), 1.2)
             card_brush = QBrush(QColor("#F0FDF4"))
             card_title_color = QColor("#065F46")
-            card_title = "★ Y 空间装配校验 (宽向配合聚焦)"
+            card_title = "★ Y-Space Clearance Check (Passed)" if is_en else "★ Y 空间装配校验 (宽向配合聚焦)"
             delta_color = QColor("#047857")
         else:
             card_pen = QPen(QColor("#EF4444"), 1.2)
             card_brush = QBrush(QColor("#FEF2F2"))
             card_title_color = QColor("#991B1B")
-            card_title = "★ Y 空间装配校验 (宽向配合聚焦)"
+            card_title = "★ Y-Space Clearance Check (Failed)" if is_en else "★ Y 空间装配校验 (宽向配合聚焦)"
             delta_color = QColor("#B91C1C")
 
         painter.setPen(card_pen)
@@ -2036,12 +2051,12 @@ class IsometricCoilCanvas(QWidget):
         painter.setPen(QColor("#1E293B"))
         painter.drawText(
             card_x + 8, card_y + 31, 
-            f"Max_Y: {real_lim_y:.2f} mm  |  线圈 OW: {ow:.3f} mm"
+            f"Max_Y: {real_lim_y:.2f} mm  |  Coil OW: {ow:.3f} mm" if is_en else f"Max_Y: {real_lim_y:.2f} mm  |  线圈 OW: {ow:.3f} mm"
         )
         painter.setPen(delta_color)
         painter.drawText(
             card_x + 8, card_y + 44, 
-            f"装配裕量 ΔY: {delta_y_text} (单边留隙 {(delta_y/2):.3f} mm)"
+            f"Margin ΔY: {delta_y_text} (Per Side {(delta_y/2):.3f} mm)" if is_en else f"装配裕量 ΔY: {delta_y_text} (单边留隙 {(delta_y/2):.3f} mm)"
         )
 
 
@@ -2081,7 +2096,7 @@ class CoilDualCanvasWidget(QFrame):
         layout.addWidget(self.tab_macro, 1)
 
     def retranslate_ui(self):
-        """动态多语言重载选项卡标题"""
+        """动态多语言重载选项卡标题与全部矢量画布重绘"""
         from src.core.i18n import t
         is_circ = getattr(self, "_last_is_circ", False)
         if is_circ:
@@ -2090,6 +2105,10 @@ class CoilDualCanvasWidget(QFrame):
             self.tab_macro.setTabText(0, t("tab_2d_contour", "2D 跑道外廓 (X-Y)"))
         self.tab_macro.setTabText(1, t("tab_2d_section", "2D 截面与限高 (DFM)"))
         self.tab_macro.setTabText(2, t("tab_3d_isometric", "3D 空间斜视 (Y-Space)"))
+        self.micro_canvas.update()
+        self.racetrack_canvas.update()
+        self.magnet_canvas.update()
+        self.isometric_canvas.update()
 
     def updateCoil(self, inputs: CoilInputs, outputs: CoilOutputs):
         # 动态更新 Tab 0 标题

@@ -108,11 +108,16 @@ class ComparisonPopoutWindow(QDialog):
 
         # 1. 顶部操作工具条
         self.toolbar_frame = QFrame()
+        self.toolbar_frame.setObjectName("popoutToolbarFrame")
         self.toolbar_frame.setStyleSheet("""
-            QFrame {
+            QFrame#popoutToolbarFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #CBD5E1;
                 border-radius: 6px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
             }
         """)
         tb_layout = QHBoxLayout(self.toolbar_frame)
@@ -246,12 +251,16 @@ class ComparisonPopoutWindow(QDialog):
         self.table_layout = QVBoxLayout(self.table_container)
         self.table_layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.table_container, 1)
+        self.retranslate_ui()
 
     def retranslate_ui(self):
-        from src.core.i18n import t
-        self.setWindowTitle(f"{t('dialog_compare_title', '📊 固化方案独立对比与工程评审矩阵')}")
+        from src.core.i18n import i18n, t
+        is_en = i18n.is_english()
+        self.setWindowTitle(f"{t('dialog_compare_title', '📊 固化方案独立对比与工程评审矩阵')} - ANSV Coil-Architect Pro")
         if hasattr(self, "lbl_title"):
             self.lbl_title.setText(t("dialog_compare_title", "📊 固化方案独立对比与工程评审矩阵"))
+        if hasattr(self, "lbl_pop_count") and self.drawer and hasattr(self.drawer, "_format_count_text"):
+            self.lbl_pop_count.setText(self.drawer._format_count_text())
         if hasattr(self, "btn_cap"):
             self.btn_cap.setText(t("btn_pin_scheme", "📌 固化当前方案"))
         if hasattr(self, "btn_copy"):
@@ -264,6 +273,7 @@ class ComparisonPopoutWindow(QDialog):
             self.btn_clear.setText(t("btn_clear_schemes", "🗑 清空"))
         if hasattr(self, "btn_dock"):
             self.btn_dock.setText(t("btn_embed_window", "⇲ 嵌入底部抽屉"))
+            self.btn_dock.setToolTip("Dock this matrix window back into the bottom drawer" if is_en else "将本评审矩阵窗口重新嵌入到主工作台底部抽屉")
 
     def closeEvent(self, event):
         """窗口关闭时自动安全嵌入回抽屉"""
@@ -593,18 +603,34 @@ class ComparisonDrawer(QFrame):
         "方案操作": "row_action",
     }
 
+    def _format_count_text(self) -> str:
+        from src.core.i18n import i18n
+        n = len(self.snapshots)
+        return f"({n} Frozen)" if i18n.is_english() else f"(已固化 {n} 组)"
+
     def retranslate_ui(self):
         """动态多语言重载"""
-        from src.core.i18n import t
-        arrow = "▼ 📊 " if self._is_expanded else "▶ 📊 "
-        self.btn_toggle.setText(f"{arrow}{t('drawer_title', '方案比对抽屉')}")
-        self.lbl_count.setText(f"({t('drawer_pinned_count', '已固化')} {len(self.snapshots)} {t('drawer_pinned_unit', '组')})")
+        from src.core.i18n import i18n, t
+        is_en = i18n.is_english()
+        if getattr(self, "_is_popped_out", False):
+            self.btn_toggle.setText("📊 Scheme Matrix Detached [Click to Dock]" if is_en else "📊 方案比对已在独立大窗展开 [点击恢复嵌入]")
+            self.btn_popout.setText("⇲ Dock Back" if is_en else "⇲ 恢复嵌入")
+        else:
+            arrow = "▼ 📊 " if self._is_expanded else "▶ 📊 "
+            self.btn_toggle.setText(f"{arrow}{t('drawer_title', '方案比对抽屉')}")
+            self.btn_popout.setText(t("btn_popout_window", "⛶ 弹出大窗"))
+        self.lbl_count.setText(self._format_count_text())
         self.btn_capture.setText(t("btn_pin_scheme", "📌 固化当前方案"))
+        self.btn_capture.setToolTip("Freeze current live parameters & simulation results as a column for side-by-side comparison" if is_en else "将当前正在微调的参数与仿真结果固化为独立方案列，用于横向比对")
         self.btn_copy.setText(t("btn_copy_table", "📋 复制对比表"))
+        self.btn_copy.setToolTip("Copy comparison matrix to clipboard (TSV format for Excel/Word)" if is_en else "复制当前所有方案的比对数据至剪贴板 (制表符格式，可直接粘贴到 Excel 或 Word)")
         self.btn_export.setText(t("btn_export_excel", "📊 导出 Excel"))
+        self.btn_export.setToolTip("Export multi-scheme comparison matrix as a styled Excel workbook (.xlsx)" if is_en else "导出多方案比对表为格式精美的 Excel 工作簿 (.xlsx)")
         self.btn_export_csv.setText(t("btn_export_csv", "📄 导出 CSV"))
+        self.btn_export_csv.setToolTip("Export multi-scheme comparison matrix as UTF-8 CSV (.csv)" if is_en else "导出多方案比对表为标准 UTF-8 CSV 报表 (.csv)")
         self.btn_clear.setText(t("btn_clear_schemes", "🗑 清空"))
-        self.btn_popout.setText(t("btn_popout_window", "⛶ 弹出大窗"))
+        self.btn_clear.setToolTip("Clear all frozen scheme snapshots" if is_en else "清空所有已固化的方案快照")
+        self.btn_popout.setToolTip("Detach scheme comparison matrix into a resizable floating window" if is_en else "将方案比对矩阵弹出为独立可缩放窗口，支持全屏最大化与宽屏多方案横向评审")
         if hasattr(self, "btn_fold"):
             self.btn_fold.setText(t("btn_fold_drawer", "收起 ▼") if self._is_expanded else t("btn_unfold_drawer", "展开 ▲"))
         if self.popout_window:
@@ -660,7 +686,8 @@ class ComparisonDrawer(QFrame):
 
         # 3. 隐藏抽屉内部内容区，更新抽屉按钮状态
         self.content_container.setVisible(False)
-        self.btn_popout.setText("⇲ 恢复嵌入")
+        from src.core.i18n import i18n
+        self.btn_popout.setText("⇲ Dock Back" if i18n.is_english() else "⇲ 恢复嵌入")
         self.btn_popout.setStyleSheet("""
             QPushButton {
                 background-color: #FEF3C7;
@@ -675,7 +702,7 @@ class ComparisonDrawer(QFrame):
                 background-color: #FDE68A;
             }
         """)
-        self.btn_toggle.setText("📊 方案比对已在独立大窗展开 [点击恢复嵌入]")
+        self.btn_toggle.setText("📊 Scheme Matrix Detached [Click to Dock]" if i18n.is_english() else "📊 方案比对已在独立大窗展开 [点击恢复嵌入]")
 
         # 4. 显示并激活弹窗
         self.popout_window.show()
@@ -698,7 +725,8 @@ class ComparisonDrawer(QFrame):
         self.table.setMaximumHeight(260)  # 恢复抽屉限高
 
         # 2. 恢复抽屉按钮文本与样式
-        self.btn_popout.setText("⛶ 弹出大窗")
+        from src.core.i18n import t
+        self.btn_popout.setText(t("btn_popout_window", "⛶ 弹出大窗"))
         self.btn_popout.setStyleSheet("""
             QPushButton {
                 background-color: #EFF6FF;
@@ -718,8 +746,8 @@ class ComparisonDrawer(QFrame):
         # 3. 展开抽屉
         self._is_expanded = True
         self.content_container.setVisible(True)
-        self.btn_toggle.setText("▼ 📊 方案比对抽屉")
-        self.btn_fold.setText("▼ 收起")
+        self.btn_toggle.setText(f"▼ 📊 {t('drawer_title', '方案比对抽屉')}")
+        self.btn_fold.setText(t("btn_fold_drawer", "收起 ▼"))
 
         # 4. 关闭并释放弹窗
         if hasattr(self, "popout_window") and self.popout_window:
@@ -802,7 +830,7 @@ class ComparisonDrawer(QFrame):
             self.set_expanded(True)
 
         from src.core.i18n import t
-        self.lbl_count.setText(f"({t('drawer_pinned_count', '已固化')} {len(self.snapshots)} {t('drawer_pinned_unit', '组')})")
+        self.lbl_count.setText(self._format_count_text())
         if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
             self.popout_window.lbl_pop_count.setText(self.lbl_count.text())
         self.status_message.emit(f"✓ 成功固化 [{name}]！可随时点击下方 [⏪ 还原] 或指定基准方案")
@@ -831,7 +859,7 @@ class ComparisonDrawer(QFrame):
         for c in range(1, total_cols):
             self.table.horizontalHeader().setSectionResizeMode(c, QHeaderView.ResizeMode.Interactive)
             hint_w = self.table.sizeHintForColumn(c)
-            self.table.setColumnWidth(c, max(155, hint_w))
+            self.table.setColumnWidth(c, max(168, hint_w))
 
         baseline = self._get_baseline_snapshot()
 
@@ -844,7 +872,9 @@ class ComparisonDrawer(QFrame):
             col_idx = 2 + idx
             self._render_column(col_idx, s.name, s.inputs, s.outputs, baseline, is_live=False, snapshot_idx=idx)
 
-        self.lbl_count.setText(f"(已固化 {len(self.snapshots)} 组)")
+        self.lbl_count.setText(self._format_count_text())
+        if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
+            self.popout_window.lbl_pop_count.setText(self._format_count_text())
 
     def _render_column(self, col_idx: int, col_name: str, inp: CoilInputs, out: CoilOutputs,
                        baseline: Optional[SchemeSnapshot], is_live: bool, snapshot_idx: int = -1):
@@ -900,7 +930,7 @@ class ComparisonDrawer(QFrame):
         if is_live:
             from src.core.i18n import t
             btn_save = QPushButton(t("btn_pin_scheme", "📌 固化此方案"))
-            btn_save.setFixedWidth(84)
+            btn_save.setMinimumWidth(112)
             btn_save.setStyleSheet("""
                 QPushButton {
                     background-color: #E0F2FE;
@@ -926,7 +956,7 @@ class ComparisonDrawer(QFrame):
             if not s.is_baseline:
                 from src.core.i18n import t
                 btn_set_base = QPushButton(t("btn_set_baseline", "★ 设为基线"))
-                btn_set_base.setFixedWidth(54)
+                btn_set_base.setMinimumWidth(78)
                 btn_set_base.setStyleSheet("""
                     QPushButton {
                         background-color: #F8FAFC;
@@ -950,7 +980,7 @@ class ComparisonDrawer(QFrame):
             else:
                 from src.core.i18n import t
                 lbl_is_base = QLabel(t("col_baseline", "📌 基准方案"))
-                lbl_is_base.setFixedWidth(54)
+                lbl_is_base.setMinimumWidth(78)
                 lbl_is_base.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 lbl_is_base.setStyleSheet("font-size: 10px; font-weight: 700; color: #059669; padding: 1px;")
                 h.addWidget(lbl_is_base)
@@ -958,7 +988,7 @@ class ComparisonDrawer(QFrame):
             # 还原此方案按钮
             from src.core.i18n import t
             btn_restore = QPushButton(t("btn_restore_scheme", "⏪ 还原"))
-            btn_restore.setFixedWidth(48)
+            btn_restore.setMinimumWidth(62)
             btn_restore.setStyleSheet("""
                 QPushButton {
                     background-color: #F0FDF4;
@@ -1027,7 +1057,7 @@ class ComparisonDrawer(QFrame):
             self.snapshots[0].is_baseline = True
         self._rebuild_table_columns()
         if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
-            self.popout_window.lbl_pop_count.setText(f"(已固化 {len(self.snapshots)} 组)")
+            self.popout_window.lbl_pop_count.setText(self._format_count_text())
         self.status_message.emit(f"已移除方案 [{deleted.name}]")
 
     def clear_all_schemes(self):
@@ -1045,9 +1075,9 @@ class ComparisonDrawer(QFrame):
         if res == QMessageBox.StandardButton.Yes:
             self.snapshots.clear()
             self._rebuild_table_columns()
-            self.lbl_count.setText("(已固化 0 组)")
+            self.lbl_count.setText(self._format_count_text())
             if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
-                self.popout_window.lbl_pop_count.setText("(已固化 0 组)")
+                self.popout_window.lbl_pop_count.setText(self._format_count_text())
             self.status_message.emit("方案比对表已清空")
 
     def _on_header_double_clicked(self, section: int):
@@ -1068,17 +1098,27 @@ class ComparisonDrawer(QFrame):
     # 字段取值与差异量计算辅助方法
     # -------------------------------------------------------------
     def _get_topology_str(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
-        t_name = {
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
+        map_zh = {
             CoilType.RACETRACK: "跑道型",
             CoilType.CIRCULAR: "圆形",
             CoilType.OCTAGONAL: "八角形",
             CoilType.ARBITRARY_PERIMETER: "异形"
-        }.get(inp.coil_type, "线圈")
+        }
+        map_en = {
+            CoilType.RACETRACK: "Racetrack",
+            CoilType.CIRCULAR: "Circular",
+            CoilType.OCTAGONAL: "Octagonal",
+            CoilType.ARBITRARY_PERIMETER: "Arbitrary"
+        }
+        t_map = map_en if is_en else map_zh
+        t_name = t_map.get(inp.coil_type, "Coil" if is_en else "线圈")
         m_name = "HCP" if inp.winding_mode == WindingMode.VARIABLE else "EVEN"
         val = f"{t_name} · {m_name}"
         diff = ""
         if base_i:
-            base_t = {CoilType.RACETRACK: "跑道型", CoilType.CIRCULAR: "圆形", CoilType.OCTAGONAL: "八角形", CoilType.ARBITRARY_PERIMETER: "异形"}.get(base_i.coil_type, "线圈")
+            base_t = t_map.get(base_i.coil_type, "Coil" if is_en else "线圈")
             base_m = "HCP" if base_i.winding_mode == WindingMode.VARIABLE else "EVEN"
             if t_name != base_t or m_name != base_m:
                 diff = f"vs {base_t}·{base_m}"
@@ -1121,10 +1161,13 @@ class ComparisonDrawer(QFrame):
         return val, diff, False, False
 
     def _get_mode_str(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
-        val = "异数 (HCP)" if inp.winding_mode == WindingMode.VARIABLE else "同数 (EVEN)"
-        diff = ""
-        if base_i and inp.winding_mode != base_i.winding_mode:
-            diff = "排法变更"
+        from src.core.i18n import i18n
+        if i18n.is_english():
+            val = "HCP (Var)" if inp.winding_mode == WindingMode.VARIABLE else "Ortho (Even)"
+            diff = "Changed" if (base_i and inp.winding_mode != base_i.winding_mode) else ""
+        else:
+            val = "异数 (HCP)" if inp.winding_mode == WindingMode.VARIABLE else "同数 (EVEN)"
+            diff = "排法变更" if (base_i and inp.winding_mode != base_i.winding_mode) else ""
         return val, diff, False, False
 
     def _get_tension(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
@@ -1205,17 +1248,19 @@ class ComparisonDrawer(QFrame):
         return val, diff, False, False
 
     def _get_dfm_status(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
         if not out.dfm or not out.dfm.enabled:
-            return "限值未开启", "", False, False
+            return ("Limits Off" if is_en else "限值未开启"), "", False, False
         if out.dfm.all_passed:
-            return "✔ 全部合格", "", True, False
+            return ("✔ All Passed" if is_en else "✔ 全部合格"), "", True, False
         errs = []
         if not out.dfm.x_passed: errs.append("X")
         if not out.dfm.y_passed: errs.append("Y")
         if not out.dfm.z_passed: errs.append("Z")
-        if not out.dfm.voltage_passed: errs.append("压")
-        if not out.dfm.temp_passed: errs.append("温")
-        return f"⚠ {','.join(errs)}超差", "", False, True
+        if not out.dfm.voltage_passed: errs.append("V" if is_en else "压")
+        if not out.dfm.temp_passed: errs.append("T" if is_en else "温")
+        return (f"⚠ {','.join(errs)} Over" if is_en else f"⚠ {','.join(errs)}超差"), "", False, True
 
     # -------------------------------------------------------------
     # 导出与复制

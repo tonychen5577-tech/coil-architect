@@ -335,8 +335,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
     # ------------------ 方案比对抽屉与工程矩阵 ------------------
     "drawer_title": {
-        "zh": "▶ 方案对比抽屉",
-        "en": "▶ Scheme Comparison Drawer"
+        "zh": "方案比对抽屉",
+        "en": "Scheme Comparison Drawer"
     },
     "drawer_frozen_count": {
         "zh": "(已固化 {n} 组)",
@@ -507,7 +507,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "btn_dfm_settings": {
         "zh": "⚙ 公差与限值设置",
-        "en": "⚙ DFM & Tolerance Config"
+        "en": "⚙ Tolerance / Limit Settings"
     },
     "dfm_section_title": {
         "zh": "🛡 结构装配与 DFM 制造公差",
@@ -551,7 +551,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "tab_2d_section": {
         "zh": "2D 截面与限高 (DFM)",
-        "en": "2D Section & DFM Clearance"
+        "en": "2D Section / DFM Clearance"
     },
     "tab_3d_isometric": {
         "zh": "3D 空间斜视 (Y-Space)",
@@ -563,7 +563,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "btn_dfm_settings": {
         "zh": "⚙ 公差与限值设置",
-        "en": "⚙ Tolerance & Limit Settings"
+        "en": "⚙ Tolerance / Limit Settings"
     },
     "btn_dfm_settings_tip": {
         "zh": "点击快速定位至左侧 DFM 装配公差与安全限值配置区",

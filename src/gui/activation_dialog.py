@@ -33,7 +33,13 @@ class ActivationDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"商业授权激活与订购向导 — {APP_NAME} (License & Purchase Guide)")
+        from src.core.i18n import i18n
+        self.is_en = i18n.is_english()
+        self.setWindowTitle(
+            f"Commercial License & Purchase Guide — {APP_NAME}"
+            if self.is_en else
+            f"商业授权激活与订购向导 — {APP_NAME} (License & Purchase Guide)"
+        )
         self.setWindowIcon(get_app_icon())
         self.setModal(True)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -51,6 +57,7 @@ class ActivationDialog(QDialog):
         adapt_dialog_geometry(self, target_w=870, target_h=560, min_w=800, min_h=500)
 
     def _init_ui(self):
+        is_en = self.is_en
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(12, 12, 12, 12)
         root_layout.setSpacing(10)
@@ -59,11 +66,16 @@ class ActivationDialog(QDialog):
         # 1. 顶部 Header (Logo + 双语标题 + 官方门户)
         # -------------------------------------------------------------
         header_card = QFrame()
+        header_card.setObjectName("headerCard")
         header_card.setStyleSheet("""
-            QFrame {
+            QFrame#headerCard {
                 background-color: #FFFFFF;
                 border: 1px solid #CBD5E1;
                 border-radius: 8px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
             }
         """)
         h_layout = QHBoxLayout(header_card)
@@ -77,9 +89,17 @@ class ActivationDialog(QDialog):
 
         title_vbox = QVBoxLayout()
         title_vbox.setSpacing(2)
-        lbl_title = QLabel("ANSV Coil-Architect Pro · 商业授权激活与订购向导 (License & Purchase)")
+        lbl_title = QLabel(
+            "ANSV Coil-Architect Pro · Commercial License & Purchase Guide"
+            if is_en else
+            "ANSV Coil-Architect Pro · 商业授权激活与订购向导 (License & Purchase)"
+        )
         lbl_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #0284C7; letter-spacing: 0.3px;")
-        lbl_sub = QLabel("微型线圈设计与电热仿真工作站 | 官方正版授权认证 · 全球一机一码硬件加密防御体系")
+        lbl_sub = QLabel(
+            "Micro-Coil Design & Electro-Thermal Workstation | Hardware-Locked Node-Locked License"
+            if is_en else
+            "微型线圈设计与电热仿真工作站 | 官方正版授权认证 · 全球一机一码硬件加密防御体系"
+        )
         lbl_sub.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 500;")
         title_vbox.addWidget(lbl_title)
         title_vbox.addWidget(lbl_sub)
@@ -87,7 +107,7 @@ class ActivationDialog(QDialog):
 
         h_layout.addStretch()
 
-        btn_site = QPushButton(f"🌐 官方门户: ansv.net ↗")
+        btn_site = QPushButton("🌐 Portal: ansv.net ↗" if is_en else "🌐 官方门户: ansv.net ↗")
         btn_site.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_site.setStyleSheet("""
             QPushButton {
@@ -131,7 +151,11 @@ class ActivationDialog(QDialog):
         left_layout.setContentsMargins(14, 12, 14, 12)
         left_layout.setSpacing(8)
 
-        lbl_tier_title = QLabel("🛒 商业授权方案与双币资费 (Tier & Pricing):")
+        lbl_tier_title = QLabel(
+            "🛒 Commercial License Tiers & Pricing (USD / RMB):"
+            if is_en else
+            "🛒 商业授权方案与双币资费 (Tier & Pricing):"
+        )
         lbl_tier_title.setStyleSheet("font-size: 12px; font-weight: 800; color: #0F172A;")
         left_layout.addWidget(lbl_tier_title)
 
@@ -141,11 +165,16 @@ class ActivationDialog(QDialog):
 
         def make_tier_item(badge_txt, badge_bg, badge_fg, name, orig_price, promo_price, desc):
             row = QFrame()
+            row.setObjectName("tierRowFrame")
             row.setStyleSheet("""
-                QFrame {
+                QFrame#tierRowFrame {
                     background-color: #F8FAFC;
                     border: 1px solid #E2E8F0;
                     border-radius: 5px;
+                }
+                QLabel {
+                    border: none;
+                    background: transparent;
                 }
             """)
             r_layout = QHBoxLayout(row)
@@ -180,30 +209,50 @@ class ActivationDialog(QDialog):
             r_layout.addStretch()
             return row
 
-        tiers_box.addWidget(make_tier_item(
-            "⚡ 季度", "#E0F2FE", "#0369A1", "项目季度版 (90天)", "¥2,180 ($349)", "🔥8折: ¥ 1,744 ($279)", "短期项目攻关 / EVT-DVT 单案验算"
-        ))
-        tiers_box.addWidget(make_tier_item(
-            "🌟 主推", "#FEF3C7", "#92400E", "年度商业版 (365天)", "¥5,800 ($899)", "🔥8折: ¥ 4,680 ($719)", "全套物理模型 · 优先一对一支持 · 免费升级"
-        ))
-        tiers_box.addWidget(make_tier_item(
-            "🛡️ 买断", "#DCFCE7", "#166534", "企业单机买断 (永久)", "¥16,800 ($2,699)", "🔥8折: ¥ 13,440 ($2,159)", "终身授权 · 涉密工位内网脱网运行 · 首年维护"
-        ))
+        if is_en:
+            tiers_box.addWidget(make_tier_item(
+                "⚡ 90-Day", "#E0F2FE", "#0369A1", "Quarterly (90d)", "$349 / ¥2,180", "🔥20% OFF: $279 (¥1,744)", "Short-term R&D sprint / EVT-DVT validation"
+            ))
+            tiers_box.addWidget(make_tier_item(
+                "🌟 Best Value", "#FEF3C7", "#92400E", "Annual Pro (365d)", "$899 / ¥5,800", "🔥20% OFF: $719 (¥4,680)", "Full solver suite · Priority 1-on-1 support · Free OTA"
+            ))
+            tiers_box.addWidget(make_tier_item(
+                "🛡️ Perpetual", "#DCFCE7", "#166534", "Perpetual", "$2,699 / ¥16,800", "🔥20% OFF: $2,159 (¥13,440)", "Lifetime license · 100% Air-gapped intranet · 1-Yr Maint."
+            ))
+        else:
+            tiers_box.addWidget(make_tier_item(
+                "⚡ 季度", "#E0F2FE", "#0369A1", "项目季度版 (90天)", "¥2,180 ($349)", "🔥8折: ¥ 1,744 ($279)", "短期项目攻关 / EVT-DVT 单案验算"
+            ))
+            tiers_box.addWidget(make_tier_item(
+                "🌟 主推", "#FEF3C7", "#92400E", "年度商业版 (365天)", "¥5,800 ($899)", "🔥8折: ¥ 4,680 ($719)", "全套物理模型 · 优先一对一支持 · 免费升级"
+            ))
+            tiers_box.addWidget(make_tier_item(
+                "🛡️ 买断", "#DCFCE7", "#166534", "企业单机买断 (永久)", "¥16,800 ($2,699)", "🔥8折: ¥ 13,440 ($2,159)", "终身授权 · 涉密工位内网脱网运行 · 首年维护"
+            ))
         left_layout.addLayout(tiers_box)
 
         # 限期 8 折首发特惠提示卡 (红金高亮)
         promo_bar = QFrame()
+        promo_bar.setObjectName("promoBarFrame")
         promo_bar.setStyleSheet("""
-            QFrame {
+            QFrame#promoBarFrame {
                 background-color: #FEF2F2;
                 border: 1px solid #FECACA;
                 border-radius: 5px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
             }
         """)
         p_layout = QHBoxLayout(promo_bar)
         p_layout.setContentsMargins(8, 6, 8, 6)
         p_layout.setSpacing(6)
         lbl_promo = QLabel(
+            "🔥 <b>Limited-Time 20% OFF Launch Offer</b>:<br>"
+            "Contact our engineer directly to enjoy <b>20% OFF across all editions</b> (Annual Edition only <b>$719 / ¥4,680</b>)! "
+            "Plus, 100% of your initial software license fee can be credited toward custom FEA consulting or prototyping!"
+            if is_en else
             "🔥 <b>限期 8 折首发特惠 (Limited-Time 20% OFF)</b>：<br>"
             "联系工程师开通即享全版本 <b>限时 8 折直降</b>（年度版立省 ¥1,120，仅需 <b>¥4,680 / $719</b>）！"
             "后续委托 ANSV 进行工程代工仿真或打样，首期软件费仍可冲抵技术服务费！"
@@ -230,7 +279,7 @@ class ActivationDialog(QDialog):
         tab_btn_bar = QHBoxLayout()
         tab_btn_bar.setSpacing(6)
 
-        self.btn_subtab_wx = QPushButton("💬 工程师微信 (WeChat)")
+        self.btn_subtab_wx = QPushButton("💬 WeChat Support" if is_en else "💬 工程师微信 (WeChat)")
         self.btn_subtab_wa = QPushButton("🌐 WhatsApp (International)")
 
         for b in [self.btn_subtab_wx, self.btn_subtab_wa]:
@@ -279,9 +328,17 @@ class ActivationDialog(QDialog):
 
         wx_info = QVBoxLayout()
         wx_info.setSpacing(3)
-        wx_info.addWidget(QLabel(f"微信号: <code style='color:#0284C7; font-weight:bold;'>{WECHAT_CONTACT_ID}</code>"))
-        wx_info.addWidget(QLabel("<span style='font-size:10px; color:#64748B;'>手机微信扫码或复制微信号咨询开通</span>"))
-        btn_copy_wx = QPushButton("📋 复制微信号 (ansv-net)")
+        wx_info.addWidget(QLabel(
+            f"WeChat ID: <code style='color:#0284C7; font-weight:bold;'>{WECHAT_CONTACT_ID}</code>"
+            if is_en else
+            f"微信号: <code style='color:#0284C7; font-weight:bold;'>{WECHAT_CONTACT_ID}</code>"
+        ))
+        wx_info.addWidget(QLabel(
+            "<span style='font-size:10px; color:#64748B;'>Scan via WeChat or copy ID for instant activation</span>"
+            if is_en else
+            "<span style='font-size:10px; color:#64748B;'>手机微信扫码或复制微信号咨询开通</span>"
+        ))
+        btn_copy_wx = QPushButton(f"📋 Copy WeChat ({WECHAT_CONTACT_ID})" if is_en else "📋 复制微信号 (ansv-net)")
         btn_copy_wx.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_wx.setStyleSheet("""
             QPushButton {
@@ -318,7 +375,7 @@ class ActivationDialog(QDialog):
         wa_info.setSpacing(3)
         wa_info.addWidget(QLabel(f"WhatsApp: <code style='color:#16A34A; font-weight:bold;'>{WHATSAPP_CONTACT_ID}</code>"))
         wa_info.addWidget(QLabel("<span style='font-size:10px; color:#64748B;'>Global direct technical support & license</span>"))
-        btn_copy_wa = QPushButton("📋 复制 WhatsApp (ansv_net)")
+        btn_copy_wa = QPushButton(f"📋 Copy WhatsApp ({WHATSAPP_CONTACT_ID})" if is_en else "📋 复制 WhatsApp (ansv_net)")
         btn_copy_wa.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_wa.setStyleSheet("""
             QPushButton {
@@ -347,12 +404,15 @@ class ActivationDialog(QDialog):
 
         self.btn_subtab_wx.clicked.connect(lambda: switch_tab(0))
         self.btn_subtab_wa.clicked.connect(lambda: switch_tab(1))
-        from src.core.i18n import i18n
-        default_tab = 1 if i18n.is_english() else 0
+        default_tab = 1 if is_en else 0
         switch_tab(default_tab)
 
         # 底部支持支付方式声明
-        lbl_pay_tips = QLabel("💳 支付通道: 微信支付 · 支付宝 · PayPal (International USD)")
+        lbl_pay_tips = QLabel(
+            "💳 Payment Methods: PayPal (International USD) · WeChat Pay · Alipay"
+            if is_en else
+            "💳 支付通道: 微信支付 · 支付宝 · PayPal (International USD)"
+        )
         lbl_pay_tips.setStyleSheet("color: #64748B; font-size: 9.5px; text-align: center;")
         lbl_pay_tips.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left_layout.addWidget(lbl_pay_tips)
@@ -375,7 +435,11 @@ class ActivationDialog(QDialog):
         right_layout.setContentsMargins(14, 12, 14, 12)
         right_layout.setSpacing(10)
 
-        lbl_hw_title = QLabel("💻 本机硬件特征码 (Machine Code):")
+        lbl_hw_title = QLabel(
+            "💻 Local Hardware Fingerprint (Machine Code):"
+            if is_en else
+            "💻 本机硬件特征码 (Machine Code):"
+        )
         lbl_hw_title.setStyleSheet("font-size: 12px; font-weight: 800; color: #0F172A;")
         right_layout.addWidget(lbl_hw_title)
 
@@ -397,7 +461,7 @@ class ActivationDialog(QDialog):
         """)
         hw_row.addWidget(self.txt_mid)
 
-        btn_copy_mid = QPushButton("📋 复制机器码")
+        btn_copy_mid = QPushButton("📋 Copy Code" if is_en else "📋 复制机器码")
         btn_copy_mid.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_mid.setStyleSheet("""
             QPushButton {
@@ -418,7 +482,11 @@ class ActivationDialog(QDialog):
         right_layout.addLayout(hw_row)
 
         # 核心促单加速神器: 一键复制订购消息草稿 (双语模板)
-        btn_copy_order_msg = QPushButton("💬 一键复制订购消息草稿 (微信 / WhatsApp 直发)")
+        btn_copy_order_msg = QPushButton(
+            "💬 Copy Order Message Template (Send via WhatsApp / WeChat)"
+            if is_en else
+            "💬 一键复制订购消息草稿 (微信 / WhatsApp 直发)"
+        )
         btn_copy_order_msg.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy_order_msg.setStyleSheet("""
             QPushButton {
@@ -441,12 +509,20 @@ class ActivationDialog(QDialog):
         right_layout.addSpacing(4)
 
         # 激活码输入区域
-        lbl_act_title = QLabel("🔑 输入或粘贴商业许可证激活码 (License Token):")
+        lbl_act_title = QLabel(
+            "🔑 Enter or Paste Commercial License Token:"
+            if is_en else
+            "🔑 输入或粘贴商业许可证激活码 (License Token):"
+        )
         lbl_act_title.setStyleSheet("font-size: 12px; font-weight: 800; color: #0F172A;")
         right_layout.addWidget(lbl_act_title)
 
         self.txt_token = QLineEdit()
-        self.txt_token.setPlaceholderText("粘贴 COIL-SEC-XXXX 格式激活码...")
+        self.txt_token.setPlaceholderText(
+            "Paste COIL-SEC-XXXX license token here..."
+            if is_en else
+            "粘贴 COIL-SEC-XXXX 格式激活码..."
+        )
         self.txt_token.setStyleSheet("""
             QLineEdit {
                 background-color: #FFFFFF;
@@ -464,7 +540,11 @@ class ActivationDialog(QDialog):
         """)
         right_layout.addWidget(self.txt_token)
 
-        btn_import_lic = QPushButton("📂 导入 license.lic 授权文件...")
+        btn_import_lic = QPushButton(
+            "📂 Import license.lic File..."
+            if is_en else
+            "📂 导入 license.lic 授权文件..."
+        )
         btn_import_lic.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_import_lic.setStyleSheet("""
             QPushButton {
@@ -490,7 +570,7 @@ class ActivationDialog(QDialog):
         right_btn_row = QHBoxLayout()
         right_btn_row.setSpacing(10)
 
-        btn_cancel = QPushButton("暂不激活 (稍后处理)")
+        btn_cancel = QPushButton("Later (Evaluate)" if is_en else "暂不激活 (稍后处理)")
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.setStyleSheet("""
             QPushButton {
@@ -510,7 +590,7 @@ class ActivationDialog(QDialog):
         btn_cancel.clicked.connect(self.reject)
         right_btn_row.addWidget(btn_cancel)
 
-        btn_activate = QPushButton("立即验证并激活")
+        btn_activate = QPushButton("Verify && Activate Now" if is_en else "立即验证并激活")
         btn_activate.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_activate.setStyleSheet("""
             QPushButton {
