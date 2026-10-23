@@ -55,7 +55,7 @@ In conventional engineering practice, development teams constantly face critical
 To eliminate lost parameters, version confusion, and handover discrepancies, Coil-Architect Pro adheres to international industrial CAE software standards (analogous to SolidWorks `.sldprt`), providing a dedicated native **`.ansvcoil` (ANSV Coil Project)** binary case format:
 
 <p align="center">
-  <img src="docs/images/verify_project_name_and_status.png" alt="Project Name Entry and Project Saving/Loading" width="85%" />
+  <img src="docs/images/verify_project_name_and_status_en.png" alt="Project Name Entry and Project Saving/Loading" width="85%" />
   <br>
   <em>Figure 2: Top toolbar with project code entry, one-click saving, and loading of native .ansvcoil case files</em>
 </p>
@@ -99,7 +99,7 @@ The solver kernel is built upon closed-form analytical geometric integration and
 - **ISO 129 Compliant Engineering Projections**: Automatically annotates extension lines, arrowheads, and datum features conforming to ISO 129 standards for direct design review presentation.
 
 <p align="center">
-  <img src="docs/images/verify_iso_section_view.png" alt="ISO 129 Standard Section View" width="90%" />
+  <img src="docs/images/verify_iso_section_view_en.png" alt="ISO 129 Standard Section View" width="90%" />
   <br>
   <em>Figure 3: ISO 129 compliant 2D section projection with datum symbols and assembly air gap clearance assessment</em>
 </p>
@@ -111,7 +111,7 @@ The solver kernel is built upon closed-form analytical geometric integration and
 - **Dynamic Excel Column Widths**: Exported workbooks dynamically format column widths based on text lengths, providing ready-to-share executive reports without manual cell adjustments.
 
 <p align="center">
-  <img src="docs/images/comparison_matrix_window.png" alt="Scheme Comparison Matrix Window" width="98%" />
+  <img src="docs/images/comparison_matrix_window_en.png" alt="Scheme Comparison Matrix Window" width="98%" />
   <br>
   <em>Figure 4: Horizontal Scheme Comparison & Engineering Review Matrix (Pop-out window mode · Frozen scheme locking · Baseline delta tracking & One-click parameter restoration)</em>
 </p>
@@ -148,7 +148,7 @@ To facilitate global research collaboration, multinational engineering handovers
 Coil-Architect Pro supports four core micro electromagnetic coil architectures:
 
 <p align="center">
-  <img src="docs/images/coil_topologies_overview.png" alt="Four Micro Coil Topologies Overview" width="95%" />
+  <img src="docs/images/coil_topologies_overview_en.png" alt="Four Micro Coil Topologies Overview" width="95%" />
   <br>
   <em>Figure 6: Four primary micro electromagnetic coil topologies natively supported</em>
 </p>
