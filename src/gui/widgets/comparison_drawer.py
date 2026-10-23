@@ -849,17 +849,22 @@ class ComparisonDrawer(QFrame):
         # 设置列标题
         from src.core.i18n import t
         headers = [t("col_metric", "参数 / 指标项目"), t("col_live_tuning", "实时微调 (Live) ⚡")]
-        for s in self.snapshots:
-            base_badge = f" [{t('col_baseline', '基准 📌')}]" if s.is_baseline else ""
-            headers.append(f"{s.name}{base_badge}\n({s.created_at})")
+        for idx, s in enumerate(self.snapshots):
+            disp_name = s.name
+            if disp_name.startswith("方案 "):
+                disp_name = disp_name.replace("方案 ", f"{t('scheme_prefix', '方案')} ")
+            elif disp_name.startswith("Scheme "):
+                disp_name = disp_name.replace("Scheme ", f"{t('scheme_prefix', '方案')} ")
+            base_badge = f" [{t('col_baseline', '基准 📌').strip('[]')}]" if s.is_baseline else ""
+            headers.append(f"{disp_name}{base_badge}\n({s.created_at})")
         self.table.setHorizontalHeaderLabels(headers)
 
-        # 宽度自适应与防截断最小宽度保护 (每列至少155px以完美容纳全部操作按钮)
+        # 宽度自适应与防截断最小宽度保护 (每列至少176px以完美容纳中英文全部操作按钮)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         for c in range(1, total_cols):
             self.table.horizontalHeader().setSectionResizeMode(c, QHeaderView.ResizeMode.Interactive)
             hint_w = self.table.sizeHintForColumn(c)
-            self.table.setColumnWidth(c, max(168, hint_w))
+            self.table.setColumnWidth(c, max(176, hint_w))
 
         baseline = self._get_baseline_snapshot()
 
@@ -884,7 +889,12 @@ class ComparisonDrawer(QFrame):
 
         for row_idx, (title, group, getter_name) in enumerate(self.ROW_DEFINITIONS):
             if getter_name is None:
-                # 最后一行为操作按钮
+                # 最后一行为操作按钮 (先清理旧组件防止在(0,0)残留)
+                old_w = self.table.cellWidget(row_idx, col_idx)
+                if old_w is not None:
+                    self.table.removeCellWidget(row_idx, col_idx)
+                    old_w.hide()
+                    old_w.deleteLater()
                 action_widget = self._create_action_widget(is_live, snapshot_idx)
                 self.table.setCellWidget(row_idx, col_idx, action_widget)
                 continue
@@ -956,7 +966,7 @@ class ComparisonDrawer(QFrame):
             if not s.is_baseline:
                 from src.core.i18n import t
                 btn_set_base = QPushButton(t("btn_set_baseline", "★ 设为基线"))
-                btn_set_base.setMinimumWidth(78)
+                btn_set_base.setMinimumWidth(86)
                 btn_set_base.setStyleSheet("""
                     QPushButton {
                         background-color: #F8FAFC;

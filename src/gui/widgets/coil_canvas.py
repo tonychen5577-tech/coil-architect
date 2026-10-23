@@ -1165,7 +1165,7 @@ class MagnetSectionCanvas(QWidget):
                 in_dim = max(0.1, self.inputs.inner_len)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_len)
                 lim_dim = self.inputs.max_x_len_limit
-                view_title = "Racetrack 2D Section (Z-X Long Section & X-Limit)" if is_en else "跑道型 2D 截面 (Z-X 长向剖面与 X 向限宽)"
+                view_title = "Racetrack 2D Section (Z-X Long & X-Limit)" if is_en else "跑道型 2D 截面 (Z-X 长向剖面与 X 向限宽)"
                 dim_in_name = "IL" if is_en else "内长 IL"
                 dim_out_name = "OL" if is_en else "外长 OL"
                 dim_lim_name = "Max_X"
@@ -1173,7 +1173,7 @@ class MagnetSectionCanvas(QWidget):
                 in_dim = max(0.1, self.inputs.inner_wid)
                 out_dim = max(in_dim + 2.0 * e_env, self.outputs.outer_wid)
                 lim_dim = self.inputs.max_y_wid_limit
-                view_title = "Racetrack 2D Section (Z-Y Width Section & Y-Limit)" if is_en else "跑道型 2D 截面 (Z-Y 宽向剖面与 Y 向限宽)"
+                view_title = "Racetrack 2D Section (Z-Y Width & Y-Limit)" if is_en else "跑道型 2D 截面 (Z-Y 宽向剖面与 Y 向限宽)"
                 dim_in_name = "IW" if is_en else "内宽 IW"
                 dim_out_name = "OW" if is_en else "外宽 OW"
                 dim_lim_name = "Max_Y"
