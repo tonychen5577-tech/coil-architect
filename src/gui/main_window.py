@@ -909,7 +909,7 @@ class MainWindow(QMainWindow):
                 app_dir / "Coil-Architect-Pro_使用说明书.html",
                 Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
             ]
-            fallback_url = "https://github.com/tonychen5577-tech/coil-architect/blob/main/README_EN.md"
+            fallback_url = "https://github.com/tonychen5577-tech/coil-architect"
         else:
             candidates = [
                 app_dir / "Coil-Architect-Pro_使用说明书.html",
@@ -919,7 +919,7 @@ class MainWindow(QMainWindow):
                 Path(sys.executable).parent / "README.html",
                 Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
             ]
-            fallback_url = "https://github.com/tonychen5577-tech/coil-architect"
+            fallback_url = "https://github.com/tonychen5577-tech/coil-architect/blob/main/README_CN.md"
 
         for p in candidates:
             if p.exists():

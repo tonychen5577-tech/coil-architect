@@ -35,8 +35,9 @@ except ImportError:
 
 
 def build_html_manual(
-    md_path: Path = ROOT_DIR / "README.md",
-    output_html_paths: list = None
+    md_path: Path = ROOT_DIR / "README_CN.md",
+    output_html_paths: list = None,
+    is_en: bool = False
 ) -> Path:
     if not output_html_paths:
         output_html_paths = [
@@ -153,12 +154,43 @@ def build_html_manual(
     html_body = markdown.markdown(md_content, extensions=extensions)
 
     # 6. 组装工业级独立发布 HTML5 模板
+    lang_attr = "en" if is_en else "zh-CN"
+    page_title = (
+        "ANSV Coil-Architect Pro | User Manual & Engineering Guide (v1.1.0)"
+        if is_en else
+        "ANSV Coil-Architect Pro | 用户手册与工程使用说明书 (v1.1.0)"
+    )
+    top_bar_title = (
+        "⚡ ANSV Actuator Numerical Simulation & Validation Platform · Official Engineering Guide"
+        if is_en else
+        "⚡ ANSV 微型执行器与精密传动仿真验证平台 · 官方工程指南"
+    )
+    top_bar_ver = (
+        "Coil-Architect Pro v1.1.0 Portable Edition"
+        if is_en else
+        "Coil-Architect Pro v1.1.0 绿色免安装版"
+    )
+    footer_line1 = (
+        "<p><b>ANSV Coil-Architect Pro</b> · Micro-Coil Design &amp; Electro-Thermal Simulation Workstation</p>"
+        if is_en else
+        "<p><b>ANSV Coil-Architect Pro</b> · 微型线圈设计与电热仿真工作站</p>"
+    )
+    footer_line2 = (
+        '<p>Official Website: <a href="https://ansv.net" target="_blank">ansv.net</a> · Technical Support: support@ansv.net</p>'
+        if is_en else
+        '<p>官方技术支持网站: <a href="https://ansv.net" target="_blank">ansv.net</a> · 官方技术邮箱: support@ansv.net</p>'
+    )
+    print_btn_title = "Print or Save as PDF Manual" if is_en else "直接打印或无损另存为 PDF 说明书"
+    print_btn_text = "🖨️ Print / Save PDF" if is_en else "🖨️ 打印 / 另存为 PDF"
+    top_btn_title = "Scroll to Top" if is_en else "返回页面顶部"
+    top_btn_text = "🔝 Back to Top" if is_en else "🔝 返回顶部"
+
     html_document = f"""<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{lang_attr}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ANSV Coil-Architect Pro | 用户手册与工程使用说明书 (v1.1.0)</title>
+    <title>{page_title}</title>
     <style>
         :root {{
             --primary: #0284C7;
@@ -550,8 +582,8 @@ def build_html_manual(
 <body>
     <div class="page-container">
         <div class="manual-top-bar">
-            <span class="platform-title">⚡ ANSV 微型执行器与精密传动仿真验证平台 · 官方工程指南</span>
-            <span class="doc-version">Coil-Architect Pro v1.1.0 绿色免安装版</span>
+            <span class="platform-title">{top_bar_title}</span>
+            <span class="doc-version">{top_bar_ver}</span>
         </div>
 
         <!-- 核心说明书正文 -->
@@ -560,19 +592,19 @@ def build_html_manual(
         </article>
 
         <div class="manual-footer">
-            <p><b>ANSV Coil-Architect Pro</b> · 微型线圈设计与电热仿真工作站</p>
-            <p>官方技术支持网站: <a href="https://ansv.net" target="_blank">ansv.net</a> · 官方技术邮箱: support@ansv.net</p>
+            {footer_line1}
+            {footer_line2}
             <p style="margin-top: 6px; font-size: 11.5px; color: #94A3B8;">Copyright © 2026 ANSV Transmissions & Micro-Actuators Lab. All Rights Reserved.</p>
         </div>
     </div>
 
     <!-- 浮动操作条 -->
     <div class="floating-action-bar">
-        <button class="floating-btn" onclick="window.print()" title="直接打印或无损另存为 PDF 说明书">
-            🖨️ 打印 / 另存为 PDF
+        <button class="floating-btn" onclick="window.print()" title="{print_btn_title}">
+            {print_btn_text}
         </button>
-        <button class="floating-btn" onclick="window.scrollTo({{ top: 0, behavior: 'smooth' }})" title="返回页面顶部">
-            🔝 返回顶部
+        <button class="floating-btn" onclick="window.scrollTo({{ top: 0, behavior: 'smooth' }})" title="{top_btn_title}">
+            {top_btn_text}
         </button>
     </div>
 </body>
@@ -592,29 +624,32 @@ def build_html_manual(
 
 
 def build_all_manuals():
-    """编译中文与英文全套离线说明书"""
+    """编译英文与中文全套离线说明书"""
     print("====================================================================")
-    print("  [1/2] 正在编译中文说明书: README.md -> Coil-Architect-Pro_使用说明书.html")
+    print("  [1/2] 正在编译英文说明书 (默认主说明书): README.md -> Coil-Architect-Pro_User_Manual.html")
     print("====================================================================")
     build_html_manual(
         ROOT_DIR / "README.md",
         [
-            ROOT_DIR / "docs" / "Coil-Architect-Pro_使用说明书.html",
-            ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_使用说明书.html",
-            ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README.html",
-        ]
+            ROOT_DIR / "docs" / "Coil-Architect-Pro_User_Manual.html",
+            ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_User_Manual.html",
+            ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README_EN.html",
+        ],
+        is_en=True
     )
-    if (ROOT_DIR / "README_EN.md").exists():
+    cn_src = ROOT_DIR / "README_CN.md"
+    if cn_src.exists():
         print("\n====================================================================")
-        print("  [2/2] 正在编译英文说明书: README_EN.md -> Coil-Architect-Pro_User_Manual.html")
+        print("  [2/2] 正在编译中文说明书: README_CN.md -> Coil-Architect-Pro_使用说明书.html")
         print("====================================================================")
         build_html_manual(
-            ROOT_DIR / "README_EN.md",
+            cn_src,
             [
-                ROOT_DIR / "docs" / "Coil-Architect-Pro_User_Manual.html",
-                ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_User_Manual.html",
-                ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README_EN.html",
-            ]
+                ROOT_DIR / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_使用说明书.html",
+                ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README.html",
+            ],
+            is_en=False
         )
 
 
