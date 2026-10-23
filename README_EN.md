@@ -2,8 +2,8 @@
 
 <p align="right">
   <b>Language:</b>
-  <a href="README.md">🇨🇳 简体中文</a> |
-  <a href="README_EN.md"><b>🇬🇧 English</b></a>
+  <a href="README.md"><b>🇬🇧 English</b></a> |
+  <a href="README_CN.md">🇨🇳 简体中文</a>
 </p>
 
 <img src="docs/images/ansv_logo.png" alt="ANSV Official Logo" width="128" />
