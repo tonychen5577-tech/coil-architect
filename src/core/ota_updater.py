@@ -186,19 +186,24 @@ class OtaUpdater(QObject):
                             if v_cmp > 0:
                                 return True, norm
                             elif v_cmp == 0:
-                                # 版本号相同，比对构建号
-                                if raw_build and compare_builds(raw_build, str(self.current_build)) > 0:
-                                    return True, norm
+                                # 版本号相同，优先严格比对构建号 (防止新版客户端被云端旧构建覆盖降级)
+                                if raw_build:
+                                    b_cmp = compare_builds(raw_build, str(self.current_build))
+                                    if b_cmp > 0:
+                                        return True, norm
+                                    elif b_cmp < 0:
+                                        return False, norm
 
-                                # 比对本地已安装 SHA256 (同版本热补丁)
-                                local_sha_file = UPDATE_CACHE_DIR / "current_installed_sha256.txt"
-                                if local_sha_file.exists() and (sha or patch_sha):
-                                    try:
-                                        local_sha = local_sha_file.read_text(encoding="utf-8").strip().lower()
-                                        if local_sha and (local_sha != sha and local_sha != patch_sha):
-                                            return True, norm
-                                    except Exception:
-                                        pass
+                                # 仅在构建号相同或云端未返回构建号时，比对本地已安装 SHA256 (同构建热补丁)
+                                if not raw_build or compare_builds(raw_build, str(self.current_build)) == 0:
+                                    local_sha_file = UPDATE_CACHE_DIR / "current_installed_sha256.txt"
+                                    if local_sha_file.exists() and (sha or patch_sha):
+                                        try:
+                                            local_sha = local_sha_file.read_text(encoding="utf-8").strip().lower()
+                                            if local_sha and (local_sha != sha and local_sha != patch_sha):
+                                                return True, norm
+                                        except Exception:
+                                            pass
                             return False, norm
                         else:
                             errors.append(f"{url} (HTTP {resp.status})")
@@ -230,17 +235,27 @@ class OtaUpdater(QObject):
                 return False, None
 
             v_cmp = compare_versions(version, self.current_version)
+            if v_cmp < 0:
+                try:
+                    MANIFEST_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                return False, None
+
             if v_cmp == 0 and ready_build:
-                if compare_builds(ready_build, self.current_build) < 0:
+                if compare_builds(ready_build, self.current_build) <= 0:
                     try:
                         MANIFEST_FILE.unlink(missing_ok=True)
-                        if zip_path.exists():
-                            zip_path.unlink(missing_ok=True)
                     except Exception:
                         pass
                     return False, None
 
-            is_newer = (v_cmp > 0) or (v_cmp == 0 and (not ready_build or compare_builds(ready_build, self.current_build) > 0 or meta.get("is_patch", False)))
+            is_newer = (v_cmp > 0) or (
+                v_cmp == 0 and (
+                    compare_builds(ready_build, self.current_build) > 0
+                    if ready_build else meta.get("is_patch", False)
+                )
+            )
             if is_newer:
                 if zip_path.exists() and zip_path.stat().st_size < 50 * 1024:
                     try:
@@ -258,6 +273,55 @@ class OtaUpdater(QObject):
         except Exception as e:
             logger.warning(f"[OTA] 读取就绪清单异常: {e}")
         return False, None
+
+    def _stage_and_write_manifest(
+        self,
+        target_zip: Path,
+        latest_ver: str,
+        version_info: Dict[str, Any],
+        use_patch: bool,
+        expected_sha: str
+    ) -> bool:
+        """
+        将已校验通过的 target_zip 预解压至 staged 暂存目录并持久化写入 update_ready.json 清单
+        确保复用本地缓存包、断点包或新下载包均 100% 生成完整就绪清单
+        """
+        import zipfile
+        import shutil
+
+        staged_dir = UPDATE_CACHE_DIR / "staged"
+        if staged_dir.exists():
+            try:
+                shutil.rmtree(staged_dir, ignore_errors=True)
+            except Exception:
+                pass
+        staged_dir.mkdir(parents=True, exist_ok=True)
+
+        copy_source = staged_dir
+        try:
+            with zipfile.ZipFile(target_zip, "r") as zf:
+                zf.extractall(staged_dir)
+            for sub in staged_dir.iterdir():
+                if sub.is_dir() and "Coil" in sub.name:
+                    copy_source = sub
+                    break
+        except Exception as e:
+            logger.warning(f"[OTA] 预解压升级包出现异常: {e}")
+
+        manifest = {
+            "ready": True,
+            "version": latest_ver,
+            "build": version_info.get("build", ""),
+            "is_patch": use_patch,
+            "zip_path": str(target_zip.resolve()),
+            "staged_dir": str(copy_source.resolve()),
+            "sha256": expected_sha,
+            "release_notes": version_info.get("release_notes", ""),
+            "downloaded_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        with open(MANIFEST_FILE, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+        return True
 
 
     def download_update_package(
@@ -328,22 +392,24 @@ class OtaUpdater(QObject):
         opener = get_ota_opener()
         expected_size = int((version_info.get("patch_size_bytes") if use_patch else version_info.get("file_size_bytes")) or 0)
 
-        # 预检查 1: 若正式 zip 已存在且 SHA256 校验完全一致，免重复下载直接复用
-        if target_zip.exists():
+        # 预检查 1: 若正式 zip 已存在且 SHA256 校验完全一致，免重复下载直接复用并补齐就绪清单
+        if target_zip.exists() and target_zip.stat().st_size >= 50 * 1024:
             if not expected_sha or calculate_sha256(target_zip) == expected_sha:
-                logger.info(f"[OTA] 本地正式包已就绪且校验一致，直接复用: {target_zip}")
+                logger.info(f"[OTA] 本地正式包已就绪且校验一致，直接复用并装载清单: {target_zip}")
+                self._stage_and_write_manifest(target_zip, latest_ver, version_info, use_patch, expected_sha)
                 self._is_downloading = False
                 self.update_download_ready.emit(latest_ver, str(target_zip))
                 return True
 
-        # 预检查 2: 若 .part 文件已完整并校验一致，直接重命名复用
+        # 预检查 2: 若 .part 文件已完整并校验一致，直接重命名复用并补齐就绪清单
         if part_zip.exists():
             actual_size = part_zip.stat().st_size
-            if (expected_size == 0 or actual_size >= expected_size) and expected_sha and calculate_sha256(part_zip) == expected_sha:
+            if actual_size >= 50 * 1024 and (expected_size == 0 or actual_size >= expected_size) and (not expected_sha or calculate_sha256(part_zip) == expected_sha):
                 logger.info(f"[OTA] 本地断点文件已完整且校验一致，直接装载: {part_zip}")
                 if target_zip.exists():
                     target_zip.unlink()
                 part_zip.replace(target_zip)
+                self._stage_and_write_manifest(target_zip, latest_ver, version_info, use_patch, expected_sha)
                 self._is_downloading = False
                 self.update_download_ready.emit(latest_ver, str(target_zip))
                 return True
@@ -489,46 +555,12 @@ class OtaUpdater(QObject):
             self.update_download_failed.emit(self.last_download_error or "所有候选更新源下载均失败，请检查网络设置。")
             return False
 
-        # 重命名为正式文件
+        # 重命名为正式文件并写入预解压暂存目录与就绪清单
         if target_zip.exists():
             target_zip.unlink()
         part_zip.replace(target_zip)
 
-        # 提前在 Python 端将更新包解压至 staged 暂存目录 (规避批处理解压异常与依赖)
-        staged_dir = UPDATE_CACHE_DIR / "staged"
-        if staged_dir.exists():
-            try:
-                shutil.rmtree(staged_dir, ignore_errors=True)
-            except Exception:
-                pass
-        staged_dir.mkdir(parents=True, exist_ok=True)
-
-        copy_source = staged_dir
-        try:
-            with zipfile.ZipFile(target_zip, "r") as zf:
-                zf.extractall(staged_dir)
-            # 若解压后包含单层根目录，平铺定位
-            for sub in staged_dir.iterdir():
-                if sub.is_dir() and "Coil" in sub.name:
-                    copy_source = sub
-                    break
-        except Exception as e:
-            logger.warning(f"[OTA] 预解压升级包出现异常: {e}")
-
-        # 记录就绪清单
-        manifest = {
-            "ready": True,
-            "version": latest_ver,
-            "build": version_info.get("build", ""),
-            "is_patch": use_patch,
-            "zip_path": str(target_zip.resolve()),
-            "staged_dir": str(copy_source.resolve()),
-            "sha256": expected_sha,
-            "release_notes": version_info.get("release_notes", ""),
-            "downloaded_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        with open(MANIFEST_FILE, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, ensure_ascii=False, indent=2)
+        self._stage_and_write_manifest(target_zip, latest_ver, version_info, use_patch, expected_sha)
 
         self._is_downloading = False
         self.update_download_ready.emit(latest_ver, str(target_zip))
@@ -795,12 +827,28 @@ exit 0
 
         ready, meta = self.is_update_ready()
         if not ready or not meta:
-            return False
+            # 自愈兜底：若 update_ready.json 意外缺失但 staged 目录已有解压文件，仍可直接恢复元信息拉起替换
+            staged_fallback = UPDATE_CACHE_DIR / "staged"
+            if staged_fallback.exists() and any(staged_fallback.iterdir()):
+                copy_src = staged_fallback
+                for sub in staged_fallback.iterdir():
+                    if sub.is_dir() and "Coil" in sub.name:
+                        copy_src = sub
+                        break
+                meta = {
+                    "version": self.current_version,
+                    "zip_path": "",
+                    "staged_dir": str(copy_src.resolve())
+                }
+            else:
+                return False
 
         self._shadow_replacement_active = True
 
-        zip_path = str(Path(meta.get("zip_path", "")).resolve()).rstrip(r"\/")
-        staged_dir = str(Path(meta.get("staged_dir", "")).resolve()).rstrip(r"\/")
+        raw_zip = meta.get("zip_path", "")
+        raw_staged = meta.get("staged_dir", "")
+        zip_path = str(Path(raw_zip).resolve()).rstrip(r"\/") if raw_zip else ""
+        staged_dir = str(Path(raw_staged).resolve()).rstrip(r"\/") if raw_staged else ""
         new_version = str(meta.get("version", "新版本")).strip()
         install_dir = str(self.get_app_install_dir().resolve()).rstrip(r"\/")
         exe_name = Path(sys.executable).name if getattr(sys, "frozen", False) else "Coil-Architect-Pro.exe"
@@ -895,7 +943,14 @@ exit 0
             if return_version_only:
                 return ver or self.current_version
             now_date = datetime.now().strftime("%Y-%m-%d")
-            return f"✅ 仿真引擎已优化至 v{ver or self.current_version}（{now_date}）"
+            clean_v = str(ver or self.current_version).lstrip("vV")
+            try:
+                from src.core.i18n import i18n
+                if i18n.is_english():
+                    return f"✅ Simulation Engine updated to v{clean_v} ({now_date})"
+            except Exception:
+                pass
+            return f"✅ 仿真引擎已优化至 v{clean_v}（{now_date}）"
         except Exception:
             return None
 

@@ -5,6 +5,14 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-23 [Yaming] v1.1.0: 升级构建版本至 20261023B2：
+                             1) 彻底修复 OTA 语义化版本元组解析缺陷 (parse_version_tuple)：剥离 -B6 / -beta 等构建后缀后再提取主/次/修订号，杜绝 '1.1.0-B6' 被误解析为 (1,1,6) 导致向旧构建降级死循环；
+                             2) 彻底修复 OTA 本地缓存包复用时未生成 update_ready.json 清单及预解压目录的缺陷，消除点击重启升级报错与关闭软件不自动升级的故障；
+                             3) 拦截主窗口空白 QStatusTipEvent 事件并增加中英双语状态栏进度保护，彻底解决左下角静默下载提示语闪一下即消失的问题。
+- 2026-10-23 [Yaming] v1.1.0: 升级构建版本至 20261023B1：
+                             1) 全面完善英文模式下所有系统弹窗、状态提示、导出默认文件名与 Excel/CSV 工程报告的全英文国际化；
+                             2) 升级离线英文说明书高清全英文界面截图预览，并在绿色全量包与增量补丁包中完整内置中英双语离线说明书；
+                             3) GitHub 官方仓库默认展示全英文工程文档 (README.md) 并支持中英双语一键切换。
 - 2026-10-22 [Yaming] v1.1.0: 升级构建版本至 20261022B2：
                              1) 重磅上线全球工业级中英双语无缝即时自由切换引擎 (i18n)；
                              2) 顶部全局导航栏无缝嵌入 [ 🇨🇳 简体中文 | 🇬🇧 English ] 语言选择器，持久化保存用户语言偏好；
@@ -71,9 +79,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261022B2"
-APP_DATE = "2026-10-22"
-BUILD_TIME = "2026-10-22 20:45:00 CST"
+APP_BUILD = "20261023B2"
+APP_DATE = "2026-10-23"
+BUILD_TIME = "2026-10-23 12:30:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"
@@ -199,17 +207,20 @@ def get_build_fingerprint() -> Dict[str, Any]:
 
 
 def parse_version_tuple(v_str: str) -> Tuple[int, ...]:
-    """将版本字符串解析为数字元组 (如 'v1.1.0' -> (1, 1, 0))"""
+    """将版本字符串解析为纯语义化数字元组 (如 'v1.1.0-B6' -> (1, 1, 0)，自动剥离 -B6 / _beta 等构建后缀)"""
+    import re
     if not v_str:
         return (0, 0, 0)
-    clean = v_str.strip().lstrip("vV")
+    clean = str(v_str).strip().lstrip("vV")
+    # 剥离 '-'、'_'、'+' 或空格之后的预发布/构建后缀 (防止 '1.1.0-B6' 中的 'B6' 被误拼接到修订号变成 6)
+    base_ver = re.split(r"[\-_+\s]", clean, maxsplit=1)[0]
     parts = []
-    for part in clean.split("."):
+    for part in base_ver.split("."):
         digits = "".join(ch for ch in part if ch.isdigit())
         parts.append(int(digits) if digits else 0)
     while len(parts) < 3:
         parts.append(0)
-    return tuple(parts)
+    return tuple(parts[:3])
 
 
 def compare_versions(v1: str, v2: str) -> int:

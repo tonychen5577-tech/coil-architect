@@ -496,11 +496,23 @@ class MainWindow(QMainWindow):
         if hasattr(self, "comparison_drawer") and hasattr(self.comparison_drawer, "retranslate_ui"):
             self.comparison_drawer.retranslate_ui()
 
-        # 6. 状态栏与云端指示灯刷新
+        # 6. 状态栏、Tooltip 与云端指示灯刷新
+        if hasattr(self, "_setup_tooltips"):
+            self._setup_tooltips()
         if hasattr(self, "_refresh_cloud_status_ui"):
             self._refresh_cloud_status_ui()
         if hasattr(self, "status_bar"):
-            self.status_bar.showMessage(t("status_ready", "就绪 | 双核物理引擎待命"))
+            if getattr(self, "_ota_ready_version", None):
+                clean_ver = self._ota_ready_version
+                is_en = i18n.is_english()
+                self.status_bar.showMessage(
+                    f"✨ Update Ready: Patch (v{clean_ver}) staged in background — will apply automatically on next exit"
+                    if is_en else
+                    f"✨ 版本更新... 优化补丁已在后台就绪 (v{clean_ver})，将在软件下次退出时自动生效",
+                    25000
+                )
+            else:
+                self.status_bar.showMessage(t("status_ready", "就绪 | 双核物理引擎待命"))
 
         # 7. 重新触发当前拓扑动态标签与仿真计算 (确保 KPI 卡片标题与动态限值标签 100% 同步到当前语言)
         if hasattr(self, "combo_coil_type"):
@@ -514,6 +526,17 @@ class MainWindow(QMainWindow):
             sizes = self.splitter.sizes()
             total_w = sum(sizes) if sizes else self.splitter.width()
             self.splitter.setSizes([self._splitter_left_width, max(100, total_w - self._splitter_left_width)])
+
+    def event(self, event: QEvent):
+        """
+        拦截由子控件鼠标悬浮触发的空白 QStatusTipEvent ("")，
+        防止鼠标划过工作区任意控件时瞬间清空左下角 status_bar 正在显示的静默下载进度或系统提示语。
+        """
+        if event.type() == QEvent.Type.StatusTip:
+            tip = event.tip() if hasattr(event, "tip") else ""
+            if not tip:
+                return True
+        return super().event(event)
 
     def _on_splitter_moved(self, pos: int, index: int):
         """记录用户手工拖拽的左栏宽度，锁定禁止内容变化导致自适应跳动"""
@@ -531,7 +554,96 @@ class MainWindow(QMainWindow):
         self.run_simulation()
 
     def _setup_tooltips(self):
-        """为所有输入控件、选项卡与 16 宫格输出卡片配置高对比度工程释义 Tooltip"""
+        """为所有输入控件、选项卡与 16 宫格输出卡片配置高对比度工程释义 Tooltip (支持中英双语切换)"""
+        is_en = i18n.is_english()
+        if is_en:
+            if hasattr(self, "btn_open"):
+                self.btn_open.setToolTip("Load an .ansvcoil project case file")
+            if hasattr(self, "btn_save"):
+                self.btn_save.setToolTip("Save current coil parameters & DFM constraints as an .ansvcoil project case")
+            if hasattr(self, "btn_export"):
+                self.btn_export.setToolTip("Export multi-physics engineering evaluation report (.xlsx / .csv)")
+            self.combo_presets.setToolTip("[Engineering Presets]\nQuickly load industry benchmark coil cases (Smartphone VCM, 0825 Coin Z-LRA, X-LRA Racetrack, Octagonal AF/OIS Coil, CAD Custom Perimeter).")
+            self.combo_coil_type.setToolTip("[Coil Topology]\nSelect physical coil geometry:\n• Racetrack: Linear actuators (X-LRA) & voice coil motors (VCM)\n• Circular: Coin actuators (Z-LRA) & speakers\n• Octagonal: 45° chamfered octagon for compact OIS/AF corner magnets\n• Custom Perimeter: Steiner offset solver based on CAD inner perimeter")
+            self.sb_inner_len.setToolTip("[Inner Length IL / Inner Diameter ID]\nStraight mandrel span along the major axis (or inner diameter ID in Circular mode).")
+            self.sb_inner_wid.setToolTip("[Inner Width IW]\nStraight mandrel span along the minor axis (inner corner radius R = IW/2).")
+            if hasattr(self, "sb_oct_id1"):
+                self.sb_oct_id1.setToolTip("[Octagonal Flat Inner Span ID1]\nNormal inner span between opposite straight sides (mm).")
+            if hasattr(self, "sb_oct_id2"):
+                self.sb_oct_id2.setToolTip("[Octagonal Chamfer Inner Span ID2]\nNormal inner span between opposite 45° chamfer sides (mm).")
+            if hasattr(self, "sb_oct_l1"):
+                self.sb_oct_l1.setToolTip("[Straight Segment Length L1]\nAnalytically derived flat side length from ID1, ID2 and R1 (mm).")
+            if hasattr(self, "sb_oct_l2"):
+                self.sb_oct_l2.setToolTip("[Chamfer Segment Length L2]\nAnalytically derived 45° bevel edge length (mm).")
+            if hasattr(self, "sb_oct_r1"):
+                self.sb_oct_r1.setToolTip("[Inner Corner Fillet R1]\nMandrel corner transition radius across all 8 vertices (mm).")
+            if hasattr(self, "lbl_oct_derived"):
+                self.lbl_oct_derived.setToolTip("[Octagonal Derived Geometry]\nClosed-form analytical lengths L1 and L2 solved from ID1, ID2, and R1.")
+            if hasattr(self, "sb_perim_in"):
+                self.sb_perim_in.setToolTip("[Inner Contour Perimeter C_in]\nMeasured inner perimeter along the mandrel wall in CAD (mm).")
+            if hasattr(self, "sb_perim_outer_len"):
+                self.sb_perim_outer_len.setToolTip("[Reference Outer Length Max_X]\nReference bounding length along the X axis (mm).")
+            if hasattr(self, "sb_perim_outer_wid"):
+                self.sb_perim_outer_wid.setToolTip("[Reference Outer Width Max_Y]\nReference bounding width along the Y axis (mm).")
+            self.sb_radial_layers.setToolTip("[Radial Winding Layers]\nNumber of radial winding layers (supports 0.5 half-layer for single-ended lead exit).")
+            self.sb_axial_turns.setToolTip("[Turns per Layer]\nNumber of turns per layer along the axial Z height.")
+            self.combo_mode.setToolTip("[Packing Mode]\n• Variable HCP (Staggered): Adjacent layers nest into valleys (~0.866 pitch)\n• Equal Grid (Orthogonal): All layers have identical turn counts")
+            if hasattr(self, "chk_crossover"):
+                self.chk_crossover.setToolTip("[60° Layer Crossover Wire]\nAccounts for localized radial bulge in the end-turn arc caused by layer transitions.")
+            if hasattr(self, "chk_mold_clamping"):
+                self.chk_mold_clamping.setToolTip("[Die-Press Compaction]\nSimulates fixture compaction of axial coil height to a target cavity thickness.")
+            if hasattr(self, "sb_mold_height"):
+                self.sb_mold_height.setToolTip("[Die-Press Target Thickness]\nTarget cavity thickness (mm), bounded by incompressible copper volume.")
+            self.sb_bare_dia.setToolTip("[Bare Copper Diameter d]\nNominal bare copper conductor diameter (mm).")
+            self.sb_max_od.setToolTip("[Over-Enamel Diameter D]\nMaximum wire outer diameter including insulation and self-bonding coat (mm).")
+            self.sb_tension.setToolTip("[Tension Necking Factor]\nConductor cross-section thinning factor induced by high-speed winding tension.")
+            self.combo_copper_grade.setToolTip("[Copper Conductivity Grade]\nSelect standard copper resistivity grade (OFHC = 0.016959 Ω·mm²/m) or custom value.")
+            self.sb_copper_rho.setToolTip("[20℃ Copper Resistivity]\nBulk copper electrical resistivity at 20℃ (Ω·mm²/m).")
+            self.combo_thermal_env.setToolTip("[Cooling Condition Preset]\nSelect typical mounting & heat dissipation environment.")
+            self.sb_ambient_temp.setToolTip("[Ambient Temperature]\nBaseline ambient operating temperature Ta (℃).")
+            self.sb_drive_current.setToolTip("[Test Drive Current]\nContinuous DC excitation current (mA).")
+            self.sb_convection_h.setToolTip("[Convection Coefficient h]\nEffective surface heat transfer coefficient (W/(m²·K)).")
+            if hasattr(self, "chk_dfm_enabled"):
+                self.chk_dfm_enabled.setToolTip("[DFM Assembly & Safety Check]\nEnables real-time verification of outer dimensions, height, voltage, and thermal limits.")
+            self.sb_limit_x.setToolTip("[X-Axis Assembly Limit]\nMaximum allowable outer length/span along X (mm).")
+            self.sb_limit_y.setToolTip("[Y-Axis Assembly Limit]\nMaximum allowable outer width/span along Y (mm).")
+            self.sb_limit_z.setToolTip("[Z-Axis Height Limit]\nMaximum allowable axial thickness H (mm).")
+            self.sb_limit_v.setToolTip("[Driver Voltage Limit]\nMaximum compliance voltage of the driver IC (V).")
+            self.combo_temp_class.setToolTip("[Enamel Thermal Class]\nStandard NEMA/IEC insulation thermal ratings: Class B (130℃), F (155℃), H (180℃), C (200℃).")
+            self.sb_limit_t.setToolTip("[Max Safe Temperature]\nMaximum continuous operating temperature rating (℃).")
+            self.card_ol.setToolTip("[Outer Length / OD]\nMolded outer length (or outer diameter in Circular mode) (mm).")
+            self.card_ow.setToolTip("[Outer Width / Span]\nMolded outer width including enamel build and crossover increment (mm).")
+            self.card_thk.setToolTip("[Coil Height H]\nTotal axial thickness along the Z axis (mm).")
+            self.card_n.setToolTip("[Total Turns N]\nTotal effective conductive turns.")
+            self.card_r20.setToolTip("[20℃ Cold DCR]\nBaseline DC resistance at 20℃ (Ω) for IQC/OQC inspection.")
+            self.card_r_init.setToolTip("[Initial Ambient DCR]\nCold DC resistance at the specified ambient temperature Ta (Ω).")
+            self.card_dcr_hot.setToolTip("[Steady-State Hot DCR]\nElectro-thermally coupled resistance at thermal equilibrium (Ω).")
+            self.card_inductance.setToolTip("[Air-Core Inductance L]\nMulti-layer air-core self-inductance calculated via Wheeler's formula (μH/mH).")
+            self.card_v_term.setToolTip("[Terminal Voltage V]\nRequired steady-state drive voltage V = I × DCR_hot (V).")
+            self.card_power.setToolTip("[Joule Heat Power P]\nSteady-state thermal dissipation P = I² × DCR_hot (mW).")
+            self.card_ampere_turns.setToolTip("[Ampere-Turns NI]\nMagnetomotive force NI = N × I (AT), proportional to Lorentz driving force.")
+            self.card_t_final.setToolTip("[Steady-State Temp T]\nEquilibrium coil temperature T_final = Ta + ΔT (℃).")
+            self.card_weight.setToolTip("[Coil Mass]\nTotal moving mass of the winding (g).")
+            self.card_wire_fill.setToolTip("[Enamel Wire Fill Factor]\nRatio of total enameled wire area to winding window cross-section (%).")
+            self.card_cu_fill.setToolTip("[Bare Copper Fill Factor]\nRatio of pure bare copper conductor area to winding window cross-section (%).")
+            self.card_mlt.setToolTip("[Mean Length per Turn MLT]\nAverage perimeter per turn integrated across all radial layers (mm).")
+            if hasattr(self, "canvas_widget") and hasattr(self.canvas_widget, "tab_macro"):
+                self.canvas_widget.tab_macro.setTabToolTip(0, "[2D Top Profile]\nTop-down X-Y outer envelope, inner mandrel opening, and 60° crossover lead geometry.")
+                self.canvas_widget.tab_macro.setTabToolTip(1, "[2D Cross-Section & Z-Clearance]\nISO 129 section view and axial Z-height clearance analysis.")
+                self.canvas_widget.tab_macro.setTabToolTip(2, "[3D Isometric Cage]\n3D isometric visualization of the coil inside the DFM bounding envelope.")
+            if hasattr(self, "dfm_strip"):
+                self.dfm_strip.setToolTip("[DFM Tolerance Verdict Strip]\nReal-time monitoring of X/Y/Z dimensions, voltage, and thermal limits.")
+            if hasattr(self, "comparison_drawer"):
+                self.comparison_drawer.setToolTip("[Scheme Comparison Matrix]\nFreeze parameter snapshots for side-by-side delta comparison, one-click restore, and Excel/CSV export.")
+            return
+
+        if hasattr(self, "btn_open"):
+            self.btn_open.setToolTip("载入 .ansvcoil 专属算例工程文件 (支持单实例 IPC 导入)")
+        if hasattr(self, "btn_save"):
+            self.btn_save.setToolTip("将当前仿真参数与约束保存为 .ansvcoil 专属算例工程文件")
+        if hasattr(self, "btn_export"):
+            self.btn_export.setToolTip("导出 Excel (含二维工程制图) 与 CSV 仿真评审报告")
+
         # 1. 顶部工具栏
         self.combo_presets.setToolTip("【工程预设 (Engineering Presets)】\n快速加载工业对标标准工程算例（含手机摄像头VCM对焦马达、0825硬币式Z-LRA震动马达、X-LRA跑道线圈、图4八角形线圈等），自动填充标准几何、线径、张力与热学工况。")
 
@@ -766,6 +878,7 @@ class MainWindow(QMainWindow):
         cmd_upper = (cmd or "").upper().strip()
         logger.warning(f"MainWindow 捕获云端远程遥控指令: {cmd_upper}")
 
+        is_en = i18n.is_english()
         if cmd_upper in ("LOCK_APP", "REVOKE_LICENSE"):
             if getattr(self, "_remote_locked_flag", False):
                 return
@@ -776,14 +889,18 @@ class MainWindow(QMainWindow):
             CloudClient.stop_background_sync()
 
             msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("商业授权终止通知")
+            msg_box.setWindowTitle("Commercial License Revoked" if is_en else "商业授权终止通知")
             msg_box.setIcon(QMessageBox.Icon.Critical)
             msg_box.setText(
+                "[Your workstation commercial license has been revoked by the administrator]\n\n"
+                "The application has been safely locked and local credentials have been cleared.\n"
+                "Please contact ANSV official support to reissue a valid license."
+                if is_en else
                 "【当前工位机商业授权已被管理员在云端控制台吊销 / 终止】\n\n"
                 "软件已安全锁定并清除本地授权凭证。\n"
                 "如需恢复或重新开通授权，请联系 ANSV 官方管理员重新签发。"
             )
-            btn_exit = msg_box.addButton("关闭退出", QMessageBox.ButtonRole.AcceptRole)
+            btn_exit = msg_box.addButton("Exit" if is_en else "关闭退出", QMessageBox.ButtonRole.AcceptRole)
             msg_box.setDefaultButton(btn_exit)
             msg_box.exec()
 
@@ -794,15 +911,22 @@ class MainWindow(QMainWindow):
                 app.quit()
 
         elif cmd_upper == "UPDATE_LICENSE":
-            self.status_bar.showMessage("🎉 云端已远程下发最新商业授权，系统已自动刷新生效！", 5000)
+            self.status_bar.showMessage(
+                "🎉 Cloud license updated and applied automatically!"
+                if is_en else
+                "🎉 云端已远程下发最新商业授权，系统已自动刷新生效！",
+                5000
+            )
             QMessageBox.information(
                 self,
-                "云端授权更新成功",
+                "Cloud License Updated" if is_en else "云端授权更新成功",
+                "Your commercial license has been extended or upgraded via the cloud console!\n\nLocal credentials have been refreshed automatically."
+                if is_en else
                 "管理员已通过云端控制台为您延长了商业授权 / 升级了方案版本！\n\n当前授权凭证已在本地自动刷新生效。"
             )
 
         elif cmd_upper == "FORCE_SYNC_CASES":
-            self.status_bar.showMessage("📐 云端标杆案例库已更新", 4000)
+            self.status_bar.showMessage("📐 Cloud benchmark cases synced" if is_en else "📐 云端标杆案例库已更新", 4000)
 
     def closeEvent(self, event):
         """
@@ -860,8 +984,16 @@ class MainWindow(QMainWindow):
             self.ota_checker.start()
 
     def _on_ota_available(self, info: dict):
-        ver = info.get("latest_version") or info.get("version") or ""
+        ver = str(info.get("latest_version") or info.get("version") or "").lstrip("vV")
         logger.info(f"[OTA] 检测到可用新版本: v{ver}，后台正在静默拉取增量包...")
+        if hasattr(self, "status_bar"):
+            is_en = i18n.is_english()
+            self.status_bar.showMessage(
+                f"⬇️ New update detected (v{ver})... preparing silent background download..."
+                if is_en else
+                f"⬇️ 发现新版优化 (v{ver})... 正在后台静默拉取升级包...",
+                6000
+            )
 
     def _on_ota_download_progress(self, current_bytes: int, total_bytes: int, speed_mbps: float):
         if total_bytes > 0:
@@ -869,17 +1001,25 @@ class MainWindow(QMainWindow):
             cur_mb = current_bytes / (1024 * 1024)
             tot_mb = total_bytes / (1024 * 1024)
             if hasattr(self, "status_bar"):
+                is_en = i18n.is_english()
                 self.status_bar.showMessage(
+                    f"⬇️ Downloading update silently ({pct:.0f}% | {cur_mb:.1f}MB/{tot_mb:.1f}MB · {speed_mbps:.1f} MB/s)"
+                    if is_en else
                     f"⬇️ 发现新版优化... 静默下载中 ({pct:.0f}% | {cur_mb:.1f}MB/{tot_mb:.1f}MB · {speed_mbps:.1f} MB/s)",
-                    3000
+                    5000
                 )
 
     def _on_ota_download_ready(self, version: str, zip_path: str):
-        logger.info(f"[OTA] 升级包已在后台下载就绪: v{version} -> {zip_path}")
+        clean_ver = str(version or "").lstrip("vV")
+        logger.info(f"[OTA] 升级包已在后台下载就绪: v{clean_ver} -> {zip_path}")
+        self._ota_ready_version = clean_ver
         if hasattr(self, "status_bar"):
+            is_en = i18n.is_english()
             self.status_bar.showMessage(
-                f"✨ 版本更新... 优化补丁已在后台就绪 (v{version})，将在软件下次退出时自动生效",
-                12000
+                f"✨ Update Ready: Patch (v{clean_ver}) staged in background — will apply automatically on next exit"
+                if is_en else
+                f"✨ 版本更新... 优化补丁已在后台就绪 (v{clean_ver})，将在软件下次退出时自动生效",
+                25000
             )
 
     def _on_ota_download_failed(self, error_msg: str):
@@ -1122,6 +1262,7 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "btn_license"):
             return
 
+        is_en = i18n.is_english()
         if auth_ok:
             is_trial = lic_data.get("is_trial", False) if lic_data else False
             if is_trial:
@@ -1143,15 +1284,28 @@ class MainWindow(QMainWindow):
                         border-color: #38BDF8;
                     }
                 """)
-                self.btn_license.setToolTip(
-                    f"7天全功能免激活试用中 | 剩余: {days_left} 天\n"
-                    f"有效期至: {exp_date}\n"
-                    f"试用期内所有电磁仿真、方案比对及报表导出功能 100% 完整可用\n"
-                    f"点击可查看试用详情或升级正式商业版"
-                )
+                if is_en:
+                    self.btn_license.setToolTip(
+                        f"7-Day Full-Feature Trial Active | {days_left} Days Left\n"
+                        f"Valid Until: {exp_date}\n"
+                        f"100% of electromagnetic simulation, scheme matrix & Excel/CSV export features unlocked.\n"
+                        f"Click to view trial details or upgrade to a Commercial License."
+                    )
+                else:
+                    self.btn_license.setToolTip(
+                        f"7天全功能免激活试用中 | 剩余: {days_left} 天\n"
+                        f"有效期至: {exp_date}\n"
+                        f"试用期内所有电磁仿真、方案比对及报表导出功能 100% 完整可用\n"
+                        f"点击可查看试用详情或升级正式商业版"
+                    )
             else:
                 lic_type = lic_data.get("type", "商业版") if lic_data else "商业版"
                 exp_date = lic_data.get("exp_date", "永久有效") if lic_data else "永久有效"
+                if is_en:
+                    if lic_type == "商业版":
+                        lic_type = "Commercial"
+                    if exp_date in ("永久有效", "PERMANENT"):
+                        exp_date = "Permanent"
                 self.btn_license.setText(t("btn_license_commercial", "🛡️ 商业授权 ({type})", type=lic_type))
                 self.btn_license.setStyleSheet("""
                     QPushButton {
@@ -1168,7 +1322,10 @@ class MainWindow(QMainWindow):
                         border-color: #6EE7B7;
                     }
                 """)
-                self.btn_license.setToolTip(f"商业授权有效 | 类型: {lic_type}\n有效期至: {exp_date}\n点击可查看授权详情")
+                if is_en:
+                    self.btn_license.setToolTip(f"Commercial License Active | Tier: {lic_type}\nValid Until: {exp_date}\nClick to view license certificate details")
+                else:
+                    self.btn_license.setToolTip(f"商业授权有效 | 类型: {lic_type}\n有效期至: {exp_date}\n点击可查看授权详情")
         else:
             is_trial_expired = lic_data.get("is_trial", False) if lic_data else False
             btn_txt = t("btn_license_expired", "⚠️ 试用已到期") if is_trial_expired else t("btn_license_unauthorized", "⚠️ 未激活 (点击激活)")
@@ -1188,11 +1345,14 @@ class MainWindow(QMainWindow):
                     border-color: #F59E0B;
                 }
             """)
-            self.btn_license.setToolTip("当前处于未激活受限状态\n点击打开授权激活窗口")
-            self.btn_license.setToolTip("当前处于未激活评估模式\n点击立即输入授权激活码，解锁全部参数调节、方案比对及报表导出功能")
+            if is_en:
+                self.btn_license.setToolTip("Currently in unactivated evaluation mode.\nClick to enter a license token and unlock all parameter tuning, comparison & export features.")
+            else:
+                self.btn_license.setToolTip("当前处于未激活评估模式\n点击立即输入授权激活码，解锁全部参数调节、方案比对及报表导出功能")
 
     def _on_license_chip_clicked(self):
         """点击顶部商业授权指示灯响应"""
+        is_en = i18n.is_english()
         if getattr(self, "is_authorized", False):
             lic = getattr(self, "lic_data", {}) or {}
             is_trial = lic.get("is_trial", False)
@@ -1202,18 +1362,31 @@ class MainWindow(QMainWindow):
                 start_date = lic.get("start_date", "")
 
                 msg_box = QMessageBox(self)
-                msg_box.setWindowTitle("7天全功能免激活试用详情")
                 msg_box.setIcon(QMessageBox.Icon.Information)
-                msg_box.setText(
-                    f"⏱️ ANSV Coil-Architect Pro 全功能免激活试用中\n\n"
-                    f"• 试用模式: 7天免激活全功能评估\n"
-                    f"• 试用周期: {start_date} 至 {exp_date}\n"
-                    f"• 剩余天数: 还有 {days_left} 天\n"
-                    f"• 功能状态: 双核物理求解器、2D孪生图纸、方案对比矩阵与 Excel 导出等 100% 全功能已解锁！\n\n"
-                    f"是否需要现在查看商业订购方案或输入正式商业激活码？"
-                )
-                btn_upgrade = msg_box.addButton("🛒 订购商业版 / 输入激活码", QMessageBox.ButtonRole.AcceptRole)
-                btn_continue = msg_box.addButton("继续试用", QMessageBox.ButtonRole.RejectRole)
+                if is_en:
+                    msg_box.setWindowTitle("7-Day Full-Feature Evaluation Details")
+                    msg_box.setText(
+                        f"⏱️ ANSV Coil-Architect Pro — 7-Day Full-Feature Evaluation Active\n\n"
+                        f"• Evaluation Mode: 7-Day Zero-Activation Full-Feature Trial\n"
+                        f"• Trial Period: {start_date} to {exp_date}\n"
+                        f"• Remaining Days: {days_left} days left\n"
+                        f"• Feature Status: Dual-core physics solver, 2D/3D engineering drawings, scheme comparison matrix & Excel/CSV export are 100% unlocked!\n\n"
+                        f"Would you like to view Commercial License options or enter an activation token now?"
+                    )
+                    btn_upgrade = msg_box.addButton("🛒 Order Commercial / Enter Token", QMessageBox.ButtonRole.AcceptRole)
+                    btn_continue = msg_box.addButton("Continue Trial", QMessageBox.ButtonRole.RejectRole)
+                else:
+                    msg_box.setWindowTitle("7天全功能免激活试用详情")
+                    msg_box.setText(
+                        f"⏱️ ANSV Coil-Architect Pro 全功能免激活试用中\n\n"
+                        f"• 试用模式: 7天免激活全功能评估\n"
+                        f"• 试用周期: {start_date} 至 {exp_date}\n"
+                        f"• 剩余天数: 还有 {days_left} 天\n"
+                        f"• 功能状态: 双核物理求解器、2D孪生图纸、方案对比矩阵与 Excel 导出等 100% 全功能已解锁！\n\n"
+                        f"是否需要现在查看商业订购方案或输入正式商业激活码？"
+                    )
+                    btn_upgrade = msg_box.addButton("🛒 订购商业版 / 输入激活码", QMessageBox.ButtonRole.AcceptRole)
+                    btn_continue = msg_box.addButton("继续试用", QMessageBox.ButtonRole.RejectRole)
                 msg_box.setDefaultButton(btn_continue)
 
                 btn_upgrade.setStyleSheet("""
@@ -1248,23 +1421,41 @@ class MainWindow(QMainWindow):
 
                 msg_box.exec()
                 if msg_box.clickedButton() == btn_upgrade:
-                    self.check_authorization_or_prompt("商业授权升级", force_prompt=True)
+                    self.check_authorization_or_prompt("Commercial License Upgrade" if is_en else "商业授权升级", force_prompt=True)
             else:
                 lic_type = lic.get("type", "商业版")
-                exp_date = lic.get("exp_date", "永久有效")
-                owner = lic.get("owner", "正式商业用户")
-                QMessageBox.information(
-                    self,
-                    "商业授权凭证详情",
-                    f"🛡️ Coil-Architect Pro 正式商业授权\n\n"
-                    f"• 授权类型: {lic_type}\n"
-                    f"• 授权主体: {owner}\n"
-                    f"• 有效期至: {exp_date}\n"
-                    f"• 运行状态: 一机一码硬件数字签名已通过校验\n\n"
-                    f"如需变更授权或续订，可联系 ansv.net 官方技术支持。"
-                )
+                exp_date = lic.get("exp_date", lic.get("exp", "永久有效"))
+                owner = lic.get("owner", lic.get("customer", "正式商业用户"))
+                if is_en:
+                    if lic_type == "商业版":
+                        lic_type = "Annual Commercial Workstation"
+                    if exp_date in ("永久有效", "PERMANENT"):
+                        exp_date = "Permanent"
+                    if owner in ("正式商业用户", "内部核准机构"):
+                        owner = "Authorized Commercial User"
+                    QMessageBox.information(
+                        self,
+                        "Commercial License Details",
+                        f"🛡️ Coil-Architect Pro Commercial License Certificate\n\n"
+                        f"• License Tier: {lic_type}\n"
+                        f"• Authorized To: {owner}\n"
+                        f"• Valid Until: {exp_date}\n"
+                        f"• Security Status: Hardware-bound digital signature verified\n\n"
+                        f"For license transfer or renewal, please contact official support at ansv.net."
+                    )
+                else:
+                    QMessageBox.information(
+                        self,
+                        "商业授权凭证详情",
+                        f"🛡️ Coil-Architect Pro 正式商业授权\n\n"
+                        f"• 授权类型: {lic_type}\n"
+                        f"• 授权主体: {owner}\n"
+                        f"• 有效期至: {exp_date}\n"
+                        f"• 运行状态: 一机一码硬件数字签名已通过校验\n\n"
+                        f"如需变更授权或续订，可联系 ansv.net 官方技术支持。"
+                    )
         else:
-            self.check_authorization_or_prompt("商业授权激活", force_prompt=True)
+            self.check_authorization_or_prompt("Commercial License Activation" if is_en else "商业授权激活", force_prompt=True)
 
     def check_authorization_or_prompt(self, action_name: str = "", force_prompt: bool = False) -> bool:
         """
@@ -1272,6 +1463,7 @@ class MainWindow(QMainWindow):
         返回 True 表示已激活，可以继续操作；返回 False 表示未激活或取消激活，应阻断操作。
         """
         from src.core.license_manager import LicenseManager
+        is_en = i18n.is_english()
         auth_ok, auth_msg, lic_data = LicenseManager.is_system_authorized()
         if auth_ok and not force_prompt:
             if not getattr(self, "is_authorized", False):
@@ -1283,9 +1475,13 @@ class MainWindow(QMainWindow):
 
         self._is_prompting_activation = True
         try:
-            msg_suffix = f"【{action_name}】" if action_name else "参数调节与工程计算"
             if hasattr(self, "status_bar"):
-                self.status_bar.showMessage(f"💡 提示: 执行{msg_suffix}需要商业授权，已为您调出激活窗口...", 3000)
+                if is_en:
+                    msg_suffix = f"[{action_name}]" if action_name else "parameter tuning & simulation"
+                    self.status_bar.showMessage(f"💡 Notice: {msg_suffix} requires a commercial license. Opening Activation Center...", 3000)
+                else:
+                    msg_suffix = f"【{action_name}】" if action_name else "参数调节与工程计算"
+                    self.status_bar.showMessage(f"💡 提示: 执行{msg_suffix}需要商业授权，已为您调出激活窗口...", 3000)
 
             from src.gui.activation_dialog import ActivationDialog
             dlg = ActivationDialog(self)
@@ -1299,14 +1495,29 @@ class MainWindow(QMainWindow):
                 is_trial_now = lic_data_now.get("is_trial", False) if lic_data_now else False
                 if not is_trial_now:
                     if hasattr(self, "status_bar"):
-                        self.status_bar.showMessage("🎉 正式商业授权已成功激活！感谢您的支持。", 5000)
+                        self.status_bar.showMessage(
+                            "🎉 Commercial License activated! Thank you for your support."
+                            if is_en else
+                            "🎉 正式商业授权已成功激活！感谢您的支持。",
+                            5000
+                        )
                 else:
                     if hasattr(self, "status_bar"):
-                        self.status_bar.showMessage("⏱️ 7天全功能免费试用生效中。", 4000)
+                        self.status_bar.showMessage(
+                            "⏱️ 7-Day Full-Feature Evaluation is active."
+                            if is_en else
+                            "⏱️ 7天全功能免费试用生效中。",
+                            4000
+                        )
                 return True
             else:
                 if hasattr(self, "status_bar"):
-                    self.status_bar.showMessage("⚠️ 当前处于未激活评估模式，操作已被拦截。请激活后再试。", 4000)
+                    self.status_bar.showMessage(
+                        "⚠️ Unactivated evaluation mode: action blocked. Please activate to continue."
+                        if is_en else
+                        "⚠️ 当前处于未激活评估模式，操作已被拦截。请激活后再试。",
+                        4000
+                    )
                 return False
         finally:
             self._is_prompting_activation = False
@@ -2188,7 +2399,12 @@ class MainWindow(QMainWindow):
             self._on_oct_params_changed()
         self._on_bare_dia_changed(self.sb_bare_dia.value())
         self.run_simulation()
-        self.status_bar.showMessage(f"✓ 已成功还原方案 [{snapshot.name}] 的全套输入参数！", 3500)
+        self.status_bar.showMessage(
+            f"✓ Restored all input parameters from [{snapshot.name}]!"
+            if i18n.is_english() else
+            f"✓ 已成功还原方案 [{snapshot.name}] 的全套输入参数！",
+            3500
+        )
 
     def _load_preset(self, name: str):
         """加载经典工业预设 (含匹配的模具空间限值)"""
@@ -2362,15 +2578,22 @@ class MainWindow(QMainWindow):
 
     def _export_project(self):
         """保存算例工程文件 (.ansvcoil / .ansv / .json)"""
-        if not self.check_authorization_or_prompt("保存工程算例"):
+        is_en = i18n.is_english()
+        if not self.check_authorization_or_prompt("Save Project Case" if is_en else "保存工程算例"):
             return
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         proj_name = self.get_project_name()
-        default_filename = f"{proj_name}_线圈工程算例_{timestamp}.ansvcoil"
+        default_filename = (
+            f"{proj_name}_Coil_Project_{timestamp}.ansvcoil"
+            if is_en else
+            f"{proj_name}_线圈工程算例_{timestamp}.ansvcoil"
+        )
         path, _ = QFileDialog.getSaveFileName(
             self, 
-            "保存线圈算例", 
+            "Save Coil Project Case" if is_en else "保存线圈算例", 
             default_filename, 
+            "ANSV Coil Project (*.ansvcoil);;Legacy Case (*.ansv);;JSON File (*.json)"
+            if is_en else
             "ANSV 线圈工程算例 (*.ansvcoil);;兼容算例 (*.ansv);;JSON 算例文件 (*.json)"
         )
         if not path:
@@ -2411,13 +2634,19 @@ class MainWindow(QMainWindow):
             }
         }
         atomic_write_json(Path(path), data)
-        self.status_bar.showMessage(f"算例已成功原子持久化保存至: {os.path.basename(path)}", 4000)
+        self.status_bar.showMessage(
+            f"Project case saved: {os.path.basename(path)}"
+            if is_en else
+            f"算例已成功原子持久化保存至: {os.path.basename(path)}",
+            4000
+        )
 
     def load_project_file(self, path: str) -> bool:
         """
         统一解析并装载工程算例文件 (.ansvcoil / .ansv / .json)
         支持界面按钮触发、启动命令行传入与 Windows 双击文件自动载入
         """
+        is_en = i18n.is_english()
         if not path or not os.path.exists(path):
             return False
         try:
@@ -2482,20 +2711,31 @@ class MainWindow(QMainWindow):
             self._on_bare_dia_changed(self.sb_bare_dia.value())
             self.run_simulation()
             if hasattr(self, "status_bar"):
-                self.status_bar.showMessage(f"已成功加载线圈算例: {os.path.basename(path)}", 4000)
+                self.status_bar.showMessage(
+                    f"Loaded coil project case: {os.path.basename(path)}"
+                    if is_en else
+                    f"已成功加载线圈算例: {os.path.basename(path)}",
+                    4000
+                )
             return True
         except Exception as e:
-            QMessageBox.critical(self, "读取失败", f"无法解析线圈算例文件:\n{str(e)}")
+            if is_en:
+                QMessageBox.critical(self, "Load Failed", f"Failed to parse coil project file:\n{str(e)}")
+            else:
+                QMessageBox.critical(self, "读取失败", f"无法解析线圈算例文件:\n{str(e)}")
             return False
 
     def _import_project(self):
         """导入算例工程文件"""
-        if not self.check_authorization_or_prompt("载入工程算例"):
+        is_en = i18n.is_english()
+        if not self.check_authorization_or_prompt("Open Project Case" if is_en else "载入工程算例"):
             return
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "载入线圈算例",
+            "Open Coil Project Case" if is_en else "载入线圈算例",
             "",
+            "ANSV Coil Project (*.ansvcoil *.ansv);;JSON File (*.json);;All Files (*.*)"
+            if is_en else
             "ANSV 线圈工程算例 (*.ansvcoil *.ansv);;JSON 算例文件 (*.json);;所有文件 (*.*)"
         )
         if not path:
@@ -2504,14 +2744,15 @@ class MainWindow(QMainWindow):
 
     def _export_report(self):
         """导出工程评审报表 (支持 Excel .xlsx 或 CSV)"""
-        if not self.check_authorization_or_prompt("导出工程评审报表"):
+        is_en = i18n.is_english()
+        if not self.check_authorization_or_prompt("Export Engineering Report" if is_en else "导出工程评审报表"):
             return
         # 1. 弹出项目名称确认输入框，默认带出预设 Coli-Architect
         current_name = self.get_project_name()
         proj_name, ok = QInputDialog.getText(
             self, 
-            "导出评审报告 - 确认项目名称", 
-            "请输入工程项目名称 (将注入文件名与报表元数据):", 
+            "Export Engineering Report - Confirm Project Name" if is_en else "导出评审报告 - 确认项目名称", 
+            "Enter project code/name (injected into filename & report header):" if is_en else "请输入工程项目名称 (将注入文件名与报表元数据):", 
             QLineEdit.EchoMode.Normal, 
             current_name
         )
@@ -2524,11 +2765,17 @@ class MainWindow(QMainWindow):
             self.txt_project_name.setText(proj_name)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = f"{proj_name}_线圈工程评审报告_{timestamp}.xlsx"
+        default_filename = (
+            f"{proj_name}_Coil_Engineering_Report_{timestamp}.xlsx"
+            if is_en else
+            f"{proj_name}_线圈工程评审报告_{timestamp}.xlsx"
+        )
         path, sel_filter = QFileDialog.getSaveFileName(
             self, 
-            "导出工程评审报告", 
+            "Export Engineering Report" if is_en else "导出工程评审报告", 
             default_filename, 
+            "Excel Workbook (*.xlsx);;CSV Report (*.csv)"
+            if is_en else
             "Excel 工作簿 (*.xlsx);;CSV 文本报表 (*.csv)"
         )
         if not path:
@@ -2539,57 +2786,111 @@ class MainWindow(QMainWindow):
                 path += ".xlsx"
             from ..export.report_excel import ExcelReportGenerator
             ExcelReportGenerator.generate(self.inputs, self.outputs, path, project_name=proj_name)
-            self.status_bar.showMessage(f"Excel 评审报告已成功导出: {os.path.basename(path)}", 4000)
-            QMessageBox.information(self, "导出成功", f"线圈多物理场评审报告已导出至:\n{path}")
+            if is_en:
+                self.status_bar.showMessage(f"Excel engineering report exported: {os.path.basename(path)}", 4000)
+                QMessageBox.information(self, "Export Successful", f"Electromagnetic coil multi-physics engineering report exported to:\n{path}")
+            else:
+                self.status_bar.showMessage(f"Excel 评审报告已成功导出: {os.path.basename(path)}", 4000)
+                QMessageBox.information(self, "导出成功", f"线圈多物理场评审报告已导出至:\n{path}")
         else:
             self._export_csv_file(path, project_name=proj_name)
 
     def _export_csv_file(self, path: str, project_name: str = "Coli-Architect"):
+        is_en = i18n.is_english()
         c_type = self.inputs.coil_type
-        if c_type == CoilType.CIRCULAR:
-            c_type_name = "圆形线圈 (Circular)"
-            dim_row1 = f"实际外廓外径 (OD),{self.outputs.outer_len:.3f},mm"
-            dim_row2 = f"绕组平均中径 (Dm),{self.outputs.mean_dia_mm:.3f},mm"
-        elif c_type == CoilType.OCTAGONAL:
-            c_type_name = "八角形线圈 (Octagonal VCM)"
-            dim_row1 = f"对边外跨距 (OD1),{self.outputs.oct_od1:.3f},mm"
-            dim_row2 = f"对角外跨距 (OD2),{self.outputs.oct_od2:.3f},mm"
-        elif c_type == CoilType.ARBITRARY_PERIMETER:
-            c_type_name = "通用异形线圈 (Arbitrary Perimeter)"
-            dim_row1 = f"内周长 (C_in),{self.outputs.c_inner_mm:.3f},mm"
-            dim_row2 = f"外周长 (C_out),{self.outputs.c_outer_mm:.3f},mm"
-        else:
-            c_type_name = "跑道型线圈 (Racetrack)"
-            dim_row1 = f"实际外廓长度 (OL),{self.outputs.outer_len:.3f},mm"
-            dim_row2 = f"实际外廓宽度 (OW),{self.outputs.outer_wid:.3f},mm"
-
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        lines = [
-            "Coil-Architect Pro - 工程仿真数据报表",
-            f"工程项目名称,{project_name}",
-            f"评审导出时间,{now_str}",
-            "官方仿真平台,ansv.net (ANSV 微型执行器与精密传动平台)",
-            f"线圈拓扑类型,{c_type_name}",
-            f"有效成型总匝数 (N),{self.outputs.total_turns},匝",
-            dim_row1,
-            dim_row2,
-            f"Z向占位高度 (Thickness),{self.outputs.thickness_h:.3f},mm",
-            f"铜导体电阻率 (ρ_cu),{self.inputs.copper_resistivity:.6f},Ω·mm²/m",
-            f"理论单线标称米阻 (R/m),{self.outputs.rho_per_meter:.4f},Ω/m",
-            f"20℃冷态电阻 (R20),{self.outputs.r20:.4f},Ω",
-            f"测试初始电阻 (R_init),{self.outputs.r_init:.4f},Ω",
-            f"热态平衡电阻 (DCR_hot),{self.outputs.dcr_hot:.4f},Ω",
-            f"Wheeler多层空心电感 (L),{self.outputs.inductance_uh:.2f},μH",
-            f"电磁激励安匝数 (ΣI),{self.outputs.ampere_turns:.2f},AT",
-            f"所需驱动端电压 (V_term),{self.outputs.v_term:.4f},V",
-            f"稳态焦耳功耗 (Power),{self.outputs.joule_power_mw:.2f},mW",
-            f"稳态极限结温 (T_final),{self.outputs.t_final:.2f},℃",
-            f"漆包线占空比 (Wire Fill),{self.outputs.wire_fill_factor:.2f},%",
-            f"纯铜空间填充率 (Cu Fill),{self.outputs.copper_fill_factor:.2f},%",
-            f"线圈净重 (Weight),{self.outputs.weight_g:.4f},g",
-            f"平均单匝展开周长 (MLT),{self.outputs.mlt:.3f},mm",
-            f"DFM制造公差状态,{ '全部合格' if self.outputs.dfm.all_passed else '存在超差项' }"
-        ]
-        atomic_write_text(Path(path), "\n".join(lines), encoding="utf-8-sig")
-        self.status_bar.showMessage(f"CSV 报表已成功原子持久化导出: {os.path.basename(path)}", 4000)
+        if is_en:
+            if c_type == CoilType.CIRCULAR:
+                c_type_name = "Circular Coil (VLRA / Speaker)"
+                dim_row1 = f"Molded Outer Diameter (OD),{self.outputs.outer_len:.3f},mm"
+                dim_row2 = f"Mean Winding Diameter (Dm),{self.outputs.mean_dia_mm:.3f},mm"
+            elif c_type == CoilType.OCTAGONAL:
+                c_type_name = "Octagonal Coil (AF / OIS VCM)"
+                dim_row1 = f"Flat Outer Span (OD1),{self.outputs.oct_od1:.3f},mm"
+                dim_row2 = f"Chamfer Outer Span (OD2),{self.outputs.oct_od2:.3f},mm"
+            elif c_type == CoilType.ARBITRARY_PERIMETER:
+                c_type_name = "Custom Perimeter Coil (CAD Solver)"
+                dim_row1 = f"Inner Contour Perimeter (C_in),{self.outputs.c_inner_mm:.3f},mm"
+                dim_row2 = f"Outer Contour Perimeter (C_out),{self.outputs.c_outer_mm:.3f},mm"
+            else:
+                c_type_name = "Racetrack Coil (VCM / LRA)"
+                dim_row1 = f"Molded Outer Length (OL),{self.outputs.outer_len:.3f},mm"
+                dim_row2 = f"Molded Outer Width (OW),{self.outputs.outer_wid:.3f},mm"
+
+            lines = [
+                "Coil-Architect Pro - Engineering Simulation Report",
+                f"Project Name,{project_name}",
+                f"Export Timestamp,{now_str}",
+                "Official Platform,ansv.net (ANSV Micro-Actuator & Precision Drive Platform)",
+                f"Coil Topology Type,{c_type_name}",
+                f"Effective Total Turns (N),{self.outputs.total_turns},turns",
+                dim_row1,
+                dim_row2,
+                f"Z-Axis Thickness (H),{self.outputs.thickness_h:.3f},mm",
+                f"Copper Resistivity (ρ_cu),{self.inputs.copper_resistivity:.6f},Ω·mm²/m",
+                f"Nominal Resistance per Meter (R/m),{self.outputs.rho_per_meter:.4f},Ω/m",
+                f"20℃ Cold Resistance (R20),{self.outputs.r20:.4f},Ω",
+                f"Ambient Cold Resistance (R_init),{self.outputs.r_init:.4f},Ω",
+                f"Steady-State Hot Resistance (DCR_hot),{self.outputs.dcr_hot:.4f},Ω",
+                f"Wheeler Air-Core Inductance (L),{self.outputs.inductance_uh:.2f},μH",
+                f"Magnetomotive Force (ΣI),{self.outputs.ampere_turns:.2f},AT",
+                f"Required Terminal Voltage (V_term),{self.outputs.v_term:.4f},V",
+                f"Steady-State Joule Power (Power),{self.outputs.joule_power_mw:.2f},mW",
+                f"Final Steady-State Temp (T_final),{self.outputs.t_final:.2f},℃",
+                f"Enamel Wire Fill Factor (Wire Fill),{self.outputs.wire_fill_factor:.2f},%",
+                f"Bare Copper Fill Factor (Cu Fill),{self.outputs.copper_fill_factor:.2f},%",
+                f"Coil Net Weight (Weight),{self.outputs.weight_g:.4f},g",
+                f"Mean Length per Turn (MLT),{self.outputs.mlt:.3f},mm",
+                f"DFM Tolerance Verdict,{'ALL PASSED' if self.outputs.dfm.all_passed else 'OVER LIMIT'}"
+            ]
+            atomic_write_text(Path(path), "\n".join(lines), encoding="utf-8-sig")
+            self.status_bar.showMessage(f"CSV report exported: {os.path.basename(path)}", 4000)
+            QMessageBox.information(self, "Export Successful", f"Electromagnetic coil CSV engineering report exported to:\n{path}")
+        else:
+            if c_type == CoilType.CIRCULAR:
+                c_type_name = "圆形线圈 (Circular)"
+                dim_row1 = f"实际外廓外径 (OD),{self.outputs.outer_len:.3f},mm"
+                dim_row2 = f"绕组平均中径 (Dm),{self.outputs.mean_dia_mm:.3f},mm"
+            elif c_type == CoilType.OCTAGONAL:
+                c_type_name = "八角形线圈 (Octagonal VCM)"
+                dim_row1 = f"对边外跨距 (OD1),{self.outputs.oct_od1:.3f},mm"
+                dim_row2 = f"对角外跨距 (OD2),{self.outputs.oct_od2:.3f},mm"
+            elif c_type == CoilType.ARBITRARY_PERIMETER:
+                c_type_name = "通用异形线圈 (Arbitrary Perimeter)"
+                dim_row1 = f"内周长 (C_in),{self.outputs.c_inner_mm:.3f},mm"
+                dim_row2 = f"外周长 (C_out),{self.outputs.c_outer_mm:.3f},mm"
+            else:
+                c_type_name = "跑道型线圈 (Racetrack)"
+                dim_row1 = f"实际外廓长度 (OL),{self.outputs.outer_len:.3f},mm"
+                dim_row2 = f"实际外廓宽度 (OW),{self.outputs.outer_wid:.3f},mm"
+
+            lines = [
+                "Coil-Architect Pro - 工程仿真数据报表",
+                f"工程项目名称,{project_name}",
+                f"评审导出时间,{now_str}",
+                "官方仿真平台,ansv.net (ANSV 微型执行器与精密传动平台)",
+                f"线圈拓扑类型,{c_type_name}",
+                f"有效成型总匝数 (N),{self.outputs.total_turns},匝",
+                dim_row1,
+                dim_row2,
+                f"Z向占位高度 (Thickness),{self.outputs.thickness_h:.3f},mm",
+                f"铜导体电阻率 (ρ_cu),{self.inputs.copper_resistivity:.6f},Ω·mm²/m",
+                f"理论单线标称米阻 (R/m),{self.outputs.rho_per_meter:.4f},Ω/m",
+                f"20℃冷态电阻 (R20),{self.outputs.r20:.4f},Ω",
+                f"测试初始电阻 (R_init),{self.outputs.r_init:.4f},Ω",
+                f"热态平衡电阻 (DCR_hot),{self.outputs.dcr_hot:.4f},Ω",
+                f"Wheeler多层空心电感 (L),{self.outputs.inductance_uh:.2f},μH",
+                f"电磁激励安匝数 (ΣI),{self.outputs.ampere_turns:.2f},AT",
+                f"所需驱动端电压 (V_term),{self.outputs.v_term:.4f},V",
+                f"稳态焦耳功耗 (Power),{self.outputs.joule_power_mw:.2f},mW",
+                f"稳态极限结温 (T_final),{self.outputs.t_final:.2f},℃",
+                f"漆包线占空比 (Wire Fill),{self.outputs.wire_fill_factor:.2f},%",
+                f"纯铜空间填充率 (Cu Fill),{self.outputs.copper_fill_factor:.2f},%",
+                f"线圈净重 (Weight),{self.outputs.weight_g:.4f},g",
+                f"平均单匝展开周长 (MLT),{self.outputs.mlt:.3f},mm",
+                f"DFM制造公差状态,{ '全部合格' if self.outputs.dfm.all_passed else '存在超差项' }"
+            ]
+            atomic_write_text(Path(path), "\n".join(lines), encoding="utf-8-sig")
+            self.status_bar.showMessage(f"CSV 报表已成功原子持久化导出: {os.path.basename(path)}", 4000)
+            QMessageBox.information(self, "导出成功", f"线圈多物理场 CSV 评审报告已导出至:\n{path}")
 

@@ -25,6 +25,7 @@ from src.core.single_instance import SingleInstanceChecker
 from src.gui.styles import apply_light_theme
 from src.gui.icon_helper import get_app_icon, set_windows_app_user_model_id, apply_window_icon_to_hwnd
 from src.gui.splash_screen import SplashScreen
+from src.core.i18n import i18n
 from src.gui.utils import GlobalNoWheelChangeFilter
 
 
@@ -72,10 +73,14 @@ def main():
     app._instance_checker = instance_checker  # 保持全局句柄常驻内存防回收
 
     try:
-        # 7. 立即弹出科技感工业启动闪屏 (0.1 秒极速呈现，消除操作员等待焦虑)
+        # 7. 立即弹出科技感工业启动闪屏 (0.1 秒极速呈现，自动根据上次保存的语言切换中/英文闪屏)
+        is_en = i18n.is_english()
         splash = SplashScreen()
         splash.show()
-        splash.update_progress(15, "正在校验一机一码硬件指纹与数字凭证...")
+        splash.update_progress(
+            15,
+            "Verifying hardware fingerprint & digital license token..." if is_en else "正在校验一机一码硬件指纹与数字凭证..."
+        )
 
         # 8. 校验商业授权状态 (未激活状态正常启动进入工作台预览，操作时再提示激活)
         from src.core.license_manager import LicenseManager
@@ -83,26 +88,44 @@ def main():
         auth_ok, auth_msg, lic_data = LicenseManager.is_system_authorized()
         if not auth_ok:
             logger.info(f"系统处于未激活状态 ({auth_msg})，进入评估预览模式。")
-            splash.update_progress(35, "检测到未激活评估模式，正在准备工作台预览...")
+            splash.update_progress(
+                35,
+                "Evaluation mode detected, preparing workstation preview..." if is_en else "检测到未激活评估模式，正在准备工作台预览..."
+            )
         else:
             is_trial = lic_data.get("is_trial", False) if lic_data else False
             if is_trial:
                 days_left = lic_data.get("days_left", 7)
                 logger.info(f"系统处于 7 天全功能免激活试用期 (剩余 {days_left} 天)")
-                splash.update_progress(35, f"7天全功能试用有效 (剩 {days_left} 天)，正在装载物理引擎...")
+                splash.update_progress(
+                    35,
+                    f"7-Day Full Trial active ({days_left} days left), loading physics engine..." if is_en else f"7天全功能试用有效 (剩 {days_left} 天)，正在装载物理引擎..."
+                )
             else:
-                splash.update_progress(35, "正式商业授权凭证验证通过，正在装载物理引擎...")
+                splash.update_progress(
+                    35,
+                    "Commercial license verified, loading physics engine..." if is_en else "正式商业授权凭证验证通过，正在装载物理引擎..."
+                )
 
         # 9. 步进式加载系统核心物理引擎
-        splash.update_progress(45, "正在装载电磁线圈双核高精度求解器 (Cython加速内核)...")
+        splash.update_progress(
+            45,
+            "Loading Dual-Core High-Precision Coil Solver (Cython Native Kernel)..." if is_en else "正在装载电磁线圈双核高精度求解器 (Cython加速内核)..."
+        )
         from src.core.physics_engine import CoilPhysicsEngine
 
         # 10. 动态构建主工作区核心组件
-        splash.update_progress(70, "正在构建 2D 矢量数字孪生图纸与 DFM 装配卡控条...")
+        splash.update_progress(
+            70,
+            "Building 2D Vector Digital Twin Canvas & DFM Tolerance Guard..." if is_en else "正在构建 2D 矢量数字孪生图纸与 DFM 装配卡控条..."
+        )
         from src.gui.main_window import MainWindow
 
         # 11. 实例化主工作台窗口
-        splash.update_progress(90, "正在初始化高对比度测控工作台与基准预设库...")
+        splash.update_progress(
+            90,
+            "Initializing High-Contrast Measurement Workstation & Presets..." if is_en else "正在初始化高对比度测控工作台与基准预设库..."
+        )
         window = MainWindow()
 
         # 检查命令行入参，支持 Windows 双击 .ansvcoil 算例直接唤起并自动载入
@@ -152,22 +175,37 @@ def main():
 
             # 2. 弹出高对比度覆盖确认弹窗
             filename = os.path.basename(filepath)
+            en_mode = i18n.is_english()
             reply = QMessageBox.question(
                 window,
-                "导入外部线圈算例确认",
-                f"检测到外部请求打开线圈工程算例：\n\n"
-                f"📄 算例文件: {filename}\n"
-                f"📁 算例路径: {filepath}\n\n"
-                f"是否确认将此算例导入到当前工作台？\n\n"
-                f"⚠️ 警告: 导入新算例将覆盖当前工作台中尚未保存的参数与仿真结果！",
+                "Confirm External Case Import" if en_mode else "导入外部线圈算例确认",
+                (
+                    f"External request to open coil engineering case detected:\n\n"
+                    f"📄 File: {filename}\n"
+                    f"📁 Path: {filepath}\n\n"
+                    f"Import this case into the current workstation?\n\n"
+                    f"⚠️ Warning: Importing a new case will overwrite unsaved parameters and simulation results!"
+                ) if en_mode else (
+                    f"检测到外部请求打开线圈工程算例：\n\n"
+                    f"📄 算例文件: {filename}\n"
+                    f"📁 算例路径: {filepath}\n\n"
+                    f"是否确认将此算例导入到当前工作台？\n\n"
+                    f"⚠️ 警告: 导入新算例将覆盖当前工作台中尚未保存的参数与仿真结果！"
+                ),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes
             )
             if reply == QMessageBox.StandardButton.Yes:
                 window.load_project_file(filepath)
-                window.status_bar.showMessage(f"已成功导入外部算例: {filename}", 5000)
+                window.status_bar.showMessage(
+                    f"External case imported: {filename}" if en_mode else f"已成功导入外部算例: {filename}",
+                    5000
+                )
             else:
-                window.status_bar.showMessage("已取消导入外部算例，当前工作台参数保持不变。", 3500)
+                window.status_bar.showMessage(
+                    "External case import canceled." if en_mode else "已取消导入外部算例，当前工作台参数保持不变。",
+                    3500
+                )
 
         def on_external_activate():
             """响应外部重复启动请求：纯粹前台唤醒置顶，绝不弹窗打扰"""
@@ -180,7 +218,10 @@ def main():
                 ctypes.windll.user32.SetForegroundWindow(int(window.winId()))
             except Exception:
                 pass
-            window.status_bar.showMessage("工作台已在前台激活就绪", 3000)
+            window.status_bar.showMessage(
+                "Workstation activated in foreground" if i18n.is_english() else "工作台已在前台激活就绪",
+                3000
+            )
 
         ipc_server.file_import_requested.connect(on_external_file_import)
         ipc_server.activate_requested.connect(on_external_activate)
@@ -202,11 +243,17 @@ def main():
         sys.exit(app.exec())
     except Exception as e:
         logger.critical(f"系统启动主循环捕获严重异常: {e}\n{traceback.format_exc()}")
+        en_err = i18n.is_english()
         QMessageBox.critical(
             None,
-            "启动异常",
-            f"Coil-Architect Pro 启动遭遇不可恢复的异常：\n\n{str(e)}\n\n"
-            f"详情请查阅 logs/coil_architect.log。"
+            "Startup Error" if en_err else "启动异常",
+            (
+                f"Coil-Architect Pro encountered an unrecoverable startup error:\n\n{str(e)}\n\n"
+                f"Please check logs/coil_architect.log for details."
+            ) if en_err else (
+                f"Coil-Architect Pro 启动遭遇不可恢复的异常：\n\n{str(e)}\n\n"
+                f"详情请查阅 logs/coil_architect.log。"
+            )
         )
         sys.exit(1)
 

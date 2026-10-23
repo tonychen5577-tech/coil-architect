@@ -621,48 +621,92 @@ class ActivationDialog(QDialog):
     def _copy_wechat_id(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(WECHAT_CONTACT_ID)
-        QMessageBox.information(
-            self,
-            "微信号已复制",
-            f"✅ 工程师微信号已复制: {WECHAT_CONTACT_ID}\n\n请在微信中粘贴搜索添加好友，即可极速开通正式商业授权！"
-        )
+        if self.is_en:
+            QMessageBox.information(
+                self,
+                "WeChat ID Copied",
+                f"✅ WeChat Support ID Copied: {WECHAT_CONTACT_ID}\n\nPaste and search in WeChat to add our engineer for instant commercial license activation!"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "微信号已复制",
+                f"✅ 工程师微信号已复制: {WECHAT_CONTACT_ID}\n\n请在微信中粘贴搜索添加好友，即可极速开通正式商业授权！"
+            )
 
     def _copy_whatsapp_id(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(WHATSAPP_CONTACT_ID)
-        QMessageBox.information(
-            self,
-            "WhatsApp ID Copied",
-            f"✅ WhatsApp Contact Copied: {WHATSAPP_CONTACT_ID}\n\nAdd us on WhatsApp for international license procurement & technical support!"
-        )
+        if self.is_en:
+            QMessageBox.information(
+                self,
+                "WhatsApp ID Copied",
+                f"✅ WhatsApp Contact Copied: {WHATSAPP_CONTACT_ID}\n\nAdd us on WhatsApp for international license procurement & technical support!"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "WhatsApp 已复制",
+                f"✅ WhatsApp 联系方式已复制: {WHATSAPP_CONTACT_ID}\n\n欢迎在 WhatsApp 中添加工程师，快速办理国际商业授权与技术支持！"
+            )
 
     def _copy_machine_code(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.machine_code)
-        QMessageBox.information(
-            self,
-            "机器码已复制",
-            f"✅ 本机机器码已成功复制到剪贴板！\n\n机器码: {self.machine_code}\n请直接发送给工程师开通专属许可证。"
-        )
+        if self.is_en:
+            QMessageBox.information(
+                self,
+                "Machine Code Copied",
+                f"✅ Hardware Machine Code copied to clipboard!\n\nMachine Code: {self.machine_code}\nPlease send this code to our support engineer to issue your dedicated license."
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "机器码已复制",
+                f"✅ 本机机器码已成功复制到剪贴板！\n\n机器码: {self.machine_code}\n请直接发送给工程师开通专属许可证。"
+            )
 
     def _copy_order_template(self):
-        template = (
-            f"【ANSV Coil-Architect Pro 商业授权 8 折特惠申请】\n"
-            f"• 申请方案 (Tier): 年度商业版 / Annual Commercial (限时8折: ¥4,680 / $719)\n"
-            f"• 本机特征码 (Machine Code): {self.machine_code}\n"
-            f"• 申请人或单位 (Client / Organization): [请填写 / Your Name or Company]\n"
-            f"• 官方技术支持 (Support): WeChat: {WECHAT_CONTACT_ID} | WhatsApp: {WHATSAPP_CONTACT_ID} | {OFFICIAL_URL}"
-        )
-        clipboard = QApplication.clipboard()
-        clipboard.setText(template)
-        QMessageBox.information(
-            self,
-            "订购消息草稿已就绪",
-            f"🎉 订购消息草稿已成功复制到剪贴板！\n\n内容已包含您的本机机器码 ({self.machine_code}) 与双语格式。\n请直接打开微信或 WhatsApp 发送给工程师即可秒级开通！"
-        )
+        if self.is_en:
+            template = (
+                f"[ANSV Coil-Architect Pro Commercial License Order (20% OFF)]\n"
+                f"• License Tier: Annual Commercial Workstation (Limited-Time 20% OFF: $719 USD / ¥4,680 CNY)\n"
+                f"• Hardware Machine Code: {self.machine_code}\n"
+                f"• Client / Organization: [Your Name or Company]\n"
+                f"• Official Support: WhatsApp: {WHATSAPP_CONTACT_ID} | WeChat: {WECHAT_CONTACT_ID} | {OFFICIAL_URL}"
+            )
+            clipboard = QApplication.clipboard()
+            clipboard.setText(template)
+            QMessageBox.information(
+                self,
+                "Order Message Copied",
+                f"🎉 Order message template copied to clipboard!\n\nIt includes your Hardware Machine Code ({self.machine_code}).\nSimply paste and send it to our engineer via WhatsApp or WeChat for instant activation!"
+            )
+        else:
+            template = (
+                f"【ANSV Coil-Architect Pro 商业授权 8 折特惠申请】\n"
+                f"• 申请方案 (Tier): 年度商业版 / Annual Commercial (限时8折: ¥4,680 / $719)\n"
+                f"• 本机特征码 (Machine Code): {self.machine_code}\n"
+                f"• 申请人或单位 (Client / Organization): [请填写 / Your Name or Company]\n"
+                f"• 官方技术支持 (Support): WeChat: {WECHAT_CONTACT_ID} | WhatsApp: {WHATSAPP_CONTACT_ID} | {OFFICIAL_URL}"
+            )
+            clipboard = QApplication.clipboard()
+            clipboard.setText(template)
+            QMessageBox.information(
+                self,
+                "订购消息草稿已就绪",
+                f"🎉 订购消息草稿已成功复制到剪贴板！\n\n内容已包含您的本机机器码 ({self.machine_code}) 与双语格式。\n请直接打开微信或 WhatsApp 发送给工程师即可秒级开通！"
+            )
 
     def _import_lic_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "选择授权许可证文件", "", "许可证文件 (*.lic);;所有文件 (*.*)")
+        if self.is_en:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Select License File", "", "License Files (*.lic);;All Files (*.*)"
+            )
+        else:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "选择授权许可证文件", "", "许可证文件 (*.lic);;所有文件 (*.*)"
+            )
         if not path:
             return
         try:
@@ -671,29 +715,54 @@ class ActivationDialog(QDialog):
             self.txt_token.setText(token)
             self._on_activate()
         except Exception as e:
-            QMessageBox.critical(self, "读取失败", f"无法读取许可证文件: {str(e)}")
+            if self.is_en:
+                QMessageBox.critical(self, "Read Failed", f"Failed to read license file:\n{str(e)}")
+            else:
+                QMessageBox.critical(self, "读取失败", f"无法读取许可证文件: {str(e)}")
 
     def _on_activate(self):
         token = self.txt_token.text().strip()
         if not token:
-            QMessageBox.warning(self, "提示", "请输入或导入激活码！")
+            if self.is_en:
+                QMessageBox.warning(self, "Notice", "Please paste a license token or import a .lic file first!")
+            else:
+                QMessageBox.warning(self, "提示", "请输入或导入激活码！")
             return
 
         ok, msg = LicenseManager.install_license(token)
         if ok:
-            QMessageBox.information(
-                self,
-                "🎉 激活成功",
-                "恭喜！ANSV Coil-Architect Pro 正式商业授权已成功激活！\n\n"
-                "• 核心双核物理引擎已全部解锁\n"
-                "• 2D/3D 高保真出图与 DXF 导出已就绪\n"
-                "• 方案比对矩阵与 Excel 评审报表全功能已开放\n\n"
-                "感谢您对 ANSV 工业仿真平台的信任与支持！"
-            )
+            if self.is_en:
+                QMessageBox.information(
+                    self,
+                    "🎉 Activation Successful",
+                    "Congratulations! ANSV Coil-Architect Pro Commercial License is now active!\n\n"
+                    "• Dual-core electromagnetic & thermal solver fully unlocked\n"
+                    "• High-DPI 2D/3D engineering drawings & DXF export ready\n"
+                    "• Multi-scheme comparison matrix & Excel engineering report enabled\n\n"
+                    "Thank you for choosing the ANSV Industrial Simulation Platform!"
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "🎉 激活成功",
+                    "恭喜！ANSV Coil-Architect Pro 正式商业授权已成功激活！\n\n"
+                    "• 核心双核物理引擎已全部解锁\n"
+                    "• 2D/3D 高保真出图与 DXF 导出已就绪\n"
+                    "• 方案比对矩阵与 Excel 评审报表全功能已开放\n\n"
+                    "感谢您对 ANSV 工业仿真平台的信任与支持！"
+                )
             self.accept()
         else:
-            QMessageBox.critical(
-                self,
-                "激活失败",
-                f"授权验证未通过，请检查激活码是否正确:\n\n{msg}\n\n如有疑问，可随时联系微信技术支持: {WECHAT_CONTACT_ID} 或 WhatsApp: {WHATSAPP_CONTACT_ID}"
-            )
+            if self.is_en:
+                QMessageBox.critical(
+                    self,
+                    "Activation Failed",
+                    f"License verification failed. Please check your activation token:\n\n{msg}\n\n"
+                    f"For assistance, contact WhatsApp: {WHATSAPP_CONTACT_ID} or WeChat: {WECHAT_CONTACT_ID}"
+                )
+            else:
+                QMessageBox.critical(
+                    self,
+                    "激活失败",
+                    f"授权验证未通过，请检查激活码是否正确:\n\n{msg}\n\n如有疑问，可随时联系微信技术支持: {WECHAT_CONTACT_ID} 或 WhatsApp: {WHATSAPP_CONTACT_ID}"
+                )

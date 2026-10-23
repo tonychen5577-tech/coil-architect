@@ -597,15 +597,22 @@ class AboutDialog(QDialog):
 
         # 8. 授权工位与授权状态
         st_info = get_station_info()
-        cust_name = st_info.get("customer", "Authorized Org" if is_en else "内部核准机构")
+        cust_name = st_info.get("customer", "Authorized R&D Center" if is_en else "内部核准机构")
         line_stat = st_info.get("station", "Pro R&D Workstation" if is_en else "专业研发工作站 (Pro Station)")
-        status_txt = st_info.get("status_text", "🛡️ Commercial License" if is_en else "🛡️ 正式商业授权")
+        status_txt = st_info.get("status_text", "🛡️ Active Commercial License" if is_en else "🛡️ 正式商业授权")
         if is_en:
-            if cust_name == "内部核准机构":
-                cust_name = "Authorized R&D Center"
-            if "专业研发工作站" in line_stat:
+            if cust_name in ("内部核准机构", "全功能试用评估用户"):
+                cust_name = "Full-Feature Evaluation User" if st_info.get("is_trial") else "Authorized R&D Center"
+            if "7天全功能评估工位" in line_stat:
+                d_left = st_info.get("days_left", 7)
+                e_date = st_info.get("exp_date", "")
+                line_stat = f"7-Day Evaluation Station ({d_left}d left · Exp {e_date})"
+            elif "专业研发工作站" in line_stat:
                 line_stat = "Pro R&D Workstation"
-            if "未激活" in status_txt or "评估" in status_txt:
+            if "7天全功能试用中" in status_txt:
+                d_left = st_info.get("days_left", 7)
+                status_txt = f"⏱️ 7-Day Trial Active ({d_left}d left)"
+            elif "未激活" in status_txt or "评估" in status_txt:
                 status_txt = "🔓 Evaluation Mode (Unactivated)"
             elif "正式商业授权" in status_txt:
                 status_txt = "🛡️ Active Commercial License"
@@ -924,47 +931,88 @@ class AboutDialog(QDialog):
     def _on_create_shortcut_clicked(self):
         """用户主动创建专属桌面快捷方式"""
         from src.core.shortcut_helper import create_desktop_shortcut
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
         ok, msg = create_desktop_shortcut()
         if ok:
-            QMessageBox.information(
-                self,
-                "桌面快捷方式",
-                "✅ 桌面快捷方式已成功创建并绑定专属高清图标！\n您可随时从桌面双击直接启动。",
-                QMessageBox.StandardButton.Ok
-            )
+            if is_en:
+                QMessageBox.information(
+                    self,
+                    "Desktop Shortcut",
+                    "✅ Desktop shortcut created with the high-DPI vector icon!\nYou can now launch Coil-Architect Pro directly from your desktop.",
+                    QMessageBox.StandardButton.Ok
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "桌面快捷方式",
+                    "✅ 桌面快捷方式已成功创建并绑定专属高清图标！\n您可随时从桌面双击直接启动。",
+                    QMessageBox.StandardButton.Ok
+                )
         else:
-            QMessageBox.warning(
-                self,
-                "桌面快捷方式",
-                f"快捷方式创建未完成：\n{msg}",
-                QMessageBox.StandardButton.Ok
-            )
+            if is_en:
+                QMessageBox.warning(
+                    self,
+                    "Desktop Shortcut",
+                    f"Could not create desktop shortcut:\n{msg}",
+                    QMessageBox.StandardButton.Ok
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "桌面快捷方式",
+                    f"快捷方式创建未完成：\n{msg}",
+                    QMessageBox.StandardButton.Ok
+                )
 
     def _on_register_association_clicked(self):
         """用户点击注册 .ansvcoil 文件关联响应"""
         from src.utils.file_association import register_ansvcoil_association
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
         ok, msg = register_ansvcoil_association()
         if ok:
-            QMessageBox.information(
-                self,
-                "文件关联注册成功",
-                "🎉 已在 Windows 系统中成功注册 .ansvcoil 专属算例文件类型！\n\n"
-                "• 专属图标: 已绑定高科技矢量线圈图标\n"
-                "• 便捷启动: 任何地方双击 .ansvcoil 文件均可秒级调用本系统打开\n"
-                "• 兼容支持: 历史 .ansv 算例依然可随时导入",
-                QMessageBox.StandardButton.Ok
-            )
+            if is_en:
+                QMessageBox.information(
+                    self,
+                    "File Association Registered",
+                    "🎉 Successfully registered the .ansvcoil project file type in Windows!\n\n"
+                    "• Custom Icon: Bound to the high-DPI vector coil icon\n"
+                    "• One-Click Launch: Double-click any .ansvcoil file to open it directly\n"
+                    "• Backward Compatible: Legacy .ansv files remain supported",
+                    QMessageBox.StandardButton.Ok
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "文件关联注册成功",
+                    "🎉 已在 Windows 系统中成功注册 .ansvcoil 专属算例文件类型！\n\n"
+                    "• 专属图标: 已绑定高科技矢量线圈图标\n"
+                    "• 便捷启动: 任何地方双击 .ansvcoil 文件均可秒级调用本系统打开\n"
+                    "• 兼容支持: 历史 .ansv 算例依然可随时导入",
+                    QMessageBox.StandardButton.Ok
+                )
         else:
-            QMessageBox.warning(
-                self,
-                "文件关联注册失败",
-                f"未能成功注册文件关联：\n{msg}",
-                QMessageBox.StandardButton.Ok
-            )
+            if is_en:
+                QMessageBox.warning(
+                    self,
+                    "File Association Failed",
+                    f"Failed to register file association:\n{msg}",
+                    QMessageBox.StandardButton.Ok
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "文件关联注册失败",
+                    f"未能成功注册文件关联：\n{msg}",
+                    QMessageBox.StandardButton.Ok
+                )
 
     def _on_export_logs_clicked(self):
         """用户一键导出全景诊断日志包"""
         from src.utils.logger import export_diagnostic_bundle, open_log_directory
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
         try:
             zip_path = export_diagnostic_bundle()
             try:
@@ -972,19 +1020,32 @@ class AboutDialog(QDialog):
             except Exception:
                 pass
             msg = QMessageBox(self)
-            msg.setWindowTitle("诊断日志包导出成功")
-            msg.setText(
-                f"✅ 全景诊断日志包已成功生成：\n{zip_path}\n\n"
-                f"💡 文件路径已自动复制到剪贴板。\n"
-                f"您可以直接将该 ZIP 压缩包发送给研发人员排查。"
-            )
-            btn_open_folder = msg.addButton("📂 打开日志所在目录", QMessageBox.ButtonRole.ActionRole)
-            msg.addButton("确定", QMessageBox.ButtonRole.AcceptRole)
+            if is_en:
+                msg.setWindowTitle("Diagnostic Log Bundle Exported")
+                msg.setText(
+                    f"✅ Full diagnostic log bundle generated:\n{zip_path}\n\n"
+                    f"💡 The file path has been copied to your clipboard.\n"
+                    f"You can send this ZIP archive directly to our R&D support team."
+                )
+                btn_open_folder = msg.addButton("📂 Open Log Folder", QMessageBox.ButtonRole.ActionRole)
+                msg.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+            else:
+                msg.setWindowTitle("诊断日志包导出成功")
+                msg.setText(
+                    f"✅ 全景诊断日志包已成功生成：\n{zip_path}\n\n"
+                    f"💡 文件路径已自动复制到剪贴板。\n"
+                    f"您可以直接将该 ZIP 压缩包发送给研发人员排查。"
+                )
+                btn_open_folder = msg.addButton("📂 打开日志所在目录", QMessageBox.ButtonRole.ActionRole)
+                msg.addButton("确定", QMessageBox.ButtonRole.AcceptRole)
             msg.exec()
             if msg.clickedButton() == btn_open_folder:
                 open_log_directory()
         except Exception as e:
-            QMessageBox.critical(self, "导出失败", f"生成诊断日志包失败: {e}")
+            if is_en:
+                QMessageBox.critical(self, "Export Failed", f"Failed to generate diagnostic log bundle: {e}")
+            else:
+                QMessageBox.critical(self, "导出失败", f"生成诊断日志包失败: {e}")
 
     def _on_cloud_diag_clicked(self):
         """唤起企业内网数据库与通信环境诊断中心 (对标 Gear 规范)"""

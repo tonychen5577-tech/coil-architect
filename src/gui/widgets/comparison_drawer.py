@@ -263,14 +263,19 @@ class ComparisonPopoutWindow(QDialog):
             self.lbl_pop_count.setText(self.drawer._format_count_text())
         if hasattr(self, "btn_cap"):
             self.btn_cap.setText(t("btn_pin_scheme", "📌 固化当前方案"))
+            self.btn_cap.setToolTip("Freeze current live parameters & simulation results as a column for side-by-side comparison" if is_en else "将当前正在微调的参数与仿真结果固化为独立方案列，用于横向比对")
         if hasattr(self, "btn_copy"):
             self.btn_copy.setText(t("btn_copy_table", "📋 复制对比表"))
+            self.btn_copy.setToolTip("Copy comparison matrix to clipboard (TSV format for Excel/Word)" if is_en else "复制当前所有方案的比对数据至剪贴板 (制表符格式，可直接粘贴到 Excel 或 Word)")
         if hasattr(self, "btn_excel"):
             self.btn_excel.setText(t("btn_export_excel", "📊 导出 Excel"))
+            self.btn_excel.setToolTip("Export multi-scheme comparison matrix as a styled Excel workbook (.xlsx)" if is_en else "导出多方案比对表为格式精美的 Excel 工作簿 (.xlsx)")
         if hasattr(self, "btn_csv"):
             self.btn_csv.setText(t("btn_export_csv", "📄 导出 CSV"))
+            self.btn_csv.setToolTip("Export multi-scheme comparison matrix as UTF-8 CSV (.csv)" if is_en else "导出多方案比对表为标准 UTF-8 CSV 报表 (.csv)")
         if hasattr(self, "btn_clear"):
             self.btn_clear.setText(t("btn_clear_schemes", "🗑 清空"))
+            self.btn_clear.setToolTip("Clear all frozen scheme snapshots" if is_en else "清空所有已固化的方案快照")
         if hasattr(self, "btn_dock"):
             self.btn_dock.setText(t("btn_embed_window", "⇲ 嵌入底部抽屉"))
             self.btn_dock.setToolTip("Dock this matrix window back into the bottom drawer" if is_en else "将本评审矩阵窗口重新嵌入到主工作台底部抽屉")
@@ -708,7 +713,11 @@ class ComparisonDrawer(QFrame):
         self.popout_window.show()
         self.popout_window.raise_()
         self.popout_window.activateWindow()
-        self.status_message.emit("⛶ 方案比对矩阵已弹出为独立窗口，可自由调整尺寸或点击右上角最大化全屏评审！")
+        self.status_message.emit(
+            "⛶ Scheme Comparison Matrix detached into a floating window!"
+            if i18n.is_english() else
+            "⛶ 方案比对矩阵已弹出为独立窗口，可自由调整尺寸或点击右上角最大化全屏评审！"
+        )
 
     def dock_back(self):
         """收回嵌入底部抽屉模式"""
@@ -755,7 +764,12 @@ class ComparisonDrawer(QFrame):
             self.popout_window = None
             p.close()
 
-        self.status_message.emit("⇲ 方案比对矩阵已重新嵌入工作台底部抽屉。")
+        from src.core.i18n import i18n
+        self.status_message.emit(
+            "⇲ Scheme Comparison Matrix docked back into the bottom drawer."
+            if i18n.is_english() else
+            "⇲ 方案比对矩阵已重新嵌入工作台底部抽屉。"
+        )
 
     def toggle_expanded(self):
         """展开或收起比对抽屉"""
@@ -800,8 +814,13 @@ class ComparisonDrawer(QFrame):
         """核心行动：固化当前方案快照"""
         if not self._check_auth("固化记录方案快照"):
             return
+        from src.core.i18n import i18n
         if self._curr_inputs is None or self._curr_outputs is None:
-            self.status_message.emit("⚠ 当前尚无计算结果，无法固化方案")
+            self.status_message.emit(
+                "⚠ No simulation result available to freeze."
+                if i18n.is_english() else
+                "⚠ 当前尚无计算结果，无法固化方案"
+            )
             return
 
         scheme_num = len(self.snapshots) + 1
@@ -829,11 +848,15 @@ class ComparisonDrawer(QFrame):
         if not self._is_expanded:
             self.set_expanded(True)
 
-        from src.core.i18n import t
+        from src.core.i18n import t, i18n
         self.lbl_count.setText(self._format_count_text())
         if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
             self.popout_window.lbl_pop_count.setText(self.lbl_count.text())
-        self.status_message.emit(f"✓ 成功固化 [{name}]！可随时点击下方 [⏪ 还原] 或指定基准方案")
+        self.status_message.emit(
+            f"✓ Frozen [{name}]! Click [⏪ Restore] or [★ Set Base] below at any time."
+            if i18n.is_english() else
+            f"✓ 成功固化 [{name}]！可随时点击下方 [⏪ 还原] 或指定基准方案"
+        )
 
     def _get_baseline_snapshot(self) -> Optional[SchemeSnapshot]:
         for s in self.snapshots:
@@ -983,8 +1006,10 @@ class ComparisonDrawer(QFrame):
                         border-color: #0284C7;
                     }
                 """)
+                from src.core.i18n import i18n
+                is_en = i18n.is_english()
                 btn_set_base.setCursor(Qt.CursorShape.PointingHandCursor)
-                btn_set_base.setToolTip("设为此方案为对比基准")
+                btn_set_base.setToolTip("Set this scheme as the comparison baseline" if is_en else "设为此方案为对比基准")
                 btn_set_base.clicked.connect(lambda _, idx=snapshot_idx: self._set_as_baseline(idx))
                 h.addWidget(btn_set_base)
             else:
@@ -996,7 +1021,8 @@ class ComparisonDrawer(QFrame):
                 h.addWidget(lbl_is_base)
 
             # 还原此方案按钮
-            from src.core.i18n import t
+            from src.core.i18n import t, i18n
+            is_en = i18n.is_english()
             btn_restore = QPushButton(t("btn_restore_scheme", "⏪ 还原"))
             btn_restore.setMinimumWidth(62)
             btn_restore.setStyleSheet("""
@@ -1015,7 +1041,7 @@ class ComparisonDrawer(QFrame):
                 }
             """)
             btn_restore.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_restore.setToolTip("点击一键将左侧所有参数还原为此方案的所有设置")
+            btn_restore.setToolTip("Restore all input parameters from this scheme" if is_en else "点击一键将左侧所有参数还原为此方案的所有设置")
             btn_restore.clicked.connect(lambda _, snap=s: self._on_restore_clicked(snap))
             h.addWidget(btn_restore)
 
@@ -1036,7 +1062,7 @@ class ComparisonDrawer(QFrame):
                 }
             """)
             btn_del.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn_del.setToolTip("移除此方案列")
+            btn_del.setToolTip("Remove this scheme column" if is_en else "移除此方案列")
             btn_del.clicked.connect(lambda _, idx=snapshot_idx: self._delete_scheme(idx))
             h.addWidget(btn_del)
 
@@ -1044,22 +1070,30 @@ class ComparisonDrawer(QFrame):
 
     def _on_restore_clicked(self, snap: SchemeSnapshot):
         """响应还原方案点击（未激活时拦截弹窗）"""
-        if not self._check_auth("还原历史方案参数"):
+        if not self._check_auth("Restore Scheme Parameters" if i18n.is_english() else "还原历史方案参数"):
             return
         self.restore_requested.emit(snap)
 
     def _set_as_baseline(self, target_idx: int):
         """将指定序号的方案设为对比基准"""
-        if not self._check_auth("设置基准方案"):
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
+        if not self._check_auth("Set Baseline Scheme" if is_en else "设置基准方案"):
             return
         for i, s in enumerate(self.snapshots):
             s.is_baseline = (i == target_idx)
         self._rebuild_table_columns()
-        self.status_message.emit(f"📌 已将 [{self.snapshots[target_idx].name}] 设为对比基准方案，其他方案将以此计算差异量")
+        self.status_message.emit(
+            f"📌 Set [{self.snapshots[target_idx].name}] as comparison baseline."
+            if is_en else
+            f"📌 已将 [{self.snapshots[target_idx].name}] 设为对比基准方案，其他方案将以此计算差异量"
+        )
 
     def _delete_scheme(self, target_idx: int):
         """移除指定方案"""
-        if not self._check_auth("删除方案快照"):
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
+        if not self._check_auth("Delete Scheme Snapshot" if is_en else "删除方案快照"):
             return
         deleted = self.snapshots.pop(target_idx)
         # 若删除了基线且还有方案，把第一个设为基线
@@ -1068,16 +1102,25 @@ class ComparisonDrawer(QFrame):
         self._rebuild_table_columns()
         if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
             self.popout_window.lbl_pop_count.setText(self._format_count_text())
-        self.status_message.emit(f"已移除方案 [{deleted.name}]")
+        self.status_message.emit(
+            f"Removed scheme [{deleted.name}]"
+            if is_en else
+            f"已移除方案 [{deleted.name}]"
+        )
 
     def clear_all_schemes(self):
         """清空所有方案快照"""
-        if not self._check_auth("清空方案对比"):
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
+        if not self._check_auth("Clear Comparison Matrix" if is_en else "清空方案对比"):
             return
         if not self.snapshots:
             return
         res = QMessageBox.question(
-            self, "确认清空",
+            self,
+            "Confirm Clear" if is_en else "确认清空",
+            f"Are you sure you want to clear all {len(self.snapshots)} frozen comparison schemes?"
+            if is_en else
             f"确定清空全部 {len(self.snapshots)} 组方案比对数据吗？",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
@@ -1088,21 +1131,30 @@ class ComparisonDrawer(QFrame):
             self.lbl_count.setText(self._format_count_text())
             if getattr(self, "_is_popped_out", False) and hasattr(self, "popout_window") and self.popout_window:
                 self.popout_window.lbl_pop_count.setText(self._format_count_text())
-            self.status_message.emit("方案比对表已清空")
+            self.status_message.emit("Scheme comparison matrix cleared." if is_en else "方案比对表已清空")
 
     def _on_header_double_clicked(self, section: int):
         """双击表头重命名方案"""
         if section < 2:
             return  # 无法重命名第0列和Live列
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
         snap_idx = section - 2
         curr_name = self.snapshots[snap_idx].name
         new_name, ok = QInputDialog.getText(
-            self, "重命名方案", "请输入方案名称:", text=curr_name
+            self,
+            "Rename Scheme" if is_en else "重命名方案",
+            "Enter new scheme name:" if is_en else "请输入方案名称:",
+            text=curr_name
         )
         if ok and new_name.strip():
             self.snapshots[snap_idx].name = new_name.strip()
             self._rebuild_table_columns()
-            self.status_message.emit(f"方案已重命名为 [{new_name.strip()}]")
+            self.status_message.emit(
+                f"Scheme renamed to [{new_name.strip()}]"
+                if is_en else
+                f"方案已重命名为 [{new_name.strip()}]"
+            )
 
     # -------------------------------------------------------------
     # 字段取值与差异量计算辅助方法
@@ -1298,10 +1350,16 @@ class ComparisonDrawer(QFrame):
                 row_vals.append(item.text() if item else "")
             lines.append("\t".join(row_vals))
 
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
         tsv_data = "\n".join(lines)
         clipboard = QApplication.clipboard()
         clipboard.setText(tsv_data)
-        self.status_message.emit("✓ 方案对比表已成功复制至剪贴板，可直接在 Excel 中粘贴！")
+        self.status_message.emit(
+            "✓ Scheme comparison matrix copied to clipboard (TSV format for Excel)!"
+            if is_en else
+            "✓ 方案对比表已成功复制至剪贴板，可直接在 Excel 中粘贴！"
+        )
 
     def get_project_name(self) -> str:
         """获取所属主窗口的工程项目名称 (默认 Coli-Architect)"""
@@ -1317,13 +1375,15 @@ class ComparisonDrawer(QFrame):
 
     def export_excel(self):
         """导出为格式精美的 Excel 工作簿 (.xlsx)"""
-        if not self._check_auth("导出方案比对 Excel 报表"):
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
+        if not self._check_auth("Export Scheme Comparison Excel" if is_en else "导出方案比对 Excel 报表"):
             return
         current_name = self.get_project_name()
         proj_name, ok = QInputDialog.getText(
             self, 
-            "导出方案比对表 - 确认项目名称", 
-            "请输入工程项目名称 (将注入文件名与方案对比表):", 
+            "Export Comparison Matrix - Confirm Project Name" if is_en else "导出方案比对表 - 确认项目名称", 
+            "Enter project code/name (injected into filename & matrix header):" if is_en else "请输入工程项目名称 (将注入文件名与方案对比表):", 
             QLineEdit.EchoMode.Normal, 
             current_name
         )
@@ -1338,9 +1398,16 @@ class ComparisonDrawer(QFrame):
             win.txt_project_name.setText(proj_name)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = f"{proj_name}_线圈多方案对比表_{timestamp}.xlsx"
+        default_filename = (
+            f"{proj_name}_Coil_Comparison_Matrix_{timestamp}.xlsx"
+            if is_en else
+            f"{proj_name}_线圈多方案对比表_{timestamp}.xlsx"
+        )
         path, _ = QFileDialog.getSaveFileName(
-            self, "导出方案比对表为 Excel", default_filename, "Excel 工作簿 (*.xlsx)"
+            self,
+            "Export Comparison Matrix to Excel" if is_en else "导出方案比对表为 Excel",
+            default_filename,
+            "Excel Workbook (*.xlsx)" if is_en else "Excel 工作簿 (*.xlsx)"
         )
         if not path:
             return
@@ -1352,13 +1419,13 @@ class ComparisonDrawer(QFrame):
 
             wb = openpyxl.Workbook()
             ws = wb.active
-            ws.title = "方案对比矩阵"
+            ws.title = "Scheme Comparison Matrix" if is_en else "方案对比矩阵"
             ws.views.sheetView[0].showGridLines = True
 
-            font_title = Font(name="Microsoft YaHei", size=13, bold=True, color="FFFFFF")
-            font_subtitle = Font(name="Microsoft YaHei", size=9, italic=True, color="64748B")
-            font_header = Font(name="Microsoft YaHei", size=10, bold=True, color="1E293B")
-            font_body = Font(name="Microsoft YaHei", size=10, color="0F172A")
+            font_title = Font(name="Segoe UI" if is_en else "Microsoft YaHei", size=13, bold=True, color="FFFFFF")
+            font_subtitle = Font(name="Segoe UI" if is_en else "Microsoft YaHei", size=9, italic=True, color="64748B")
+            font_header = Font(name="Segoe UI" if is_en else "Microsoft YaHei", size=10, bold=True, color="1E293B")
+            font_body = Font(name="Segoe UI" if is_en else "Microsoft YaHei", size=10, color="0F172A")
 
             fill_title = PatternFill(start_color="0284C7", end_color="0284C7", fill_type="solid")
             fill_header = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
@@ -1378,7 +1445,15 @@ class ComparisonDrawer(QFrame):
 
             # 1. 顶部标题栏
             ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=cols)
-            cell_title = ws.cell(row=1, column=1, value="Coil-Architect Pro - 线圈多方案参数与仿真结果对比矩阵")
+            cell_title = ws.cell(
+                row=1,
+                column=1,
+                value=(
+                    "Coil-Architect Pro - Multi-Scheme Parameter & Simulation Comparison Matrix"
+                    if is_en else
+                    "Coil-Architect Pro - 线圈多方案参数与仿真结果对比矩阵"
+                )
+            )
             cell_title.font = font_title
             cell_title.fill = fill_title
             cell_title.alignment = Alignment(horizontal="center", vertical="center")
@@ -1387,7 +1462,15 @@ class ComparisonDrawer(QFrame):
             # 2. 副标题、项目名称与导出时间
             ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=cols)
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cell_sub = ws.cell(row=2, column=1, value=f"工程项目名称: {proj_name}  |  导出时间: {now_str}  |  官方支持: ansv.net  |  线圈架构师 Pro")
+            cell_sub = ws.cell(
+                row=2,
+                column=1,
+                value=(
+                    f"Project Name: {proj_name}  |  Export Time: {now_str}  |  Official Platform: ansv.net  |  Coil-Architect Pro"
+                    if is_en else
+                    f"工程项目名称: {proj_name}  |  导出时间: {now_str}  |  官方支持: ansv.net  |  线圈架构师 Pro"
+                )
+            )
             cell_sub.font = font_subtitle
             cell_sub.alignment = Alignment(horizontal="right", vertical="center")
             ws.row_dimensions[2].height = 20
@@ -1443,20 +1526,29 @@ class ComparisonDrawer(QFrame):
                     ws.column_dimensions[col_letter].width = max(max_len + 6.0, 22.0)
 
             wb.save(path)
-            self.status_message.emit(f"✓ 方案对比表已成功导出为 Excel 工作簿: {path}")
-            QMessageBox.information(self, "导出成功", f"方案对比表已成功导出为 Excel 工作簿:\n{path}")
+            if is_en:
+                self.status_message.emit(f"✓ Scheme comparison matrix exported to Excel: {path}")
+                QMessageBox.information(self, "Export Successful", f"Scheme comparison matrix exported to Excel workbook:\n{path}")
+            else:
+                self.status_message.emit(f"✓ 方案对比表已成功导出为 Excel 工作簿: {path}")
+                QMessageBox.information(self, "导出成功", f"方案对比表已成功导出为 Excel 工作簿:\n{path}")
         except Exception as e:
-            QMessageBox.critical(self, "导出 Excel 失败", f"无法写入 Excel 文件:\n{str(e)}")
+            if is_en:
+                QMessageBox.critical(self, "Excel Export Failed", f"Failed to write Excel workbook:\n{str(e)}")
+            else:
+                QMessageBox.critical(self, "导出 Excel 失败", f"无法写入 Excel 文件:\n{str(e)}")
 
     def export_csv(self):
         """导出为标准 UTF-8 CSV 报表 (.csv)"""
-        if not self._check_auth("导出方案比对 CSV 报表"):
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
+        if not self._check_auth("Export Scheme Comparison CSV" if is_en else "导出方案比对 CSV 报表"):
             return
         current_name = self.get_project_name()
         proj_name, ok = QInputDialog.getText(
             self,
-            "导出方案比对表 - 确认项目名称",
-            "请输入工程项目名称 (将注入文件名与 CSV 报表):",
+            "Export Comparison Matrix - Confirm Project Name" if is_en else "导出方案比对表 - 确认项目名称",
+            "Enter project code/name (injected into filename & CSV header):" if is_en else "请输入工程项目名称 (将注入文件名与 CSV 报表):",
             QLineEdit.EchoMode.Normal,
             current_name
         )
@@ -1471,9 +1563,16 @@ class ComparisonDrawer(QFrame):
             win.txt_project_name.setText(proj_name)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = f"{proj_name}_线圈多方案对比表_{timestamp}.csv"
+        default_filename = (
+            f"{proj_name}_Coil_Comparison_Matrix_{timestamp}.csv"
+            if is_en else
+            f"{proj_name}_线圈多方案对比表_{timestamp}.csv"
+        )
         path, _ = QFileDialog.getSaveFileName(
-            self, "导出方案比对表为 CSV", default_filename, "CSV 报表文件 (*.csv)"
+            self,
+            "Export Comparison Matrix to CSV" if is_en else "导出方案比对表为 CSV",
+            default_filename,
+            "CSV Report (*.csv)" if is_en else "CSV 报表文件 (*.csv)"
         )
         if not path:
             return
@@ -1483,13 +1582,22 @@ class ComparisonDrawer(QFrame):
             rows = self.table.rowCount()
             cols = self.table.columnCount()
 
-            lines = [
-                "Coil-Architect Pro - 线圈多方案参数与仿真结果对比矩阵",
-                f"工程项目名称,{proj_name}",
-                f"导出时间,{now_str}",
-                "官方支持平台,ansv.net (ANSV 微型执行器与精密传动平台)",
-                ""
-            ]
+            if is_en:
+                lines = [
+                    "Coil-Architect Pro - Multi-Scheme Parameter & Simulation Comparison Matrix",
+                    f"Project Name,{proj_name}",
+                    f"Export Timestamp,{now_str}",
+                    "Official Platform,ansv.net (ANSV Micro-Actuator & Precision Drive Platform)",
+                    ""
+                ]
+            else:
+                lines = [
+                    "Coil-Architect Pro - 线圈多方案参数与仿真结果对比矩阵",
+                    f"工程项目名称,{proj_name}",
+                    f"导出时间,{now_str}",
+                    "官方支持平台,ansv.net (ANSV 微型执行器与精密传动平台)",
+                    ""
+                ]
 
             # 表头
             header_vals = []
@@ -1505,14 +1613,20 @@ class ComparisonDrawer(QFrame):
                 for c in range(cols):
                     item = self.table.item(r, c)
                     val = item.text() if item else ""
-                    header_col_title = self.table.horizontalHeaderItem(c).text() if self.table.horizontalHeaderItem(c) else ""
                     row_vals.append(f'"{val}"' if (',' in val or '\n' in val) else val)
                 lines.append(",".join(row_vals))
 
             with open(path, "w", encoding="utf-8-sig", newline="") as f:
                 f.write("\n".join(lines))
 
-            self.status_message.emit(f"✓ 方案对比表已成功导出为 CSV 报表: {path}")
-            QMessageBox.information(self, "导出成功", f"方案对比表已成功导出为 CSV 报表:\n{path}")
+            if is_en:
+                self.status_message.emit(f"✓ Scheme comparison matrix exported to CSV: {path}")
+                QMessageBox.information(self, "Export Successful", f"Scheme comparison matrix exported to CSV report:\n{path}")
+            else:
+                self.status_message.emit(f"✓ 方案对比表已成功导出为 CSV 报表: {path}")
+                QMessageBox.information(self, "导出成功", f"方案对比表已成功导出为 CSV 报表:\n{path}")
         except Exception as e:
-            QMessageBox.critical(self, "导出 CSV 失败", f"无法写入 CSV 文件:\n{str(e)}")
+            if is_en:
+                QMessageBox.critical(self, "CSV Export Failed", f"Failed to write CSV report:\n{str(e)}")
+            else:
+                QMessageBox.critical(self, "导出 CSV 失败", f"无法写入 CSV 文件:\n{str(e)}")

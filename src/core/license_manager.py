@@ -423,19 +423,21 @@ class LicenseManager:
     @classmethod
     def verify_token(cls, token: str) -> Tuple[bool, str, Dict[str, Any]]:
         """验签 Token 完整性与机器码匹配"""
+        from src.core.i18n import i18n
+        is_en = i18n.is_english()
         token = token.strip()
         if not token.startswith("COIL-SEC-") or "." not in token:
-            return False, "激活码格式不正确", {}
+            return False, ("Invalid activation token format" if is_en else "激活码格式不正确"), {}
 
         body = token[9:]
         parts = body.split(".", 1)
         if len(parts) != 2:
-            return False, "激活码结构损坏", {}
+            return False, ("Corrupted activation token structure" if is_en else "激活码结构损坏"), {}
 
         b64_payload, sig = parts
         expected_sig = hmac.new(_SECRET_KEY, b64_payload.encode("utf-8"), hashlib.sha256).hexdigest()[:16].upper()
         if not hmac.compare_digest(sig.upper(), expected_sig):
-            return False, "数字签名无效或激活码已被篡改", {}
+            return False, ("Invalid digital signature or tampered license token" if is_en else "数字签名无效或激活码已被篡改"), {}
 
         try:
             # 补齐 Base64 padding
@@ -447,13 +449,13 @@ class LicenseManager:
             raw_json = bytes([b ^ key[i % len(key)] for i, b in enumerate(xored)])
             payload = json.loads(raw_json.decode("utf-8"))
         except Exception:
-            return False, "凭证解密失败", {}
+            return False, ("License payload decryption failed" if is_en else "凭证解密失败"), {}
 
         # 校验机器码
         cur_mid = get_machine_code()
         target_mid = payload.get("mid", "")
         if target_mid != "*" and cur_mid != target_mid:
-            return False, f"机器码不匹配 (该激活码绑定于: {target_mid})", payload
+            return False, (f"Machine Code mismatch (bound to: {target_mid})" if is_en else f"机器码不匹配 (该激活码绑定于: {target_mid})"), payload
 
         # 校验到期日
         exp_str = payload.get("exp", "2099-12-31")
@@ -461,11 +463,11 @@ class LicenseManager:
             try:
                 exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
                 if date.today() > exp_date:
-                    return False, f"授权已于 {exp_str} 到期，请联系管理员续期", payload
+                    return False, (f"License expired on {exp_str}. Please contact support for renewal." if is_en else f"授权已于 {exp_str} 到期，请联系管理员续期"), payload
             except Exception:
-                return False, "到期时间格式解析错误", payload
+                return False, ("Invalid expiration date format in license" if is_en else "到期时间格式解析错误"), payload
 
-        return True, "授权有效", payload
+        return True, ("License Valid" if is_en else "授权有效"), payload
 
     @classmethod
     def is_system_authorized(cls) -> Tuple[bool, str, Dict[str, Any]]:
@@ -612,6 +614,8 @@ def get_mac_address() -> str:
 
 def get_station_info() -> Dict[str, Any]:
     """获取当前授权工位信息"""
+    from src.core.i18n import i18n
+    is_en = i18n.is_english()
     try:
         ok, _, payload = LicenseManager.is_system_authorized()
         if ok and payload:
@@ -619,6 +623,18 @@ def get_station_info() -> Dict[str, Any]:
             if is_trial:
                 days_left = payload.get("days_left", 7)
                 exp = payload.get("exp_date", "")
+                if is_en:
+                    cust = payload.get("customer", "Full-Feature Evaluation User")
+                    if cust == "全功能试用评估用户":
+                        cust = "Full-Feature Evaluation User"
+                    return {
+                        "customer": cust,
+                        "station": f"7-Day Evaluation Station ({days_left}d left · Exp {exp})",
+                        "status_text": f"⏱️ 7-Day Trial Active ({days_left}d left)",
+                        "is_trial": True,
+                        "days_left": days_left,
+                        "exp_date": exp
+                    }
                 return {
                     "customer": payload.get("customer", "全功能试用评估用户"),
                     "station": f"7天全功能评估工位 (剩余 {days_left} 天 · 截止 {exp})",
@@ -626,6 +642,24 @@ def get_station_info() -> Dict[str, Any]:
                     "is_trial": True,
                     "days_left": days_left,
                     "exp_date": exp
+                }
+            if is_en:
+                cust = payload.get("customer", payload.get("cust", "Authorized R&D Center"))
+                if cust == "内部核准机构":
+                    cust = "Authorized R&D Center"
+                stat = payload.get("station", payload.get("stat", "Pro R&D Workstation"))
+                if "专业研发工作站" in stat:
+                    stat = "Pro R&D Workstation"
+                exp_v = payload.get("exp", "Permanent")
+                if exp_v in ("永久有效", "PERMANENT"):
+                    exp_v = "Permanent"
+                return {
+                    "customer": cust,
+                    "station": stat,
+                    "status_text": "🛡️ Active Commercial License",
+                    "is_trial": False,
+                    "days_left": -1,
+                    "exp_date": exp_v
                 }
             return {
                 "customer": payload.get("customer", payload.get("cust", "内部核准机构")),
@@ -637,6 +671,15 @@ def get_station_info() -> Dict[str, Any]:
             }
     except Exception:
         pass
+    if is_en:
+        return {
+            "customer": "Full-Feature Evaluation User",
+            "station": "Pro R&D Workstation",
+            "status_text": "🔓 Evaluation Mode (Unactivated)",
+            "is_trial": False,
+            "days_left": 0,
+            "exp_date": "-"
+        }
     return {
         "customer": "全功能试用评估用户",
         "station": "专业研发工作站 (Pro Station)",

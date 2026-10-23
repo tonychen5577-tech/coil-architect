@@ -30,6 +30,7 @@ from src.version import (
     compare_versions, compare_builds, is_newer_version, get_git_commit, get_git_log
 )
 from src.core.ota_updater import OtaUpdater, calculate_sha256
+from src.core.i18n import i18n
 from src.gui.utils import adapt_dialog_geometry
 
 
@@ -46,18 +47,22 @@ class DownloadWorkerThread(QThread):
         self.version_info = version_info
 
     def run(self):
+        is_en = i18n.is_english()
         def cb(cur, total, speed):
             self.progress_changed.emit(cur, total, speed)
 
         try:
             ok = self.updater.download_update_package(self.version_info, progress_callback=cb, throttle=False)
             if ok:
-                self.download_finished.emit(True, "下载完成并通过 SHA256 完整性校验！")
+                self.download_finished.emit(
+                    True,
+                    "Download complete & SHA256 integrity verified!" if is_en else "下载完成并通过 SHA256 完整性校验！"
+                )
             else:
-                err_msg = self.updater.last_download_error or "网络传输中断或超时"
+                err_msg = self.updater.last_download_error or ("Network transfer interrupted or timed out" if is_en else "网络传输中断或超时")
                 self.download_finished.emit(False, f"{err_msg}")
         except Exception as e:
-            self.download_finished.emit(False, f"下载异常: {e}")
+            self.download_finished.emit(False, f"{'Download exception' if is_en else '下载异常'}: {e}")
 
 
 class UpdateDialog(QDialog):
@@ -67,13 +72,18 @@ class UpdateDialog(QDialog):
 
     def __init__(self, parent=None, version_info: Optional[Dict[str, Any]] = None):
         super().__init__(parent)
+        self.is_en = i18n.is_english()
         self.updater = OtaUpdater.get_instance()
         self.version_info = version_info
         self.has_new = False
         self.download_thread: Optional[DownloadWorkerThread] = None
         self._target_use_patch = True
 
-        self.setWindowTitle(f"软件版本与在线自动升级 — {APP_NAME}")
+        self.setWindowTitle(
+            f"Software Update & OTA Center — {APP_NAME}"
+            if self.is_en else
+            f"软件版本与在线自动升级 — {APP_NAME}"
+        )
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setAutoFillBackground(True)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -106,6 +116,7 @@ class UpdateDialog(QDialog):
         return s if s.startswith("v") or s.startswith("V") else f"v{s}"
 
     def _init_ui(self):
+        is_en = self.is_en
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 18, 22, 16)
         layout.setSpacing(10)
@@ -121,11 +132,19 @@ class UpdateDialog(QDialog):
         title_v = QVBoxLayout()
         title_v.setSpacing(2)
 
-        self.lbl_title = QLabel("🔍 正在连接云端服务检查最新版本...")
+        self.lbl_title = QLabel(
+            "🔍 Connecting to cloud server to check for updates..."
+            if is_en else
+            "🔍 正在连接云端服务检查最新版本..."
+        )
         self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #0F172A;")
         title_v.addWidget(self.lbl_title)
 
-        lbl_sub = QLabel("ANSV 微型执行器与精密传动仿真平台 · 智能 OTA 影子替换升级引擎")
+        lbl_sub = QLabel(
+            "ANSV Micro-Actuator & Precision Drive Platform · Smart OTA Shadow Update Engine"
+            if is_en else
+            "ANSV 微型执行器与精密传动仿真平台 · 智能 OTA 影子替换升级引擎"
+        )
         lbl_sub.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 600;")
         title_v.addWidget(lbl_sub)
 
@@ -136,12 +155,17 @@ class UpdateDialog(QDialog):
 
         # 2. 版本状态徽章卡片
         self.card_info = QFrame()
+        self.card_info.setObjectName("cardInfoFrame")
         self.card_info.setStyleSheet("""
-            QFrame {
+            QFrame#cardInfoFrame {
                 background-color: #FFFFFF;
                 border: 1px solid #E2E8F0;
                 border-radius: 6px;
                 padding: 10px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
             }
         """)
         card_layout = QVBoxLayout(self.card_info)
@@ -149,11 +173,19 @@ class UpdateDialog(QDialog):
 
         git_hash = get_git_commit()
         cur_v = self._format_v(APP_VERSION)
-        self.lbl_ver_badge = QLabel(f"当前版本: {cur_v} (Build {APP_BUILD} · git-{git_hash})")
+        self.lbl_ver_badge = QLabel(
+            f"Current Version: {cur_v} (Build {APP_BUILD} · git-{git_hash})"
+            if is_en else
+            f"当前版本: {cur_v} (Build {APP_BUILD} · git-{git_hash})"
+        )
         self.lbl_ver_badge.setStyleSheet("font-size: 12px; font-weight: 700; color: #334155;")
         card_layout.addWidget(self.lbl_ver_badge)
 
-        self.lbl_meta_desc = QLabel("正在检索边缘分发节点状态与增量更新流...")
+        self.lbl_meta_desc = QLabel(
+            "Querying edge distribution node status & incremental delta stream..."
+            if is_en else
+            "正在检索边缘分发节点状态与增量更新流..."
+        )
         self.lbl_meta_desc.setStyleSheet("font-size: 11px; color: #64748B;")
         self.lbl_meta_desc.setWordWrap(True)
         card_layout.addWidget(self.lbl_meta_desc)
@@ -175,7 +207,11 @@ class UpdateDialog(QDialog):
         ch_layout.setContentsMargins(10, 8, 10, 8)
         ch_layout.setSpacing(8)
 
-        lbl_ch_title = QLabel("📦 升级通道选择 (工位机推荐极速增量补丁，节省 85%+ 流量):")
+        lbl_ch_title = QLabel(
+            "📦 Update Channel Selection (Incremental Patch saves 85%+ bandwidth):"
+            if is_en else
+            "📦 升级通道选择 (工位机推荐极速增量补丁，节省 85%+ 流量):"
+        )
         lbl_ch_title.setStyleSheet("font-size: 11px; font-weight: 700; color: #0F172A;")
         ch_layout.addWidget(lbl_ch_title)
 
@@ -184,19 +220,28 @@ class UpdateDialog(QDialog):
 
         # 通道 1: 增量补丁
         self.box_patch = QFrame()
+        self.box_patch.setObjectName("boxPatchFrame")
         self.box_patch.setMinimumHeight(86)
         self.box_patch.setCursor(Qt.CursorShape.PointingHandCursor)
         bp_layout = QVBoxLayout(self.box_patch)
         bp_layout.setContentsMargins(12, 10, 12, 10)
         bp_layout.setSpacing(6)
 
-        self.lbl_patch_header = QLabel("🔘 增量升级补丁包 (强烈推荐)")
-        self.lbl_patch_header.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #166534;")
+        self.lbl_patch_header = QLabel(
+            "🔘 Incremental Hot-Patch (Recommended)"
+            if is_en else
+            "🔘 增量升级补丁包 (强烈推荐)"
+        )
+        self.lbl_patch_header.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #166534; border: none; background: transparent;")
         bp_layout.addWidget(self.lbl_patch_header)
 
-        self.lbl_patch_desc = QLabel("• 适用对象: 已安装旧版的工位机\n• 特性优势: 仅更新算法库与核心组件 (~8.7 MB)，秒级覆盖生效")
+        self.lbl_patch_desc = QLabel(
+            "• Target: Existing workstations\n• Advantage: Updates core solver & UI modules only (~8.7 MB), instant apply"
+            if is_en else
+            "• 适用对象: 已安装旧版的工位机\n• 特性优势: 仅更新算法库与核心组件 (~8.7 MB)，秒级覆盖生效"
+        )
         self.lbl_patch_desc.setWordWrap(True)
-        self.lbl_patch_desc.setStyleSheet("font-size: 10px; color: #15803D; line-height: 1.4;")
+        self.lbl_patch_desc.setStyleSheet("font-size: 10px; color: #15803D; line-height: 1.4; border: none; background: transparent;")
         bp_layout.addWidget(self.lbl_patch_desc)
 
         self.box_patch.mousePressEvent = lambda e: self._select_channel(use_patch=True)
@@ -204,19 +249,24 @@ class UpdateDialog(QDialog):
 
         # 通道 2: 全量安装包
         self.box_full = QFrame()
+        self.box_full.setObjectName("boxFullFrame")
         self.box_full.setMinimumHeight(86)
         self.box_full.setCursor(Qt.CursorShape.PointingHandCursor)
         bf_layout = QVBoxLayout(self.box_full)
         bf_layout.setContentsMargins(12, 10, 12, 10)
         bf_layout.setSpacing(6)
 
-        self.lbl_full_header = QLabel("⚪ 全量完整发布包")
-        self.lbl_full_header.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #475569;")
+        self.lbl_full_header = QLabel("⚪ Full Standalone Release" if is_en else "⚪ 全量完整发布包")
+        self.lbl_full_header.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #475569; border: none; background: transparent;")
         bf_layout.addWidget(self.lbl_full_header)
 
-        self.lbl_full_desc = QLabel("• 适用对象: 全新电脑或初次独立部署\n• 特性优势: 内置完整 Python 3.12 运行时与全套 Qt 依赖 (~61.5 MB)")
+        self.lbl_full_desc = QLabel(
+            "• Target: Fresh workstations or standalone deployment\n• Advantage: Bundles full Python 3.12 runtime & Qt dependencies (~61.5 MB)"
+            if is_en else
+            "• 适用对象: 全新电脑或初次独立部署\n• 特性优势: 内置完整 Python 3.12 运行时与全套 Qt 依赖 (~61.5 MB)"
+        )
         self.lbl_full_desc.setWordWrap(True)
-        self.lbl_full_desc.setStyleSheet("font-size: 10px; color: #64748B; line-height: 1.4;")
+        self.lbl_full_desc.setStyleSheet("font-size: 10px; color: #64748B; line-height: 1.4; border: none; background: transparent;")
         bf_layout.addWidget(self.lbl_full_desc)
 
         self.box_full.mousePressEvent = lambda e: self._select_channel(use_patch=False)
@@ -229,7 +279,11 @@ class UpdateDialog(QDialog):
         self._update_channel_styles()
 
         # 4. 更新日志展示区
-        lbl_notes_title = QLabel("📝 研发优化留痕与更新日志 (Changelog):")
+        lbl_notes_title = QLabel(
+            "📝 Release Notes & R&D Changelog:"
+            if is_en else
+            "📝 研发优化留痕与更新日志 (Changelog):"
+        )
         lbl_notes_title.setStyleSheet("font-size: 11px; font-weight: bold; color: #1E293B;")
         layout.addWidget(lbl_notes_title)
 
@@ -246,7 +300,7 @@ class UpdateDialog(QDialog):
             }
         """)
         self.text_notes.setFixedHeight(110)
-        self.text_notes.setPlaceholderText("暂无详细更新日志。")
+        self.text_notes.setPlaceholderText("No detailed release notes available." if is_en else "暂无详细更新日志。")
         layout.addWidget(self.text_notes)
 
         # 5. 下载进度条与瞬时速度反馈 (默认隐藏)
@@ -276,7 +330,7 @@ class UpdateDialog(QDialog):
         """)
         prog_layout.addWidget(self.progress_bar)
 
-        self.lbl_speed = QLabel("准备建立安全传输通道...")
+        self.lbl_speed = QLabel("Preparing secure transfer channel..." if is_en else "准备建立安全传输通道...")
         self.lbl_speed.setStyleSheet("font-size: 10.5px; color: #0284C7; font-weight: 600;")
         prog_layout.addWidget(self.lbl_speed)
 
@@ -287,7 +341,7 @@ class UpdateDialog(QDialog):
         btn_box = QHBoxLayout()
         btn_box.setSpacing(10)
 
-        self.btn_network_config = QPushButton("🌐 网络与代理诊断")
+        self.btn_network_config = QPushButton("🌐 Network & Proxy Diagnostics" if is_en else "🌐 网络与代理诊断")
         self.btn_network_config.setStyleSheet("""
             QPushButton {
                 background-color: #F0FDF4;
@@ -309,7 +363,7 @@ class UpdateDialog(QDialog):
 
         btn_box.addStretch()
 
-        self.btn_cancel = QPushButton("关 闭")
+        self.btn_cancel = QPushButton("Close" if is_en else "关 闭")
         self.btn_cancel.setStyleSheet("""
             QPushButton {
                 background-color: #F1F5F9;
@@ -328,7 +382,7 @@ class UpdateDialog(QDialog):
         self.btn_cancel.clicked.connect(self.reject)
         btn_box.addWidget(self.btn_cancel)
 
-        self.btn_action = QPushButton("⚡ 立即在线升级")
+        self.btn_action = QPushButton("⚡ Update Now" if is_en else "⚡ 立即在线升级")
         self.btn_action.setStyleSheet("""
             QPushButton {
                 background-color: #0284C7;
@@ -359,52 +413,57 @@ class UpdateDialog(QDialog):
 
     def _update_channel_styles(self):
         """更新升级通道卡片与主操作按钮样式"""
+        is_en = self.is_en
         if self._target_use_patch:
             self.box_patch.setStyleSheet("""
-                QFrame {
+                QFrame#boxPatchFrame {
                     background-color: #F0FDF4;
                     border: 2px solid #16A34A;
                     border-radius: 6px;
                 }
+                QLabel { border: none; background: transparent; }
             """)
-            self.lbl_patch_header.setText("🔘 增量升级补丁包 (强烈推荐)")
-            self.lbl_patch_header.setStyleSheet("font-size: 11px; font-weight: 800; color: #166534;")
+            self.lbl_patch_header.setText("🔘 Incremental Hot-Patch (Recommended)" if is_en else "🔘 增量升级补丁包 (强烈推荐)")
+            self.lbl_patch_header.setStyleSheet("font-size: 11px; font-weight: 800; color: #166534; border: none; background: transparent;")
 
             self.box_full.setStyleSheet("""
-                QFrame {
+                QFrame#boxFullFrame {
                     background-color: #F8FAFC;
                     border: 1px solid #E2E8F0;
                     border-radius: 6px;
                 }
+                QLabel { border: none; background: transparent; }
             """)
-            self.lbl_full_header.setText("⚪ 全量完整发布包")
-            self.lbl_full_header.setStyleSheet("font-size: 11px; font-weight: 700; color: #475569;")
+            self.lbl_full_header.setText("⚪ Full Standalone Release" if is_en else "⚪ 全量完整发布包")
+            self.lbl_full_header.setStyleSheet("font-size: 11px; font-weight: 700; color: #475569; border: none; background: transparent;")
 
             if self.has_new:
-                self.btn_action.setText("⚡ 立即更新增量补丁 (~8.7 MB)")
+                self.btn_action.setText("⚡ Update Incremental Patch (~8.7 MB)" if is_en else "⚡ 立即更新增量补丁 (~8.7 MB)")
         else:
             self.box_patch.setStyleSheet("""
-                QFrame {
+                QFrame#boxPatchFrame {
                     background-color: #F8FAFC;
                     border: 1px solid #E2E8F0;
                     border-radius: 6px;
                 }
+                QLabel { border: none; background: transparent; }
             """)
-            self.lbl_patch_header.setText("⚪ 增量升级补丁包 (强烈推荐)")
-            self.lbl_patch_header.setStyleSheet("font-size: 11px; font-weight: 700; color: #475569;")
+            self.lbl_patch_header.setText("⚪ Incremental Hot-Patch (Recommended)" if is_en else "⚪ 增量升级补丁包 (强烈推荐)")
+            self.lbl_patch_header.setStyleSheet("font-size: 11px; font-weight: 700; color: #475569; border: none; background: transparent;")
 
             self.box_full.setStyleSheet("""
-                QFrame {
+                QFrame#boxFullFrame {
                     background-color: #EFF6FF;
                     border: 2px solid #0284C7;
                     border-radius: 6px;
                 }
+                QLabel { border: none; background: transparent; }
             """)
-            self.lbl_full_header.setText("🔘 全量完整发布包")
-            self.lbl_full_header.setStyleSheet("font-size: 11px; font-weight: 800; color: #0369A1;")
+            self.lbl_full_header.setText("🔘 Full Standalone Release" if is_en else "🔘 全量完整发布包")
+            self.lbl_full_header.setStyleSheet("font-size: 11px; font-weight: 800; color: #0369A1; border: none; background: transparent;")
 
             if self.has_new:
-                self.btn_action.setText("📦 立即下载全量安装包 (~61.5 MB)")
+                self.btn_action.setText("📦 Download Full Release (~61.5 MB)" if is_en else "📦 立即下载全量安装包 (~61.5 MB)")
 
     def _open_network_diagnostic(self):
         """打开企业内网数据库与网络环境诊断中心，关闭后自动重新检查更新"""
@@ -415,7 +474,11 @@ class UpdateDialog(QDialog):
     def _fetch_latest_info_async(self):
         """异步向云端检查版本"""
         self.btn_action.setEnabled(False)
-        self.lbl_title.setText("🔍 正在连接云端服务检查最新版本...")
+        self.lbl_title.setText(
+            "🔍 Connecting to cloud server to check for updates..."
+            if self.is_en else
+            "🔍 正在连接云端服务检查最新版本..."
+        )
         self.btn_network_config.setVisible(False)
 
         class CheckThread(QThread):
@@ -439,17 +502,24 @@ class UpdateDialog(QDialog):
         self._render_version_state()
 
     def _render_version_state(self):
+        is_en = self.is_en
         cur_v = self._format_v(APP_VERSION)
 
         if not self.version_info:
             err = getattr(self.updater, "last_check_error", "")
-            self.lbl_title.setText("⚠️ 无法连接至云端检查更新")
-            desc = "网络连接超时或无法解析云端服务节点。"
-            if err:
-                desc += f"\n排查诊断详情: {err}"
-            desc += "\n您可以检查网络、设置代理或点击下方【🌐 网络与代理诊断】调整服务器。"
+            self.lbl_title.setText("⚠️ Unable to Connect to Update Server" if is_en else "⚠️ 无法连接至云端检查更新")
+            if is_en:
+                desc = "Connection timed out or unable to resolve the cloud distribution node."
+                if err:
+                    desc += f"\nDiagnostic details: {err}"
+                desc += "\nPlease check your network or click [🌐 Network & Proxy Diagnostics] below."
+            else:
+                desc = "网络连接超时或无法解析云端服务节点。"
+                if err:
+                    desc += f"\n排查诊断详情: {err}"
+                desc += "\n您可以检查网络、设置代理或点击下方【🌐 网络与代理诊断】调整服务器。"
             self.lbl_meta_desc.setText(desc)
-            self.btn_action.setText("🔄 重新检查")
+            self.btn_action.setText("🔄 Retry Check" if is_en else "🔄 重新检查")
             self.btn_action.setEnabled(True)
             self.btn_network_config.setVisible(True)
             return
@@ -474,12 +544,20 @@ class UpdateDialog(QDialog):
                 )
             )
             if is_newer_ready:
-                self.lbl_title.setText(f"🎉 升级补丁/新版本 {ready_ver} 已就绪，可立即升级！")
-                self.lbl_ver_badge.setText(f"当前版本: {cur_v} ({APP_BUILD})  ➔  就绪版本: {ready_ver} ({ready_build or '最新'})")
-                self.lbl_meta_desc.setText("安装包已在后台下载完毕并通过 SHA256 完整性校验，点击下方按钮将自动安全替换生效。")
-                self.btn_action.setText("🔄 立即重启完成升级")
-                self.btn_action.setEnabled(True)
-                self.btn_cancel.setText("稍后自动生效 (不重启)")
+                if is_en:
+                    self.lbl_title.setText(f"🎉 Update Package {ready_ver} Ready to Install!")
+                    self.lbl_ver_badge.setText(f"Current: {cur_v} ({APP_BUILD})  ➔  Ready: {ready_ver} ({ready_build or 'Latest'})")
+                    self.lbl_meta_desc.setText("The update package has been downloaded and verified via SHA256. Click below to restart and apply.")
+                    self.btn_action.setText("🔄 Restart Now to Apply")
+                    self.btn_action.setEnabled(True)
+                    self.btn_cancel.setText("Apply on Next Launch")
+                else:
+                    self.lbl_title.setText(f"🎉 升级补丁/新版本 {ready_ver} 已就绪，可立即升级！")
+                    self.lbl_ver_badge.setText(f"当前版本: {cur_v} ({APP_BUILD})  ➔  就绪版本: {ready_ver} ({ready_build or '最新'})")
+                    self.lbl_meta_desc.setText("安装包已在后台下载完毕并通过 SHA256 完整性校验，点击下方按钮将自动安全替换生效。")
+                    self.btn_action.setText("🔄 立即重启完成升级")
+                    self.btn_action.setEnabled(True)
+                    self.btn_cancel.setText("稍后自动生效 (不重启)")
                 self._render_release_notes()
                 return
 
@@ -488,17 +566,29 @@ class UpdateDialog(QDialog):
         has_newer = (v_cmp > 0) or (v_cmp == 0 and (b_cmp > 0 or self.has_new))
 
         if not has_newer:
-            if v_cmp < 0:
-                self.lbl_title.setText("⭐ 当前客户端版本高于云端数据库")
-                self.lbl_ver_badge.setText(f"当前客户端: {cur_v} (Build {APP_BUILD})  |  云端库版本: {latest_ver}")
-                self.lbl_meta_desc.setText("您的客户端版本高于云端发布库。如需跨工位统一部署，请联系系统管理员。")
-                self.btn_action.setText("已是最新")
+            if v_cmp < 0 or (v_cmp == 0 and b_cmp < 0):
+                if is_en:
+                    self.lbl_title.setText("⭐ Client Version Ahead of Cloud Release")
+                    self.lbl_ver_badge.setText(f"Local Client: {cur_v} (Build {APP_BUILD})  |  Cloud Release: {latest_ver}" + (f" ({cloud_build})" if cloud_build else ""))
+                    self.lbl_meta_desc.setText("Your workstation build is newer than the public release channel.")
+                    self.btn_action.setText("Up to Date")
+                else:
+                    self.lbl_title.setText("⭐ 当前客户端版本高于云端数据库")
+                    self.lbl_ver_badge.setText(f"当前客户端: {cur_v} (Build {APP_BUILD})  |  云端库版本: {latest_ver}" + (f" ({cloud_build})" if cloud_build else ""))
+                    self.lbl_meta_desc.setText("您的客户端版本高于云端发布库。如需跨工位统一部署，请联系系统管理员。")
+                    self.btn_action.setText("已是最新")
                 self.btn_action.setEnabled(False)
             else:
-                self.lbl_title.setText("🎉 当前已是最新版本！")
-                self.lbl_ver_badge.setText(f"当前版本: {cur_v} | Build {APP_BUILD} (最新发布态)")
-                self.lbl_meta_desc.setText("您的 Coil-Architect Pro 多物理场仿真系统处于最新状态，无需升级。")
-                self.btn_action.setText("已是最新")
+                if is_en:
+                    self.lbl_title.setText("🎉 You Are Running the Latest Version!")
+                    self.lbl_ver_badge.setText(f"Current Version: {cur_v} | Build {APP_BUILD} (Latest Release)")
+                    self.lbl_meta_desc.setText("Your Coil-Architect Pro simulation workstation is completely up to date.")
+                    self.btn_action.setText("Up to Date")
+                else:
+                    self.lbl_title.setText("🎉 当前已是最新版本！")
+                    self.lbl_ver_badge.setText(f"当前版本: {cur_v} | Build {APP_BUILD} (最新发布态)")
+                    self.lbl_meta_desc.setText("您的 Coil-Architect Pro 多物理场仿真系统处于最新状态，无需升级。")
+                    self.btn_action.setText("已是最新")
                 self.btn_action.setEnabled(False)
             self._render_release_notes()
             return
@@ -506,27 +596,42 @@ class UpdateDialog(QDialog):
         # 发现可用新版本或累积热补丁
         patch_size_mb = self.version_info.get("patch_size_bytes", 0) / (1024 * 1024) if self.version_info.get("patch_size_bytes") else 8.7
         full_size_mb = self.version_info.get("file_size_bytes", 0) / (1024 * 1024) if self.version_info.get("file_size_bytes") else 61.5
-        sha_str = cloud_sha[:10] + "..." if cloud_sha else "SHA256 安全哈希校验"
+        sha_str = cloud_sha[:10] + "..." if cloud_sha else ("SHA256 Verified" if is_en else "SHA256 安全哈希校验")
 
         if v_cmp == 0:
-            self.lbl_title.setText(f"⚡ 发现累积热补丁: {latest_ver} (Build {cloud_build or '最新'})")
-            self.lbl_ver_badge.setText(f"当前构建: {cur_v} (Build {APP_BUILD})  ➔  云端补丁: Build {cloud_build or '最新'}")
-            self.lbl_meta_desc.setText(f"📦 累积补丁大小: ~{patch_size_mb:.1f} MB (极速增量) | 安全哈希: {sha_str}")
+            if is_en:
+                self.lbl_title.setText(f"⚡ Cumulative Hot-Patch Available: {latest_ver} (Build {cloud_build or 'Latest'})")
+                self.lbl_ver_badge.setText(f"Current Build: {cur_v} (Build {APP_BUILD})  ➔  Cloud Patch: Build {cloud_build or 'Latest'}")
+                self.lbl_meta_desc.setText(f"📦 Incremental Patch Size: ~{patch_size_mb:.1f} MB | Hash: {sha_str}")
+            else:
+                self.lbl_title.setText(f"⚡ 发现累积热补丁: {latest_ver} (Build {cloud_build or '最新'})")
+                self.lbl_ver_badge.setText(f"当前构建: {cur_v} (Build {APP_BUILD})  ➔  云端补丁: Build {cloud_build or '最新'}")
+                self.lbl_meta_desc.setText(f"📦 累积补丁大小: ~{patch_size_mb:.1f} MB (极速增量) | 安全哈希: {sha_str}")
         else:
-            self.lbl_title.setText(f"🚀 发现软件新版本: {latest_ver}" + (f" (Build {cloud_build})" if cloud_build else ""))
-            self.lbl_ver_badge.setText(f"当前版本: {cur_v} (Build {APP_BUILD})  ➔  最新版本: {latest_ver}")
-            self.lbl_meta_desc.setText(f"📦 推荐增量补丁: ~{patch_size_mb:.1f} MB | 全量安装包: ~{full_size_mb:.1f} MB | 安全哈希: {sha_str}")
+            if is_en:
+                self.lbl_title.setText(f"🚀 New Version Available: {latest_ver}" + (f" (Build {cloud_build})" if cloud_build else ""))
+                self.lbl_ver_badge.setText(f"Current Version: {cur_v} (Build {APP_BUILD})  ➔  Latest Version: {latest_ver}")
+                self.lbl_meta_desc.setText(f"📦 Incremental Patch: ~{patch_size_mb:.1f} MB | Full Package: ~{full_size_mb:.1f} MB | Hash: {sha_str}")
+            else:
+                self.lbl_title.setText(f"🚀 发现软件新版本: {latest_ver}" + (f" (Build {cloud_build})" if cloud_build else ""))
+                self.lbl_ver_badge.setText(f"当前版本: {cur_v} (Build {APP_BUILD})  ➔  最新版本: {latest_ver}")
+                self.lbl_meta_desc.setText(f"📦 推荐增量补丁: ~{patch_size_mb:.1f} MB | 全量安装包: ~{full_size_mb:.1f} MB | 安全哈希: {sha_str}")
 
         self.btn_action.setEnabled(True)
         self._update_channel_styles()
         self._render_release_notes()
 
     def _render_release_notes(self):
+        is_en = self.is_en
         notes = self.version_info.get("release_notes", "") if self.version_info else ""
         if not notes:
             notes = self.version_info.get("changelog", "") if self.version_info else ""
         if not notes:
-            notes = "本次更新包含物理模型优化、DFM 制程公差卡控增强与已知问题修复。"
+            notes = (
+                "Includes multi-physics solver enhancements, DFM tolerance guardrails, and stability improvements."
+                if is_en else
+                "本次更新包含物理模型优化、DFM 制程公差卡控增强与已知问题修复。"
+            )
 
         formatted = notes.replace("\\n", "\n")
         self.text_notes.setPlainText(formatted)
@@ -542,7 +647,12 @@ class UpdateDialog(QDialog):
             ready_ver = meta.get("version", APP_VERSION)
             ready_build = str(meta.get("build") or "").strip()
             ready_patch = meta.get("is_patch", False)
-            if (compare_versions(ready_ver, APP_VERSION) > 0) or (compare_versions(ready_ver, APP_VERSION) == 0 and (compare_builds(ready_build, APP_BUILD) > 0 or ready_patch)):
+            is_newer_ready = (compare_versions(ready_ver, APP_VERSION) > 0) or (
+                compare_versions(ready_ver, APP_VERSION) == 0 and (
+                    compare_builds(ready_build, APP_BUILD) > 0 if ready_build else ready_patch
+                )
+            )
+            if is_newer_ready:
                 self._perform_restart_and_update()
                 return
 
@@ -550,12 +660,17 @@ class UpdateDialog(QDialog):
         self._start_download()
 
     def _start_download(self):
+        is_en = self.is_en
         self.btn_action.setEnabled(False)
-        self.btn_action.setText("⏳ 正在高速下载...")
-        self.btn_cancel.setText("取 消")
+        self.btn_action.setText("⏳ Downloading..." if is_en else "⏳ 正在高速下载...")
+        self.btn_cancel.setText("Cancel" if is_en else "取 消")
         self.progress_container.setVisible(True)
         self.progress_bar.setValue(0)
-        self.lbl_speed.setText("正在建立与云端节点的高速传输流...")
+        self.lbl_speed.setText(
+            "Establishing high-speed transfer stream with cloud node..."
+            if is_en else
+            "正在建立与云端节点的高速传输流..."
+        )
 
         # 根据用户选择调整下载包类型
         target_info = dict(self.version_info)
@@ -569,58 +684,104 @@ class UpdateDialog(QDialog):
         self.download_thread.start()
 
     def _on_download_progress(self, cur_bytes: int, total_bytes: int, speed_mbps: float):
+        is_en = self.is_en
         if total_bytes > 0:
             pct = int((cur_bytes / float(total_bytes)) * 100)
             self.progress_bar.setValue(min(100, pct))
             cur_mb = cur_bytes / (1024 * 1024)
             tot_mb = total_bytes / (1024 * 1024)
-            self.lbl_speed.setText(f"正在高速下载: {cur_mb:.1f} MB / {tot_mb:.1f} MB ({pct}%) · 瞬时速度: {speed_mbps:.1f} MB/s")
+            if is_en:
+                self.lbl_speed.setText(f"Downloading: {cur_mb:.1f} MB / {tot_mb:.1f} MB ({pct}%) · Speed: {speed_mbps:.1f} MB/s")
+            else:
+                self.lbl_speed.setText(f"正在高速下载: {cur_mb:.1f} MB / {tot_mb:.1f} MB ({pct}%) · 瞬时速度: {speed_mbps:.1f} MB/s")
         else:
             cur_mb = cur_bytes / (1024 * 1024)
-            self.lbl_speed.setText(f"已下载: {cur_mb:.1f} MB · 瞬时速度: {speed_mbps:.1f} MB/s")
+            if is_en:
+                self.lbl_speed.setText(f"Downloaded: {cur_mb:.1f} MB · Speed: {speed_mbps:.1f} MB/s")
+            else:
+                self.lbl_speed.setText(f"已下载: {cur_mb:.1f} MB · 瞬时速度: {speed_mbps:.1f} MB/s")
 
     def _on_download_finished(self, success: bool, msg: str):
+        is_en = self.is_en
         if success:
             self.progress_bar.setValue(100)
-            self.lbl_speed.setText("✅ 下载完成并通过 SHA256 完整性校验！更新包已就绪。")
-            self.lbl_title.setText("🎉 升级包下载完成！")
-            self.btn_action.setEnabled(True)
-            self.btn_action.setText("🔄 立即重启完成升级")
-            self.btn_cancel.setText("稍后自动生效 (不重启)")
+            if is_en:
+                self.lbl_speed.setText("✅ Download complete & SHA256 verified! Update package is ready.")
+                self.lbl_title.setText("🎉 Update Package Downloaded!")
+                self.btn_action.setEnabled(True)
+                self.btn_action.setText("🔄 Restart Now to Apply")
+                self.btn_cancel.setText("Apply on Next Launch")
 
-            res = QMessageBox.information(
-                self,
-                "升级包就绪",
-                "最新版本安装包已成功下载并校验就绪！\n\n"
-                "• 本次升级绝不影响当前正在进行的仿真工作。\n"
-                "• 更新包已在后台暂存，将在下次启动软件时自动完成替换升级。\n\n"
-                "您是否希望现在【立即重启软件】以完成升级？",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
-            )
+                res = QMessageBox.information(
+                    self,
+                    "Update Ready",
+                    "The latest update package has been downloaded and verified!\n\n"
+                    "• Your current simulation work is completely unaffected.\n"
+                    "• The update is staged and will apply automatically on next launch.\n\n"
+                    "Would you like to restart Coil-Architect Pro now to apply the update?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+            else:
+                self.lbl_speed.setText("✅ 下载完成并通过 SHA256 完整性校验！更新包已就绪。")
+                self.lbl_title.setText("🎉 升级包下载完成！")
+                self.btn_action.setEnabled(True)
+                self.btn_action.setText("🔄 立即重启完成升级")
+                self.btn_cancel.setText("稍后自动生效 (不重启)")
+
+                res = QMessageBox.information(
+                    self,
+                    "升级包就绪",
+                    "最新版本安装包已成功下载并校验就绪！\n\n"
+                    "• 本次升级绝不影响当前正在进行的仿真工作。\n"
+                    "• 更新包已在后台暂存，将在下次启动软件时自动完成替换升级。\n\n"
+                    "您是否希望现在【立即重启软件】以完成升级？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
             if res == QMessageBox.StandardButton.Yes:
                 self._perform_restart_and_update()
         else:
             self.progress_container.setVisible(False)
             self.btn_action.setEnabled(True)
-            self.btn_action.setText("⚡ 重新尝试下载")
-            self.btn_cancel.setText("关 闭")
-            QMessageBox.warning(
-                self,
-                "下载未完成",
-                f"在线升级包下载未完成：\n{msg}\n\n💡 提示：系统已自动保留已下载的断点进度，点击【重新尝试下载】即可自动断点续传，无需从头重新下载。"
-            )
+            if is_en:
+                self.btn_action.setText("⚡ Resume Download")
+                self.btn_cancel.setText("Close")
+                QMessageBox.warning(
+                    self,
+                    "Download Incomplete",
+                    f"Online update download did not complete:\n{msg}\n\n"
+                    f"💡 Tip: Partial download progress has been saved. Click [Resume Download] to continue from where it left off."
+                )
+            else:
+                self.btn_action.setText("⚡ 重新尝试下载")
+                self.btn_cancel.setText("关 闭")
+                QMessageBox.warning(
+                    self,
+                    "下载未完成",
+                    f"在线升级包下载未完成：\n{msg}\n\n💡 提示：系统已自动保留已下载的断点进度，点击【重新尝试下载】即可自动断点续传，无需从头重新下载。"
+                )
 
     def _perform_restart_and_update(self):
         """拉起影子替换脚本并安全退出当前程序"""
+        is_en = self.is_en
         if not self.updater.is_install_dir_writable():
-            QMessageBox.warning(
-                self,
-                "目录写入权限受限",
-                "检测到当前软件放置在系统管理员保护目录（如 Program Files），导致非管理员账户无法直接覆盖。\n\n"
-                "💡【解决方案】：\n"
-                "只需将软件整个文件夹移动到【桌面】、【文档】或【D 盘】等日常工作目录，无需管理员权限即可永久畅享全自动静默升级！"
-            )
+            if is_en:
+                QMessageBox.warning(
+                    self,
+                    "Write Permission Restricted",
+                    "The software is currently located in a system-protected folder (e.g. Program Files), preventing non-admin self-updates.\n\n"
+                    "💡 [Solution]:\n"
+                    "Move the application folder to your Desktop, Documents, or D: drive to enjoy seamless automatic updates without administrator privileges!"
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "目录写入权限受限",
+                    "检测到当前软件放置在系统管理员保护目录（如 Program Files），导致非管理员账户无法直接覆盖。\n\n"
+                    "💡【解决方案】：\n"
+                    "只需将软件整个文件夹移动到【桌面】、【文档】或【D 盘】等日常工作目录，无需管理员权限即可永久畅享全自动静默升级！"
+                )
             return
 
         ok = self.updater.launch_shadow_replacement(restart_after=True)
@@ -640,11 +801,18 @@ class UpdateDialog(QDialog):
             t = threading.Thread(target=_ensure_process_exit, daemon=True)
             t.start()
         else:
-            QMessageBox.critical(
-                self,
-                "启动升级失败",
-                "未能成功拉起后台替换脚本，请检查系统防病毒软件拦截日志，或手动解压最新版本覆盖运行。"
-            )
+            if is_en:
+                QMessageBox.critical(
+                    self,
+                    "Update Launch Failed",
+                    "Failed to launch the background shadow update script. Please check your antivirus logs or manually extract the latest version."
+                )
+            else:
+                QMessageBox.critical(
+                    self,
+                    "启动升级失败",
+                    "未能成功拉起后台替换脚本，请检查系统防病毒软件拦截日志，或手动解压最新版本覆盖运行。"
+                )
 
     def reject(self):
         if self.download_thread and self.download_thread.isRunning():

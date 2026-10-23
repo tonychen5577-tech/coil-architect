@@ -24,6 +24,7 @@ from src.version import (
     PLATFORM_NAME, PLATFORM_NAME_EN, PLATFORM_FULL_TITLE, WECHAT_OFFICIAL_ACCOUNT
 )
 from src.gui.icon_helper import get_app_icon_pixmap
+from src.core.i18n import i18n
 
 
 class CoilViewportWidget(QWidget):
@@ -315,7 +316,7 @@ class SplashScreen(QWidget):
             self.move(x, y)
 
         self._current_progress = 0
-        self._current_message = "正在初始化系统核心..."
+        self._current_message = "Initializing system core..." if i18n.is_english() else "正在初始化系统核心..."
         self._init_ui()
 
     def _init_ui(self):
@@ -361,12 +362,24 @@ class SplashScreen(QWidget):
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
 
-        lbl_app_name = QLabel(f"<span style='color: #0284C7; font-weight: 800;'>ANSV</span> 微型执行器与精密传动仿真验证平台 <span style='font-size: 11px; color: #0284C7; font-weight: 600;'>{APP_VERSION}</span>")
+        is_en = i18n.is_english()
+        if is_en:
+            main_title_html = f"<span style='color: #0284C7; font-weight: 800;'>ANSV</span> Actuator Numerical Simulation &amp; Validation <span style='font-size: 11px; color: #0284C7; font-weight: 600;'>{APP_VERSION}</span>"
+            sub_title_txt = "Micro-Coil Design & Electro-Thermal Multiphysics Workstation (Coil-Architect Pro)"
+            url_tip = "Visit Official Engineering Portal: ansv.net"
+            title_font_css = "font-size: 13.5px; font-weight: 800; color: #0F172A; letter-spacing: 0.1px;"
+        else:
+            main_title_html = f"<span style='color: #0284C7; font-weight: 800;'>ANSV</span> 微型执行器与精密传动仿真验证平台 <span style='font-size: 11px; color: #0284C7; font-weight: 600;'>{APP_VERSION}</span>"
+            sub_title_txt = "Actuator Numerical Simulation & Validation | 电磁线圈多物理场工作站 (Coil-Architect Pro)"
+            url_tip = "访问官方技术门户: ansv.net"
+            title_font_css = "font-size: 15px; font-weight: 800; color: #0F172A; letter-spacing: 0.2px;"
+
+        lbl_app_name = QLabel(main_title_html)
         lbl_app_name.setTextFormat(Qt.TextFormat.RichText)
-        lbl_app_name.setStyleSheet("font-size: 15px; font-weight: 800; color: #0F172A; letter-spacing: 0.2px;")
+        lbl_app_name.setStyleSheet(title_font_css)
         title_box.addWidget(lbl_app_name)
 
-        lbl_sub = QLabel("Actuator Numerical Simulation & Validation | 电磁线圈多物理场工作站 (Coil-Architect Pro)")
+        lbl_sub = QLabel(sub_title_txt)
         lbl_sub.setStyleSheet("font-size: 10px; color: #64748B; font-weight: 600;")
         title_box.addWidget(lbl_sub)
 
@@ -376,7 +389,7 @@ class SplashScreen(QWidget):
         # 官方网址跳转按钮 (带悬停微动与外链手势)
         self.url_btn = QPushButton("ansv.net ↗")
         self.url_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.url_btn.setToolTip("访问官方技术门户: ansv.net")
+        self.url_btn.setToolTip(url_tip)
         self.url_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F8FAFC;
@@ -449,7 +462,8 @@ class SplashScreen(QWidget):
 
         copy_line.addStretch()
 
-        lbl_copy_right = QLabel(APP_AUTHOR)
+        author_txt = "ANSV Transmissions & Micro-Actuators Lab" if is_en else APP_AUTHOR
+        lbl_copy_right = QLabel(author_txt)
         lbl_copy_right.setStyleSheet("font-size: 10px; color: #94A3B8;")
         copy_line.addWidget(lbl_copy_right)
 
@@ -469,6 +483,7 @@ class SplashScreen(QWidget):
 
     def finish_and_show(self, window):
         """平滑收起闪屏并展开主窗口"""
-        self.update_progress(100, "就绪，正在开启多物理场仿真工作台...")
+        ready_msg = "Ready, launching multiphysics simulation workstation..." if i18n.is_english() else "就绪，正在开启多物理场仿真工作台..."
+        self.update_progress(100, ready_msg)
         window.show()
         self.close()

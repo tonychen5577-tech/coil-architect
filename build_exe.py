@@ -194,6 +194,7 @@ def step3_pyinstaller_build() -> bool:
         "--hidden-import=src.utils.file_association",
         "--hidden-import=PyQt6.QtNetwork",
         "--hidden-import=src.version",
+        "--hidden-import=src.core.i18n",
         "--hidden-import=src.gui.about_dialog",
         "--hidden-import=src.gui.update_dialog",
         "--hidden-import=src.gui.cloud_config_dialog",
@@ -339,13 +340,16 @@ pause
         # 4. bat & txt
         pzf.write(apply_bat, arcname="一键应用增量补丁.bat")
         pzf.write(readme_txt, arcname="增量升级使用说明.txt")
-        # 5. HTML 离线说明书
-        manual_html = app_dir / "Coil-Architect-Pro_使用说明书.html"
-        if manual_html.exists():
-            pzf.write(manual_html, arcname="Coil-Architect-Pro_使用说明书.html")
-        readme_html = app_dir / "README.html"
-        if readme_html.exists():
-            pzf.write(readme_html, arcname="README.html")
+        # 5. HTML 离线说明书 (中英双语)
+        for html_name in [
+            "Coil-Architect-Pro_使用说明书.html",
+            "Coil-Architect-Pro_User_Manual.html",
+            "README.html",
+            "README_EN.html",
+        ]:
+            html_file = app_dir / html_name
+            if html_file.exists():
+                pzf.write(html_file, arcname=html_name)
 
     # 清理临时文件
     apply_bat.unlink(missing_ok=True)
