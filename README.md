@@ -8,10 +8,10 @@
 
 <img src="docs/images/ansv_logo.png" alt="ANSV Official Logo" width="128" />
 
-# ⚡ ANSV Coil-Architect Pro 2027 | Micro Coil Design & Simulation Workstation
-### Specialized Micro Coil Geometry Design, Electro-Thermal Simulation & DFM Verification Workstation for Micro Actuators, VCM, LRA & Precision Solenoids (2027 Edition)
+# ⚡ ANSV Coil-Architect Pro | Micro Coil Design & Simulation Workstation
+### Specialized Micro Coil Geometry Design, Electro-Thermal Simulation & DFM Verification Workstation for Micro Actuators, VCM, LRA & Precision Solenoids (v1.1.0)
 
-[![Release](https://img.shields.io/badge/Release-2027-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
+[![Release](https://img.shields.io/badge/Release-v1.1.0-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20(64--bit)-0284C7?style=flat-square&logo=windows)](https://github.com/tonychen5577-tech/coil-architect)
 [![License](https://img.shields.io/badge/License-Commercial%20%2F%20Free%20Evaluation-059669?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
 [![Core](https://img.shields.io/badge/Core-C%2B%2B%20%2F%20Cython%20Native-334155?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
@@ -182,7 +182,7 @@ Coil-Architect Pro is engineered as a **completely standalone, green portable de
    Visit the official GitHub Releases page:
    👉 **[Go to GitHub Releases](https://github.com/tonychen5577-tech/coil-architect/releases)**
 2. **Extract**:
-   Download `ANSV_Coil_Architect_Pro_2027_Full.zip` and extract to any folder (e.g., `D:\Coil_Architect_Pro` or Desktop);
+   Download `ANSV_Coil_Architect_Pro_v1.1.0_Full.zip` and extract to any folder (e.g., `D:\Coil_Architect_Pro` or Desktop);
 3. **Run**:
    Double-click `Coil-Architect-Pro.exe` to launch the workstation in milliseconds;
 4. **Desktop Shortcut (Recommended)**:
