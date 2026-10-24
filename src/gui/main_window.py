@@ -899,14 +899,13 @@ class MainWindow(QMainWindow):
 
             if is_en:
                 msg_text = (
-                    "<b>[Your Workstation Commercial License Has Been Cancelled / Revoked]</b><br><br>"
+                    "<b>[Workstation Commercial License Revoked / Cancelled]</b><br><br>"
                     "The application has been safely locked and local license credentials cleared.<br>"
-                    "To restore authorization, reissue a license, or for technical support, please contact ANSV Official Team:<br><br>"
-                    f"• <b>Email (支持邮箱):</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7;'>{OFFICIAL_EMAIL}</a><br>"
-                    f"• <b>WeChat (工程师微信):</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
-                    f"• <b>WeChat Official (微信公众号):</b> {WECHAT_OFFICIAL_ACCOUNT}<br>"
-                    f"• <b>Official Portal (官方门户):</b> <a href='{OFFICIAL_URL}' style='color:#0284C7;'>{OFFICIAL_URL}</a><br>"
-                    f"• <b>Hardware Machine ID (本机机器码):</b> <code style='color:#475569;'>{mid}</code>"
+                    "To restore authorization, reissue a license, or for technical assistance, please contact ANSV Official Team:<br><br>"
+                    f"• <b>Support Email:</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7;'>{OFFICIAL_EMAIL}</a><br>"
+                    f"• <b>WeChat Support ID:</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
+                    f"• <b>Official Portal:</b> <a href='{OFFICIAL_URL}' style='color:#0284C7;'>{OFFICIAL_URL}</a><br>"
+                    f"• <b>Hardware Machine ID:</b> <code style='color:#475569;'>{mid}</code>"
                 )
             else:
                 msg_text = (
@@ -930,16 +929,25 @@ class MainWindow(QMainWindow):
                 if msg_box.clickedButton() == btn_copy:
                     from PyQt6.QtWidgets import QApplication
                     clipboard = QApplication.clipboard()
-                    contact_copy = (
-                        f"【ANSV Coil-Architect Pro 商业授权咨询与恢复】\n"
-                        f"机器码 (Machine ID): {mid}\n"
-                        f"支持邮箱 (Email): {OFFICIAL_EMAIL}\n"
-                        f"工程师微信 (WeChat): {WECHAT_CONTACT_ID}\n"
-                        f"官方公众号 (WeChat Official): {WECHAT_OFFICIAL_ACCOUNT}\n"
-                        f"官方门户: {OFFICIAL_URL}"
-                    )
+                    if is_en:
+                        contact_copy = (
+                            f"[ANSV Coil-Architect Pro Commercial License Inquiry & Reissue]\n"
+                            f"Hardware Machine ID: {mid}\n"
+                            f"Support Email: {OFFICIAL_EMAIL}\n"
+                            f"WeChat Support ID: {WECHAT_CONTACT_ID}\n"
+                            f"Official Portal: {OFFICIAL_URL}"
+                        )
+                    else:
+                        contact_copy = (
+                            f"【ANSV Coil-Architect Pro 商业授权咨询与恢复】\n"
+                            f"机器码 (Machine ID): {mid}\n"
+                            f"支持邮箱 (Email): {OFFICIAL_EMAIL}\n"
+                            f"工程师微信 (WeChat): {WECHAT_CONTACT_ID}\n"
+                            f"官方微信公众号: {WECHAT_OFFICIAL_ACCOUNT}\n"
+                            f"官方服务门户: {OFFICIAL_URL}"
+                        )
                     clipboard.setText(contact_copy)
-                    btn_copy.setText("✅ Copied!" if is_en else "✅ 已复制联系方式")
+                    btn_copy.setText("✅ Copied to Clipboard!" if is_en else "✅ 已复制联系方式")
                     continue
                 break
 

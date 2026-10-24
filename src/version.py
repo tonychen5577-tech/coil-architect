@@ -5,6 +5,11 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-24 [Yaming] 2027: 商业授权撤销/终止闭环与纯正国际化英文优化 (2027版 · Build 20261024B7)：
+                             1) 远程取消授权闭环管理：Cloudflare 边缘控制台新增「↩️ 撤销取消授权 (恢复激活)」一键反向恢复指令；
+                             2) 锁机/终止弹窗全渠道联系信息集成：支持邮箱 (support@ansv.net)、工程师微信 (ansv-net)、官方公众号与官方主页全景呈现；
+                             3) 极速复制快捷交互：新增「📋 复制联系方式」按钮，一键将硬件机器码与官方联系方式复制到剪贴板；
+                             4) 国际化英文模式深度纯净化：彻底去除英文弹窗与复制文本中的中文字符与括号标注，呈现地道专业的全英文工业测控体验。
 - 2026-10-24 [Yaming] 2027: 全面升级为主流工业年度大版本号体系 (2027版 · Build 20261024B6)：
                              1) 采用 SolidWorks / AutoCAD / ANSYS 业界通用标准，以年份定义核心大版本 (2027)，每年升级一个大版本；
                              2) 年内迭代与功能优化完全由 Build 号自动承载 (如 Build 20261024B6)，轻量清晰；
@@ -109,9 +114,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "2027"
-APP_BUILD = "20261024B6"
+APP_BUILD = "20261024B7"
 APP_DATE = "2026-10-24"
-BUILD_TIME = "2026-10-24 13:00:00 CST"
+BUILD_TIME = "2026-10-24 14:05:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"
