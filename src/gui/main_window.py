@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
         根据全局 i18n 当前语言设置，无缝重载主界面所有文本、标签、下拉选项与子组件
         """
         # 1. 主窗口标题
-        self.setWindowTitle(f"{t('app_window_title', 'ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站')} {APP_VERSION} ({APP_BUILD})")
+        self.setWindowTitle(f"{t('app_window_title', 'ANSV Coil-Architect Pro 2027 | 微型线圈设计与电热仿真工作站')} (Build {APP_BUILD})")
 
         # 2. 顶部工具栏
         if hasattr(self, "lbl_sub"):

@@ -5,6 +5,11 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-24 [Yaming] 2027: 全面升级为主流工业年度大版本号体系 (2027版 · Build 20261024B6)：
+                             1) 采用 SolidWorks / AutoCAD / ANSYS 业界通用标准，以年份定义核心大版本 (2027)，每年升级一个大版本；
+                             2) 年内迭代与功能优化完全由 Build 号自动承载 (如 Build 20261024B6)，轻量清晰；
+                             3) 语义化版本算法深度兼容：历史全量 1.1.0/1.0.0 客户端判定 2027 > 1.1.0，实现无感平滑静默升级到 2027 版；
+                             4) 全面规整软件主标题、闪屏、说明书及包体为「ANSV Coil-Architect Pro 2027」。
 - 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B5：
                              1) 重磅上线「⚡ 云端一键在线秒级授权激活」：客户端免输激活码，点击即可直接向云端请求激活凭证；
                              2) 智能自适应动态心跳轮询引擎：未授权/试用状态下以 15 秒短周期轮询，管理员在网页控制台点击【⚡ 一键下发授权】后最快瞬间、最长15秒内客户端自动完成激活；
@@ -96,17 +101,17 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 APP_NAME = "ANSV Coil-Architect Pro"
-APP_TITLE = "ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站"
+APP_TITLE = "ANSV Coil-Architect Pro 2027 | 微型线圈设计与电热仿真工作站"
 PLATFORM_NAME = "ANSV 微型执行器与精密传动仿真验证平台"
 PLATFORM_NAME_EN = "Actuator Numerical Simulation & Validation"
 PLATFORM_FULL_TITLE = "ANSV 微型执行器与精密传动仿真验证平台 (Actuator Numerical Simulation & Validation)"
 WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
-APP_VERSION = "v1.1.0"
-APP_BUILD = "20261024B5"
+APP_VERSION = "2027"
+APP_BUILD = "20261024B6"
 APP_DATE = "2026-10-24"
-BUILD_TIME = "2026-10-24 12:30:00 CST"
+BUILD_TIME = "2026-10-24 13:00:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"

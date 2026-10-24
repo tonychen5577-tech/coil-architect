@@ -112,7 +112,9 @@ class UpdateDialog(QDialog):
     def _format_v(self, v_str: str) -> str:
         s = str(v_str or "").strip()
         if not s:
-            return "v1.1.0"
+            return "2027"
+        if s.isdigit() and len(s) == 4:
+            return s
         return s if s.startswith("v") or s.startswith("V") else f"v{s}"
 
     def _init_ui(self):

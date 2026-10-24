@@ -29,8 +29,8 @@ def _get_config_path() -> Path:
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
     # ------------------ 窗口标题与全局品牌 ------------------
     "app_window_title": {
-        "zh": "ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站",
-        "en": "ANSV Coil-Architect Pro | Micro Coil Design & Electro-Thermal Simulation Workstation"
+        "zh": "ANSV Coil-Architect Pro 2027 | 微型线圈设计与电热仿真工作站",
+        "en": "ANSV Coil-Architect Pro 2027 | Micro-Coil Design & Electro-Thermal Simulation Workstation"
     },
     "platform_full_name": {
         "zh": "微型执行器与精密传动仿真验证平台",
