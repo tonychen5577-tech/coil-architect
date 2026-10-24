@@ -32,7 +32,7 @@ from src.core.cloud_client import (
 )
 from src.core.license_manager import get_machine_code, get_mac_address
 from src.core.i18n import i18n
-from src.version import APP_NAME, APP_VERSION
+from src.version import APP_NAME, APP_VERSION, APP_BUILD
 from src.gui.utils import adapt_dialog_geometry
 from src.gui.icon_helper import get_app_icon
 
@@ -400,6 +400,7 @@ class CloudConfigDialog(QDialog):
         self.txt_diag.clear()
         if is_en:
             self.txt_diag.append(f"[*] Starting Network Connectivity & Route Verification: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            self.txt_diag.append(f"• Software Version:   {APP_VERSION} (Build {APP_BUILD})")
             self.txt_diag.append(f"• Target Data Link:   {mask_server_url(target_url)}")
             self.txt_diag.append(f"• Workstation ID:     {get_machine_code()}")
             self.txt_diag.append(f"• Adapter MAC Addr:   {get_mac_address()}")
@@ -408,9 +409,10 @@ class CloudConfigDialog(QDialog):
             self.txt_diag.append("⏳ Probing routing modes sequentially to lock the optimal link...")
         else:
             self.txt_diag.append(f"[*] 开始网络连通性诊断与全自动模式验证: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            self.txt_diag.append(f"• 软件与构建版本: {APP_VERSION} (Build {APP_BUILD})")
             self.txt_diag.append(f"• 目标数据链路:   {mask_server_url(target_url)}")
             self.txt_diag.append(f"• 本机工位机器码: {get_machine_code()}")
-            self.txt_diag.append(f"• 本机网卡 MAC:   {get_mac_address()}")
+            self.txt_diag.append(f"• 物理网卡 MAC:   {get_mac_address()}")
             self.txt_diag.append(f"• 本机内网 IP:    {get_client_ip()}")
             self.txt_diag.append("-" * 65)
             self.txt_diag.append("⏳ 正在自动顺序验证各网络模式，获取最佳连接链路...")
@@ -507,8 +509,9 @@ class CloudConfigDialog(QDialog):
                 "=" * 70,
                 "ANSV Coil-Architect Pro - Network & Database Diagnostic Report",
                 f"Generated At: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                f"App Version:  v{APP_VERSION}",
-                f"Machine Code: {get_machine_code()}",
+                f"App Version:  {APP_VERSION} (Build {APP_BUILD})",
+                f"Workstation:  {get_machine_code()}",
+                f"MAC Address:  {get_mac_address()}",
                 f"Data Link:    {mask_server_url(target_url)}",
                 "=" * 70,
                 "",
@@ -522,8 +525,9 @@ class CloudConfigDialog(QDialog):
                 "=" * 70,
                 "ANSV Coil-Architect Pro 专家数据库通信与网络环境体检报告",
                 f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                f"软件版本: v{APP_VERSION}",
+                f"软件版本: {APP_VERSION} (Build {APP_BUILD})",
                 f"本机机器码: {get_machine_code()}",
+                f"网卡 MAC:   {get_mac_address()}",
                 f"通信链路: {mask_server_url(target_url)}",
                 "=" * 70,
                 "",

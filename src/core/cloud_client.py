@@ -626,9 +626,7 @@ class CloudClient:
                         logger.info("接收到云端推送的新授权凭证，自动安装...")
                         ok_inst, _ = LicenseManager.install_license(remote_payload)
                         cls._ack_remote_command(base_url, mid, remote_cmd, "SUCCESS" if ok_inst else "FAILED")
-                    elif remote_cmd == "FORCE_SYNC_CASES":
-                        logger.info("接收到云端同步官方案例库指令")
-                        cls._ack_remote_command(base_url, mid, remote_cmd, "SYNCED")
+
 
                     status_text = "授权服务器已连接"
                     cls._last_status = (True, status_text, base_url)

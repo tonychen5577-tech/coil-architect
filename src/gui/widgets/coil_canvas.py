@@ -1063,7 +1063,7 @@ class MacroRacetrackCanvas(QWidget):
                 painter.drawText(12, h - 19, f"[Outer Envelope] Outer Length OL: {ol:.3f} mm  |  Outer Width OW: {ow:.3f} mm" if is_en else f"【外包络】外长 OL: {ol:.3f} mm  |  外宽 OW: {ow:.3f} mm")
 
             painter.setPen(QColor("#475569"))
-            font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
+            font_sub = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_sub)
             painter.drawText(12, h - 6, f"[Inner Bore] Inner Length IL: {il:.2f} mm  |  Inner Width IW: {iw:.2f} mm" if is_en else f"【内腔基准】内长 IL: {il:.2f} mm  |  内宽 IW: {iw:.2f} mm")
 
@@ -1251,11 +1251,13 @@ class MagnetSectionCanvas(QWidget):
             badge_y = rect_bottom_card.top() - badge_h - 6.0
             badge_w = min(w - 40, 420)
             rect_badge = QRectF(cx - badge_w / 2.0, badge_y, badge_w, badge_h)
-            y_dim_out = badge_y - 14.0
-            base_y = y_dim_out - 16.0
+            y_dim_out = badge_y - 12.0
+            y_dim_in = y_dim_out - 20.0
+            base_y = y_dim_in - 16.0
         else:
-            y_dim_out = rect_bottom_card.top() - 14.0
-            base_y = y_dim_out - 16.0
+            y_dim_out = rect_bottom_card.top() - 12.0
+            y_dim_in = y_dim_out - 20.0
+            base_y = y_dim_in - 16.0
 
         view_w = w - 80
         view_h = max(30.0, base_y - 52.0)
@@ -1426,10 +1428,13 @@ class MagnetSectionCanvas(QWidget):
         font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
         painter.setFont(font_dim)
 
-        # 8.1 内孔内径 ID / 内宽 / 内长
-        y_dim_in = base_y - h_coil_px / 2.0
+        # 8.1 内孔内径 ID / 内宽 / 内长 (挪至线圈底面基准线下方，垂直延伸界线引下，彻底避免遮挡线圈实体)
         x_in_l = rect_l_coil.right()
         x_in_r = rect_r_coil.left()
+
+        painter.setPen(pen_iso_ext)
+        painter.drawLine(int(x_in_l), int(base_y + 1), int(x_in_l), int(y_dim_in + 4))
+        painter.drawLine(int(x_in_r), int(base_y + 1), int(x_in_r), int(y_dim_in + 4))
 
         painter.setPen(pen_iso_dim)
         painter.drawLine(int(x_in_l), int(y_dim_in), int(x_in_r), int(y_dim_in))
@@ -1437,10 +1442,10 @@ class MagnetSectionCanvas(QWidget):
         # 闭合实心箭头
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(brush_iso_arrow)
-        draw_iso_arrow(painter, x_in_l, y_dim_in, -1.0, 0.0, 7.0, 2.4)
-        draw_iso_arrow(painter, x_in_r, y_dim_in, 1.0, 0.0, 7.0, 2.4)
+        draw_iso_arrow(painter, x_in_l, y_dim_in, -1.0, 0.0, 6.0, 2.2)
+        draw_iso_arrow(painter, x_in_r, y_dim_in, 1.0, 0.0, 6.0, 2.2)
 
-        # 尺寸文字 (置于尺寸线上方，轻量白色微底色，严禁卡通圆角边框)
+        # 尺寸文字 (置于尺寸线上方，轻量白色底色)
         if c_type == CoilType.CIRCULAR:
             text_in = f"⌀ {in_dim:.2f} mm"
         elif c_type == CoilType.OCTAGONAL:
@@ -1451,7 +1456,7 @@ class MagnetSectionCanvas(QWidget):
         metrics_in = painter.fontMetrics()
         tw_in = metrics_in.horizontalAdvance(text_in)
         th_in = metrics_in.height()
-        rect_text_in_bg = QRectF(cx - tw_in / 2.0 - 4, y_dim_in - th_in - 2, tw_in + 8, th_in)
+        rect_text_in_bg = QRectF(cx - tw_in / 2.0 - 4, y_dim_in - th_in - 1, tw_in + 8, th_in)
         painter.fillRect(rect_text_in_bg, QColor(255, 255, 255, 230))
         painter.setPen(QColor("#0369A1"))
         painter.drawText(rect_text_in_bg, Qt.AlignmentFlag.AlignCenter, text_in)

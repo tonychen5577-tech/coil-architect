@@ -71,13 +71,28 @@ def resolve_app_target() -> Tuple[Path, str, Path, Path]:
         arguments = ""
         working_dir = target_path.parent
         icon_path = target_path
-        res_ico = working_dir / "resources" / "app_icon.ico"
-        if res_ico.exists():
-            icon_path = res_ico
+        for ico_cand in [
+            working_dir / "resources" / "app_icon.ico",
+            working_dir / "_internal" / "resources" / "app_icon.ico",
+        ]:
+            if ico_cand.exists():
+                icon_path = ico_cand
+                break
         return target_path, arguments, working_dir, icon_path
 
-    # 源码开发与测试环境
     base_dir = Path(__file__).resolve().parent.parent.parent
+
+    # 若本地已编译生成正式 EXE (dist/Coil-Architect-Pro/Coil-Architect-Pro.exe)，优先绑定正式 EXE，杜绝指向 pythonw.exe
+    dist_exe = base_dir / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro.exe"
+    if dist_exe.exists():
+        target_path = dist_exe.resolve()
+        working_dir = target_path.parent
+        icon_path = base_dir / "resources" / "app_icon.ico"
+        if not icon_path.exists():
+            icon_path = target_path
+        return target_path, "", working_dir, icon_path
+
+    # 纯源码环境 (尚未编译 EXE 时后备)
     py_exe = Path(sys.executable).resolve()
     pyw = py_exe.parent / "pythonw.exe"
     target_exe = pyw if pyw.exists() else py_exe
@@ -107,15 +122,14 @@ def create_desktop_shortcut() -> Tuple[bool, str]:
         icon_str = str(icon_path).replace("/", "\\") if icon_path and icon_path.exists() else ""
 
         # 方案 A: Windows Script Host (VBScript via cscript) - 毫秒级极速响应，零控制台黑框
+        escaped_args = args.replace('"', '""') if args else ""
         vbs_lines = [
             'Set oWS = CreateObject("WScript.Shell")',
             f'Set oLink = oWS.CreateShortcut("{shortcut_str}")',
             f'oLink.TargetPath = "{target_str}"',
             f'oLink.WorkingDirectory = "{working_str}"',
+            f'oLink.Arguments = "{escaped_args}"',
         ]
-        if args:
-            escaped_args = args.replace('"', '""')
-            vbs_lines.append(f'oLink.Arguments = "{escaped_args}"')
         if icon_str:
             vbs_lines.append(f'oLink.IconLocation = "{icon_str}, 0"')
         vbs_lines.append(f'oLink.Description = "{SHORTCUT_DESCRIPTION}"')
@@ -144,9 +158,8 @@ def create_desktop_shortcut() -> Tuple[bool, str]:
             f'$Shortcut = $WshShell.CreateShortcut("{shortcut_str}")',
             f'$Shortcut.TargetPath = "{target_str}"',
             f'$Shortcut.WorkingDirectory = "{working_str}"',
+            f'$Shortcut.Arguments = \'{args}\'' if args else '$Shortcut.Arguments = ""',
         ]
-        if args:
-            ps_lines.append(f'$Shortcut.Arguments = \'{args}\'')
         if icon_str:
             ps_lines.append(f'$Shortcut.IconLocation = "{icon_str}, 0"')
         ps_lines.append(f'$Shortcut.Description = "{SHORTCUT_DESCRIPTION}"')

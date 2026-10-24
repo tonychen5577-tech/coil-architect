@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
         根据全局 i18n 当前语言设置，无缝重载主界面所有文本、标签、下拉选项与子组件
         """
         # 1. 主窗口标题
-        self.setWindowTitle(f"{t('app_window_title', 'ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站')} v{APP_VERSION} ({APP_BUILD})")
+        self.setWindowTitle(f"{t('app_window_title', 'ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站')} {APP_VERSION} ({APP_BUILD})")
 
         # 2. 顶部工具栏
         if hasattr(self, "lbl_sub"):
@@ -299,11 +299,11 @@ class MainWindow(QMainWindow):
             ]
             self._update_combo_items(self.combo_presets, preset_items)
         if hasattr(self, "btn_open"):
-            self.btn_open.setText(t("btn_load_project", "📂 载入算例"))
+            self.btn_open.setText(t("btn_load_project", "📂 导入文件"))
         if hasattr(self, "btn_save"):
-            self.btn_save.setText(t("btn_save_project", "💾 保存算例"))
+            self.btn_save.setText(t("btn_save_project", "💾 导出文件"))
         if hasattr(self, "btn_export"):
-            self.btn_export.setText(t("btn_export_report", "📊 导出报表"))
+            self.btn_export.setText(t("btn_export_report", "📊 导出仿真报告"))
         if hasattr(self, "btn_about"):
             self.btn_about.setText(t("btn_about_system", "ℹ️ 关于系统"))
         self._refresh_license_status()
@@ -638,11 +638,11 @@ class MainWindow(QMainWindow):
             return
 
         if hasattr(self, "btn_open"):
-            self.btn_open.setToolTip("载入 .ansvcoil 专属算例工程文件 (支持单实例 IPC 导入)")
+            self.btn_open.setToolTip("导入 .ansvcoil 专属工程文件或历史设计方案")
         if hasattr(self, "btn_save"):
-            self.btn_save.setToolTip("将当前仿真参数与约束保存为 .ansvcoil 专属算例工程文件")
+            self.btn_save.setToolTip("将当前仿真参数与约束导出为 .ansvcoil 专属工程文件")
         if hasattr(self, "btn_export"):
-            self.btn_export.setToolTip("导出 Excel (含二维工程制图) 与 CSV 仿真评审报告")
+            self.btn_export.setToolTip("导出专业工业级 Excel (含二维高清工程制图与公差校核) 仿真报告")
 
         # 1. 顶部工具栏
         self.combo_presets.setToolTip("【工程预设 (Engineering Presets)】\n快速加载工业对标标准工程算例（含手机摄像头VCM对焦马达、0825硬币式Z-LRA震动马达、X-LRA跑道线圈、图4八角形线圈等），自动填充标准几何、线径、张力与热学工况。")
@@ -925,8 +925,7 @@ class MainWindow(QMainWindow):
                 "管理员已通过云端控制台为您延长了商业授权 / 升级了方案版本！\n\n当前授权凭证已在本地自动刷新生效。"
             )
 
-        elif cmd_upper == "FORCE_SYNC_CASES":
-            self.status_bar.showMessage("📐 Cloud benchmark cases synced" if is_en else "📐 云端标杆案例库已更新", 4000)
+
 
     def closeEvent(self, event):
         """
@@ -1037,27 +1036,28 @@ class MainWindow(QMainWindow):
         from PyQt6.QtGui import QDesktopServices
         from PyQt6.QtCore import QUrl
         app_dir = Path(__file__).resolve().parent.parent.parent
-        is_en = i18n.is_english() if "i18n" in globals() else False
+        exe_dir = Path(sys.executable).resolve().parent
+        is_en = i18n.is_english()
         if is_en:
             candidates = [
+                exe_dir / "Coil-Architect-Pro_User_Manual.html",
                 app_dir / "Coil-Architect-Pro_User_Manual.html",
-                app_dir / "README_EN.html",
                 app_dir / "docs" / "Coil-Architect-Pro_User_Manual.html",
-                Path(sys.executable).parent / "Coil-Architect-Pro_User_Manual.html",
-                Path(sys.executable).parent / "README_EN.html",
-                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                exe_dir / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                exe_dir / "README_EN.html",
+                app_dir / "README_EN.html",
+                exe_dir / "Coil-Architect-Pro_使用说明书.html",
                 app_dir / "Coil-Architect-Pro_使用说明书.html",
-                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
             ]
             fallback_url = "https://github.com/tonychen5577-tech/coil-architect"
         else:
             candidates = [
+                exe_dir / "Coil-Architect-Pro_使用说明书.html",
                 app_dir / "Coil-Architect-Pro_使用说明书.html",
-                app_dir / "README.html",
                 app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
-                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
-                Path(sys.executable).parent / "README.html",
-                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                exe_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                exe_dir / "README.html",
+                app_dir / "README.html",
             ]
             fallback_url = "https://github.com/tonychen5577-tech/coil-architect/blob/main/README_CN.md"
 
@@ -1178,24 +1178,24 @@ class MainWindow(QMainWindow):
         layout.addStretch(1)
 
         # 5. 算例与报表操作按钮组 (锁死固定尺寸，文字 100% 完整显示)
-        self.btn_open = QPushButton("📂 载入算例")
-        self.btn_open.setToolTip("载入 .ansvcoil 专属算例工程文件 (支持单实例 IPC 导入)")
+        self.btn_open = QPushButton("📂 导入文件")
+        self.btn_open.setToolTip("导入 .ansvcoil 专属工程文件或历史设计方案")
         self.btn_open.setFixedWidth(86)
         self.btn_open.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.btn_open.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_open.clicked.connect(self._import_project)
         layout.addWidget(self.btn_open)
 
-        self.btn_save = QPushButton("💾 保存算例")
-        self.btn_save.setToolTip("将当前仿真参数与约束保存为 .ansvcoil 专属算例工程文件")
+        self.btn_save = QPushButton("💾 导出文件")
+        self.btn_save.setToolTip("将当前仿真参数与约束导出为 .ansvcoil 专属工程文件")
         self.btn_save.setFixedWidth(86)
         self.btn_save.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.btn_save.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
         self.btn_save.clicked.connect(self._export_project)
         layout.addWidget(self.btn_save)
 
-        self.btn_export = QPushButton("📊 导出报表")
-        self.btn_export.setToolTip("导出 Excel (含二维工程制图) 与 CSV 仿真评审报告")
+        self.btn_export = QPushButton("📊 导出仿真报告")
+        self.btn_export.setToolTip("导出专业工业级 Excel (含二维高清工程制图与公差校核) 仿真报告")
         self.btn_export.setProperty("class", "SuccessBtn")
         self.btn_export.setFixedWidth(116)
         self.btn_export.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -1299,8 +1299,12 @@ class MainWindow(QMainWindow):
                         f"点击可查看试用详情或升级正式商业版"
                     )
             else:
-                lic_type = lic_data.get("type", "商业版") if lic_data else "商业版"
-                exp_date = lic_data.get("exp_date", "永久有效") if lic_data else "永久有效"
+                lic_type = (lic_data.get("type") or lic_data.get("plan") or "商业版") if lic_data else "商业版"
+                raw_exp = (lic_data.get("exp") or lic_data.get("exp_date") or "永久有效") if lic_data else "永久有效"
+                if raw_exp in ("2099-12-31", "PERMANENT", "永久有效"):
+                    exp_date = "永久有效"
+                else:
+                    exp_date = raw_exp
                 if is_en:
                     if lic_type == "商业版":
                         lic_type = "Commercial"
@@ -1423,9 +1427,13 @@ class MainWindow(QMainWindow):
                 if msg_box.clickedButton() == btn_upgrade:
                     self.check_authorization_or_prompt("Commercial License Upgrade" if is_en else "商业授权升级", force_prompt=True)
             else:
-                lic_type = lic.get("type", "商业版")
-                exp_date = lic.get("exp_date", lic.get("exp", "永久有效"))
-                owner = lic.get("owner", lic.get("customer", "正式商业用户"))
+                lic_type = lic.get("type") or lic.get("plan") or "商业版"
+                raw_exp = lic.get("exp") or lic.get("exp_date") or "永久有效"
+                if raw_exp in ("2099-12-31", "PERMANENT", "永久有效"):
+                    exp_date = "永久有效"
+                else:
+                    exp_date = raw_exp
+                owner = lic.get("owner") or lic.get("customer") or lic.get("cust") or "正式商业用户"
                 if is_en:
                     if lic_type == "商业版":
                         lic_type = "Annual Commercial Workstation"
@@ -2579,7 +2587,7 @@ class MainWindow(QMainWindow):
     def _export_project(self):
         """保存算例工程文件 (.ansvcoil / .ansv / .json)"""
         is_en = i18n.is_english()
-        if not self.check_authorization_or_prompt("Save Project Case" if is_en else "保存工程算例"):
+        if not self.check_authorization_or_prompt("Export File" if is_en else "导出工程文件"):
             return
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         proj_name = self.get_project_name()
@@ -2590,7 +2598,7 @@ class MainWindow(QMainWindow):
         )
         path, _ = QFileDialog.getSaveFileName(
             self, 
-            "Save Coil Project Case" if is_en else "保存线圈算例", 
+            "Export Coil Project File" if is_en else "导出线圈工程文件", 
             default_filename, 
             "ANSV Coil Project (*.ansvcoil);;Legacy Case (*.ansv);;JSON File (*.json)"
             if is_en else

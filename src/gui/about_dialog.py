@@ -600,9 +600,19 @@ class AboutDialog(QDialog):
         cust_name = st_info.get("customer", "Authorized R&D Center" if is_en else "内部核准机构")
         line_stat = st_info.get("station", "Pro R&D Workstation" if is_en else "专业研发工作站 (Pro Station)")
         status_txt = st_info.get("status_text", "🛡️ Active Commercial License" if is_en else "🛡️ 正式商业授权")
+        exp_date_val = st_info.get("exp_date", "永久有效")
+        is_trial = st_info.get("is_trial", False)
+        
+        if exp_date_val in ("2099-12-31", "PERMANENT", "永久有效"):
+            exp_display_zh = "永久有效"
+            exp_display_en = "Permanent"
+        else:
+            exp_display_zh = f"有效期至: {exp_date_val}"
+            exp_display_en = f"Valid Until: {exp_date_val}"
+
         if is_en:
             if cust_name in ("内部核准机构", "全功能试用评估用户"):
-                cust_name = "Full-Feature Evaluation User" if st_info.get("is_trial") else "Authorized R&D Center"
+                cust_name = "Full-Feature Evaluation User" if is_trial else "Authorized R&D Center"
             if "7天全功能评估工位" in line_stat:
                 d_left = st_info.get("days_left", 7)
                 e_date = st_info.get("exp_date", "")
@@ -611,11 +621,18 @@ class AboutDialog(QDialog):
                 line_stat = "Pro R&D Workstation"
             if "7天全功能试用中" in status_txt:
                 d_left = st_info.get("days_left", 7)
-                status_txt = f"⏱️ 7-Day Trial Active ({d_left}d left)"
+                status_txt = f"⏱️ 7-Day Trial Active ({d_left}d left · {exp_display_en})"
             elif "未激活" in status_txt or "评估" in status_txt:
                 status_txt = "🔓 Evaluation Mode (Unactivated)"
+            elif "正式商业授权" in status_txt or "Active Commercial License" in status_txt:
+                status_txt = f"🛡️ Active Commercial License ({exp_display_en})"
+        else:
+            if "7天全功能试用中" in status_txt:
+                d_left = st_info.get("days_left", 7)
+                status_txt = f"⏱️ 7天全功能试用中 (剩 {d_left} 天 · {exp_display_zh})"
             elif "正式商业授权" in status_txt:
-                status_txt = "🛡️ Active Commercial License"
+                status_txt = f"🛡️ 正式商业授权 ({exp_display_zh})"
+
         right_layout.addLayout(make_row("Workstation ID:" if is_en else "授权工位:", f"{cust_name} · {line_stat}"))
         right_layout.addLayout(make_row("License Status:" if is_en else "授权状态:", status_txt))
 
@@ -1059,27 +1076,28 @@ class AboutDialog(QDialog):
         from PyQt6.QtCore import QUrl
         from src.core.i18n import i18n
         app_dir = Path(__file__).resolve().parent.parent.parent
+        exe_dir = Path(sys.executable).resolve().parent
         is_en = i18n.is_english()
         if is_en:
             candidates = [
+                exe_dir / "Coil-Architect-Pro_User_Manual.html",
                 app_dir / "Coil-Architect-Pro_User_Manual.html",
-                app_dir / "README_EN.html",
                 app_dir / "docs" / "Coil-Architect-Pro_User_Manual.html",
-                Path(sys.executable).parent / "Coil-Architect-Pro_User_Manual.html",
-                Path(sys.executable).parent / "README_EN.html",
-                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                exe_dir / "docs" / "Coil-Architect-Pro_User_Manual.html",
+                exe_dir / "README_EN.html",
+                app_dir / "README_EN.html",
+                exe_dir / "Coil-Architect-Pro_使用说明书.html",
                 app_dir / "Coil-Architect-Pro_使用说明书.html",
-                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
             ]
             fallback_url = "https://github.com/tonychen5577-tech/coil-architect"
         else:
             candidates = [
+                exe_dir / "Coil-Architect-Pro_使用说明书.html",
                 app_dir / "Coil-Architect-Pro_使用说明书.html",
-                app_dir / "README.html",
                 app_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
-                Path(sys.executable).parent / "Coil-Architect-Pro_使用说明书.html",
-                Path(sys.executable).parent / "README.html",
-                Path(sys.executable).parent / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                exe_dir / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                exe_dir / "README.html",
+                app_dir / "README.html",
             ]
             fallback_url = "https://github.com/tonychen5577-tech/coil-architect/blob/main/README_CN.md"
 

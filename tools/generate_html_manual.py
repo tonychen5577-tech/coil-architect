@@ -127,7 +127,30 @@ def build_html_manual(
         md_content
     )
 
-    # 3. 预处理 HTML 标签：将 <div align="center"> 转换为带有 markdown="1" 的响应式居中容器，支持内部表格解析
+    # 3. 预处理 HTML 标签：
+    # 3.1 将 Markdown 顶部的 README.md / README_CN.md / README_EN.md 链接重写为本地离线 HTML 说明书文件名，实现浏览器内中英文说明书一键无缝互跳！
+    md_content = re.sub(
+        r'href=[\x22\x27]README(?:_EN)?\.md[\x22\x27]',
+        'href="Coil-Architect-Pro_User_Manual.html"',
+        md_content
+    )
+    md_content = re.sub(
+        r'href=[\x22\x27]README_CN\.md[\x22\x27]',
+        'href="Coil-Architect-Pro_使用说明书.html"',
+        md_content
+    )
+    md_content = re.sub(
+        r'\]\(README(?:_EN)?\.md\)',
+        '](Coil-Architect-Pro_User_Manual.html)',
+        md_content
+    )
+    md_content = re.sub(
+        r'\]\(README_CN\.md\)',
+        '](Coil-Architect-Pro_使用说明书.html)',
+        md_content
+    )
+
+    # 3.2 将 <div align="center"> 转换为带有 markdown="1" 的响应式居中容器，支持内部表格解析
     md_content = md_content.replace('<div align="center">', '<div class="text-center" markdown="1">')
 
     # 4. 转换简易数学公式符号为优雅样式
@@ -632,6 +655,7 @@ def build_all_manuals():
         ROOT_DIR / "README.md",
         [
             ROOT_DIR / "docs" / "Coil-Architect-Pro_User_Manual.html",
+            ROOT_DIR / "Coil-Architect-Pro_User_Manual.html",
             ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_User_Manual.html",
             ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README_EN.html",
         ],
@@ -646,6 +670,7 @@ def build_all_manuals():
             cn_src,
             [
                 ROOT_DIR / "docs" / "Coil-Architect-Pro_使用说明书.html",
+                ROOT_DIR / "Coil-Architect-Pro_使用说明书.html",
                 ROOT_DIR / "dist" / "Coil-Architect-Pro" / "Coil-Architect-Pro_使用说明书.html",
                 ROOT_DIR / "dist" / "Coil-Architect-Pro" / "README.html",
             ],

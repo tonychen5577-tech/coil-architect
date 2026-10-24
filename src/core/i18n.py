@@ -71,16 +71,16 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "en": "5. Custom CAD Arbitrary"
     },
     "btn_load_project": {
-        "zh": "📂 载入算例",
-        "en": "📂 Open Case"
+        "zh": "📂 导入文件",
+        "en": "📂 Import File"
     },
     "btn_save_project": {
-        "zh": "💾 保存算例",
-        "en": "💾 Save Case"
+        "zh": "💾 导出文件",
+        "en": "💾 Export File"
     },
     "btn_export_report": {
-        "zh": "📊 导出报表",
-        "en": "📊 Export Report"
+        "zh": "📊 导出仿真报告",
+        "en": "📊 Export Simulation Report"
     },
     "btn_license_trial": {
         "zh": "🛡️ 试用期剩 {days} 天",
@@ -808,6 +808,22 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "status_ready": {
         "zh": "就绪 | 双核物理引擎待命",
         "en": "Ready | Dual-Core Physics Engine Standby"
+    },
+    "row_inner_dims": {
+        "zh": "内腔内径/长宽 (mm)",
+        "en": "Inner Bore / Dims (mm)"
+    },
+    "row_wall_thickness": {
+        "zh": "单边壁厚 E (mm)",
+        "en": "Wall Thickness E (mm)"
+    },
+    "btn_export_schemes": {
+        "zh": "💾 导出方案",
+        "en": "💾 Export Schemes"
+    },
+    "btn_import_schemes": {
+        "zh": "📂 导入方案",
+        "en": "📂 Import Schemes"
     },
     "row_topology": {
         "zh": "绕线拓扑",

@@ -185,9 +185,24 @@ class ComparisonPopoutWindow(QDialog):
         btn_excel.clicked.connect(drawer.export_excel)
         tb_layout.addWidget(btn_excel)
 
-        self.btn_csv = QPushButton("📄 导出 CSV")
-        btn_csv = self.btn_csv
-        btn_csv.setStyleSheet("""
+        self.btn_export_schemes = QPushButton("💾 导出方案")
+        self.btn_export_schemes.setStyleSheet("""
+            QPushButton {
+                background-color: #F0FDF4;
+                color: #059669;
+                font-size: 11px;
+                font-weight: 700;
+                border: 1px solid #A7F3D0;
+                border-radius: 4px;
+                padding: 4px 10px;
+            }
+            QPushButton:hover { background-color: #DCFCE7; }
+        """)
+        self.btn_export_schemes.clicked.connect(drawer.export_schemes_file)
+        tb_layout.addWidget(self.btn_export_schemes)
+
+        self.btn_import_schemes = QPushButton("📂 导入方案")
+        self.btn_import_schemes.setStyleSheet("""
             QPushButton {
                 background-color: #F0F9FF;
                 color: #0284C7;
@@ -199,8 +214,8 @@ class ComparisonPopoutWindow(QDialog):
             }
             QPushButton:hover { background-color: #E0F2FE; }
         """)
-        btn_csv.clicked.connect(drawer.export_csv)
-        tb_layout.addWidget(btn_csv)
+        self.btn_import_schemes.clicked.connect(drawer.import_schemes_file)
+        tb_layout.addWidget(self.btn_import_schemes)
 
         self.btn_clear = QPushButton("🗑 清空")
         btn_clear = self.btn_clear
@@ -297,6 +312,7 @@ class ComparisonDrawer(QFrame):
     ROW_DEFINITIONS = [
         # (行标题, 分组, 字段取值器函数)
         ("绕线拓扑", "input", "_get_topology_str"),
+        ("内腔内径/长宽 (mm)", "input", "_get_inner_dims"),
         ("铜线裸径 d (mm)", "input", "_get_bare_dia"),
         ("漆包外径 D (mm)", "input", "_get_max_od"),
         ("径向层数 I (层)", "input", "_get_layers"),
@@ -305,6 +321,7 @@ class ComparisonDrawer(QFrame):
         ("张力系数 η", "input", "_get_tension"),
         ("成型总匝数 N (匝)", "output", "_get_total_n"),
         ("外廓长宽/对边 (mm)", "output", "_get_outer_size"),
+        ("单边壁厚 E (mm)", "output", "_get_wall_thickness"),
         ("轴向成型厚度 H (mm)", "output", "_get_height"),
         ("20℃直流电阻 R20 (Ω)", "output", "_get_r20"),
         ("等效电感 L (μH)", "output", "_get_inductance"),
@@ -448,9 +465,32 @@ class ComparisonDrawer(QFrame):
         self.btn_export.clicked.connect(self.export_excel)
         h_layout.addWidget(self.btn_export)
 
-        # 导出 CSV 按钮
-        self.btn_export_csv = QPushButton("📄 导出 CSV")
-        self.btn_export_csv.setStyleSheet("""
+        # 导出方案按钮
+        self.btn_export_schemes = QPushButton("💾 导出方案")
+        self.btn_export_schemes.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFF;
+                color: #059669;
+                font-size: 10px;
+                font-weight: 600;
+                border: 1px solid #A7F3D0;
+                border-radius: 4px;
+                padding: 3px 8px;
+            }
+            QPushButton:hover {
+                background-color: #ECFDF5;
+                color: #047857;
+                border-color: #059669;
+            }
+        """)
+        self.btn_export_schemes.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_export_schemes.setToolTip("将所有已固化的多组对比方案导出为 .ansvschemes 方案归档文件")
+        self.btn_export_schemes.clicked.connect(self.export_schemes_file)
+        h_layout.addWidget(self.btn_export_schemes)
+
+        # 导入方案按钮
+        self.btn_import_schemes = QPushButton("📂 导入方案")
+        self.btn_import_schemes.setStyleSheet("""
             QPushButton {
                 background-color: #FFFFFF;
                 color: #0284C7;
@@ -466,10 +506,10 @@ class ComparisonDrawer(QFrame):
                 border-color: #0284C7;
             }
         """)
-        self.btn_export_csv.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_export_csv.setToolTip("导出多方案比对表为标准 UTF-8 CSV 报表 (.csv)")
-        self.btn_export_csv.clicked.connect(self.export_csv)
-        h_layout.addWidget(self.btn_export_csv)
+        self.btn_import_schemes.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_import_schemes.setToolTip("导入 .ansvschemes 方案归档文件，还原并横向对比历史方案")
+        self.btn_import_schemes.clicked.connect(self.import_schemes_file)
+        h_layout.addWidget(self.btn_import_schemes)
 
         # 清空按钮
         self.btn_clear = QPushButton("🗑 清空")
@@ -592,6 +632,8 @@ class ComparisonDrawer(QFrame):
 
     ROW_I18N = {
         "绕线拓扑": "row_topology",
+        "内腔内径/长宽 (mm)": "row_inner_dims",
+        "单边壁厚 E (mm)": "row_wall_thickness",
         "铜线裸径 d (mm)": "row_bare_dia",
         "漆包外径 D (mm)": "row_outer_dia",
         "径向层数 I (层)": "row_layers",
@@ -631,8 +673,12 @@ class ComparisonDrawer(QFrame):
         self.btn_copy.setToolTip("Copy comparison matrix to clipboard (TSV format for Excel/Word)" if is_en else "复制当前所有方案的比对数据至剪贴板 (制表符格式，可直接粘贴到 Excel 或 Word)")
         self.btn_export.setText(t("btn_export_excel", "📊 导出 Excel"))
         self.btn_export.setToolTip("Export multi-scheme comparison matrix as a styled Excel workbook (.xlsx)" if is_en else "导出多方案比对表为格式精美的 Excel 工作簿 (.xlsx)")
-        self.btn_export_csv.setText(t("btn_export_csv", "📄 导出 CSV"))
-        self.btn_export_csv.setToolTip("Export multi-scheme comparison matrix as UTF-8 CSV (.csv)" if is_en else "导出多方案比对表为标准 UTF-8 CSV 报表 (.csv)")
+        if hasattr(self, "btn_export_schemes"):
+            self.btn_export_schemes.setText(t("btn_export_schemes", "💾 导出方案"))
+            self.btn_export_schemes.setToolTip("Export all frozen comparison schemes as file (.ansvschemes)" if is_en else "将当前所有已固化方案导出为文件 (.ansvschemes)")
+        if hasattr(self, "btn_import_schemes"):
+            self.btn_import_schemes.setText(t("btn_import_schemes", "📂 导入方案"))
+            self.btn_import_schemes.setToolTip("Import and restore schemes from file (.ansvschemes)" if is_en else "从文件导入并还原多组对比方案 (.ansvschemes)")
         self.btn_clear.setText(t("btn_clear_schemes", "🗑 清空"))
         self.btn_clear.setToolTip("Clear all frozen scheme snapshots" if is_en else "清空所有已固化的方案快照")
         self.btn_popout.setToolTip("Detach scheme comparison matrix into a resizable floating window" if is_en else "将方案比对矩阵弹出为独立可缩放窗口，支持全屏最大化与宽屏多方案横向评审")
@@ -1159,6 +1205,36 @@ class ComparisonDrawer(QFrame):
     # -------------------------------------------------------------
     # 字段取值与差异量计算辅助方法
     # -------------------------------------------------------------
+    def _get_inner_dims(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
+        if inp.coil_type == CoilType.CIRCULAR:
+            val = f"⌀ {inp.inner_len:.2f}"
+            diff = ""
+            if base_i:
+                d = inp.inner_len - base_i.inner_len
+                if abs(d) >= 0.005:
+                    diff = f"{d:+.2f}"
+        elif inp.coil_type == CoilType.OCTAGONAL:
+            val = f"{inp.oct_id1:.2f} × {inp.oct_id2:.2f}"
+            diff = ""
+        else:
+            val = f"{inp.inner_len:.2f} × {inp.inner_wid:.2f}"
+            diff = ""
+            if base_i:
+                dl = inp.inner_len - base_i.inner_len
+                dw = inp.inner_wid - base_i.inner_wid
+                if abs(dl) >= 0.005 or abs(dw) >= 0.005:
+                    diff = f"ΔL{dl:+.2f} ΔW{dw:+.2f}"
+        return val, diff, False, False
+
+    def _get_wall_thickness(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
+        val = f"{out.e_env:.3f}"
+        diff = ""
+        if base_o:
+            d = out.e_env - base_o.e_env
+            if abs(d) >= 0.002:
+                diff = f"{d:+.3f}"
+        return val, diff, False, False
+
     def _get_topology_str(self, inp: CoilInputs, out: CoilOutputs, base_i: Optional[CoilInputs], base_o: Optional[CoilOutputs]):
         from src.core.i18n import i18n
         is_en = i18n.is_english()
@@ -1630,3 +1706,137 @@ class ComparisonDrawer(QFrame):
                 QMessageBox.critical(self, "CSV Export Failed", f"Failed to write CSV report:\n{str(e)}")
             else:
                 QMessageBox.critical(self, "导出 CSV 失败", f"无法写入 CSV 文件:\n{str(e)}")
+
+
+    def export_schemes_file(self):
+        """将当前抽屉中所有固化的对比方案导出为可导入还原的 .ansvschemes 文件"""
+        from src.core.i18n import i18n
+        import json
+        is_en = i18n.is_english()
+        if not self.snapshots:
+            msg = "No frozen schemes to export! Please click [📌 Freeze Current Scheme] first." if is_en else "当前暂无已固化方案可导出！请先点击【📌 固化当前方案】保存至少一组方案。"
+            QMessageBox.information(self, "Notice" if is_en else "提示", msg)
+            return
+
+        proj_name = self.get_project_name()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        def_name = f"{proj_name}_Coil_Schemes_{timestamp}.ansvschemes" if is_en else f"{proj_name}_线圈对比方案_{timestamp}.ansvschemes"
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Comparison Schemes" if is_en else "导出方案比对归档文件",
+            def_name,
+            "ANSV Coil Schemes (*.ansvschemes);;JSON Schemes (*.json)" if is_en else "ANSV 线圈方案归档 (*.ansvschemes);;JSON 方案文件 (*.json)"
+        )
+        if not path:
+            return
+
+        try:
+            from dataclasses import asdict
+            data = {
+                "file_type": "ANSV_COIL_SCHEMES_BUNDLE",
+                "version": "1.1.0",
+                "project_name": proj_name,
+                "exported_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "schemes_count": len(self.snapshots),
+                "snapshots": []
+            }
+            for s in self.snapshots:
+                inp_dict = asdict(s.inputs)
+                inp_dict["coil_type"] = int(s.inputs.coil_type)
+                inp_dict["winding_mode"] = int(s.inputs.winding_mode)
+                out_dict = asdict(s.outputs)
+                out_dict["dfm_status"] = int(s.outputs.dfm_status)
+                data["snapshots"].append({
+                    "name": s.name,
+                    "created_at": s.created_at,
+                    "is_baseline": s.is_baseline,
+                    "inputs": inp_dict,
+                    "outputs": out_dict
+                })
+
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            ok_msg = (f"✓ {len(self.snapshots)} comparison schemes exported to:\n{path}" if is_en else f"✓ 已成功导出 {len(self.snapshots)} 组比对方案至:\n{path}")
+            self.status_message.emit(ok_msg)
+            QMessageBox.information(self, "Export Successful" if is_en else "导出成功", ok_msg)
+        except Exception as e:
+            err_msg = f"Failed to export schemes: {e}" if is_en else f"导出方案文件失败: {e}"
+            QMessageBox.critical(self, "Error" if is_en else "错误", err_msg)
+
+    def import_schemes_file(self):
+        """导入 .ansvschemes 文件，将历史多组方案重新载入抽屉进行横向对比与验证还原"""
+        from src.core.i18n import i18n
+        import json
+        is_en = i18n.is_english()
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Comparison Schemes" if is_en else "导入方案比对归档文件",
+            "",
+            "ANSV Coil Schemes (*.ansvschemes *.json);;All Files (*.*)" if is_en else "ANSV 线圈方案归档 (*.ansvschemes *.json);;所有文件 (*.*)"
+        )
+        if not path:
+            return
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            raw_snaps = data.get("snapshots", [])
+            if not raw_snaps:
+                raise ValueError("未在文件中找到方案快照数据 (snapshots 为空)")
+
+            # 如果当前已有快照，询问是否追加或替换
+            if self.snapshots:
+                btn_replace = "Replace All" if is_en else "覆盖替换"
+                btn_append = "Append" if is_en else "追加合并"
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Icon.Question)
+                msg_box.setWindowTitle("Import Mode" if is_en else "导入方式确认")
+                msg_box.setText(
+                    (f"Current drawer has {len(self.snapshots)} frozen scheme(s).\nImporting file contains {len(raw_snaps)} scheme(s).\nChoose how to import:")
+                    if is_en else
+                    (f"当前比对抽屉已存在 {len(self.snapshots)} 组方案，导入文件包含 {len(raw_snaps)} 组方案。\n请选择导入方式：")
+                )
+                b_rep = msg_box.addButton(btn_replace, QMessageBox.ButtonRole.DestructiveRole)
+                b_app = msg_box.addButton(btn_append, QMessageBox.ButtonRole.ActionRole)
+                b_can = msg_box.addButton("Cancel" if is_en else "取消", QMessageBox.ButtonRole.RejectRole)
+                msg_box.exec()
+                if msg_box.clickedButton() == b_can:
+                    return
+                elif msg_box.clickedButton() == b_rep:
+                    self.snapshots.clear()
+
+            from src.core.physics_engine import CoilPhysicsEngine
+            from src.core.models import DFMCheckResult
+            for s_data in raw_snaps:
+                inp_dict = s_data.get("inputs", {})
+                if "coil_type" in inp_dict:
+                    inp_dict["coil_type"] = CoilType(inp_dict["coil_type"])
+                if "winding_mode" in inp_dict:
+                    inp_dict["winding_mode"] = WindingMode(inp_dict["winding_mode"])
+                inp_obj = CoilInputs(**inp_dict)
+                # 使用物理引擎重新解算确保真实有效
+                out_obj = CoilPhysicsEngine.calculate(inp_obj)
+                snap = SchemeSnapshot(
+                    name=s_data.get("name", f"方案 {len(self.snapshots)+1}"),
+                    created_at=s_data.get("created_at", datetime.now().strftime("%H:%M:%S")),
+                    inputs=inp_obj,
+                    outputs=out_obj,
+                    is_baseline=s_data.get("is_baseline", len(self.snapshots) == 0)
+                )
+                self.snapshots.append(snap)
+
+            # 确保至少有一个 baseline
+            has_base = any(s.is_baseline for s in self.snapshots)
+            if not has_base and self.snapshots:
+                self.snapshots[0].is_baseline = True
+
+            self._rebuild_table_columns()
+            ok_msg = (f"✓ Successfully loaded {len(raw_snaps)} comparison schemes from:\n{os.path.basename(path)}" if is_en else f"✓ 已成功载入 {len(raw_snaps)} 组对比方案至比对抽屉！\n随时可点击方案列底部的【↺ 还原】按钮一键装载验证。")
+            self.status_message.emit(ok_msg)
+            QMessageBox.information(self, "Import Successful" if is_en else "导入成功", ok_msg)
+        except Exception as e:
+            err_msg = f"Failed to import schemes: {e}" if is_en else f"导入方案文件失败: {e}"
+            QMessageBox.critical(self, "Error" if is_en else "错误", err_msg)
