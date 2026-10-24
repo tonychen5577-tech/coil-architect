@@ -980,10 +980,60 @@ async function handleAdmin(path, request, env, url) {
                 plan_type: planType,
                 plan_label: planLabel
             });
-} else if (action === "PUSH_TOKEN") {
+} else if (action === "GET_LATEST_LICENSE") {
+            const lic = await db.prepare("SELECT * FROM licenses WHERE machine_id = ? ORDER BY id DESC LIMIT 1").bind(mid).first();
+            if (!lic) {
+                return jsonResponse({ success: false, error: "未找到该工位机的历史授权记录" });
+            }
+            return jsonResponse({
+                success: true,
+                license: {
+                    id: lic.id,
+                    token: lic.token,
+                    machine_id: lic.machine_id,
+                    plan_type: lic.plan_type,
+                    expire_date: lic.expire_date,
+                    maint_expire: lic.maint_expire,
+                    customer_name: lic.customer_name,
+                    status: lic.status,
+                    created_at: lic.created_at
+                }
+            });
+        } else if (action === "PUSH_TOKEN") {
             const token = (val || "").trim();
-            await db.prepare("UPDATE devices SET remote_command = 'UPDATE_LICENSE', remote_command_payload = ?, license_status = 'ACTIVE' WHERE machine_id = ?").bind(token, mid).run();
-            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('PUSH_TOKEN', ?, '远程推送新授权激活码并通知更新', ?)").bind(mid, ip).run();
+            if (!token) return jsonResponse({ success: false, error: "Missing token" }, 400);
+
+            // 查找该 token 对应的完整凭证，同步恢复 devices 状态与有效期
+            const lic = await db.prepare("SELECT * FROM licenses WHERE token = ?").bind(token).first();
+            if (lic) {
+                await db.prepare(`
+                    UPDATE devices SET 
+                        customer_name = ?,
+                        line_station = ?,
+                        plan_type = ?,
+                        license_status = 'ACTIVE',
+                        license_expire = ?,
+                        maint_expire = ?,
+                        status = 'ACTIVE',
+                        remote_command = 'UPDATE_LICENSE',
+                        remote_command_payload = ?,
+                        notes = '管理员重新下发历史授权码'
+                    WHERE machine_id = ?
+                `).bind(lic.customer_name, lic.station_id || "WORKSTATION-01", lic.plan_type, lic.expire_date, lic.maint_expire || lic.expire_date, token, mid).run();
+
+                // 若之前被标记为吊销，重新下发时自动恢复为 ACTIVE
+                if (lic.status === "REVOKED") {
+                    await db.prepare("UPDATE licenses SET status = 'ACTIVE' WHERE token = ?").bind(token).run();
+                }
+            } else {
+                await db.prepare("UPDATE devices SET remote_command = 'UPDATE_LICENSE', remote_command_payload = ?, license_status = 'ACTIVE', status = 'ACTIVE' WHERE machine_id = ?").bind(token, mid).run();
+            }
+
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('PUSH_TOKEN', ?, ?, ?)").bind(mid, `重新下发已有授权码: ${token.substring(0, 24)}...`, ip).run();
+            return jsonResponse({ 
+                success: true, 
+                message: "授权码已成功加入待下发队列，工位机下次心跳时将自动激活！" 
+            });
         } else if (action === "REMOTE_COMMAND") {
             await db.prepare("UPDATE devices SET remote_command = ?, remote_command_payload = ? WHERE machine_id = ?").bind(val || "NONE", body.payload || "", mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REMOTE_COMMAND', ?, ?, ?)").bind(mid, `下发指令: ${val}`, ip).run();
@@ -1632,7 +1682,11 @@ function renderDashboardPage() {
   <div id="tab-licenses" class="card-main" style="display:none;">
     <div class="toolbar">
       <div><b>已签发加密授权码记录 (最近 100 条)</b></div>
-      <button class="btn-primary" onclick="openGenerateModal()">➕ 签发新授权</button>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="search-license" class="search-input" placeholder="🔍 搜索机器码 / 公司 / 经手人..." onkeyup="if(event.key==='Enter') loadLicenses()" />
+        <button class="btn-primary" onclick="loadLicenses()">查询</button>
+        <button class="btn-primary" onclick="openGenerateModal()">➕ 签发新授权</button>
+      </div>
     </div>
     <div style="overflow-x: auto;">
       <table>
@@ -1816,15 +1870,16 @@ async function loadDevices() {
         let actionBtns = '';
         if (dev.status === 'BANNED' || dev.license_status === 'REVOKED') {
           actionBtns = 
-            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;background:#059669;margin-right:4px;" onclick="deviceAction(\\'' + dev.machine_id + '\\', \\'ACTIVATE\\')">🔓 解锁恢复</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">重开授权</button>';
+            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;background:#059669;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="repushLatestLicense(this.dataset.mid)">⚡ 重放下发之前授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;margin-right:4px;" data-mid="' + dev.machine_id + '" data-act="ACTIVATE" onclick="deviceAction(this.dataset.mid, this.dataset.act)">🔓 解锁恢复</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" data-mid="' + dev.machine_id + '" data-cust="' + (dev.customer_name || '') + '" onclick="quickGenForMid(this.dataset.mid, this.dataset.cust)">重开新授权</button>';
         } else {
           actionBtns = 
-
-            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;background:#2563EB;margin-right:4px;" onclick="autoAuthorizeDevice(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">⚡ 一键下发授权</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;margin-right:4px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">开通/续约</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" onclick="revokeDevice(\\'' + dev.machine_id + '\\')">🚫 取消授权</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="showRemoteMenu(\\'' + dev.machine_id + '\\')">⚙️ 更多</button>';
+            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;background:#2563EB;margin-right:4px;" data-mid="' + dev.machine_id + '" data-cust="' + (dev.customer_name || '') + '" onclick="autoAuthorizeDevice(this.dataset.mid, this.dataset.cust)">⚡ 一键下发新授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;background:#F0FDF4;color:#059669;border-color:#A7F3D0;font-weight:600;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="repushLatestLicense(this.dataset.mid)">🔄 重发已有授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;margin-right:4px;" data-mid="' + dev.machine_id + '" data-cust="' + (dev.customer_name || '') + '" onclick="quickGenForMid(this.dataset.mid, this.dataset.cust)">开通/续约</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="revokeDevice(this.dataset.mid)">🚫 取消授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" data-mid="' + dev.machine_id + '" onclick="showRemoteMenu(this.dataset.mid)">⚙️ 更多</button>';
         }
 
         return '<tr>' +
@@ -1895,52 +1950,148 @@ async function revokeDevice(mid) {
 }
 
 async function showRemoteMenu(mid) {
-  const promptMsg = [
+  const promptLines = [
     '请选择对工位机 [' + mid + '] 执行的远程指令：',
     '',
     '1: 延长 30 天使用期',
     '2: 延长 1 年使用期',
     '3: 设为永久企业买断版',
-    '4: 彻底拉黑封禁 (BAN)',
+    '4: 🔄 重新下发该设备最近一次签发授权码',
+    '5: 📋 手动粘贴指定授权码推送到该工位机',
+    '6: 🚨 强制拉黑封禁 (BAN)',
     '',
-    '请输入序号 (1-4):'
-  ].join(String.fromCharCode(10));
-  const act = prompt(promptMsg, '1');
+    '请输入序号 (1-6):'
+  ];
+  const act = prompt(promptLines.join(String.fromCharCode(10)), '4');
   if (!act) return;
   if (act === '1') await deviceAction(mid, 'EXTEND_DAYS', 30);
   else if (act === '2') await deviceAction(mid, 'EXTEND_DAYS', 365);
   else if (act === '3') await deviceAction(mid, 'SET_PERMANENT');
-  else if (act === '4') {
+  else if (act === '4') await repushLatestLicense(mid);
+  else if (act === '5') {
+    const customTok = prompt('请输入要下发给工位机 [' + mid + '] 的完整 COIL-SEC 授权码：');
+    if (customTok && customTok.trim()) {
+      await repushLicenseToDevice(mid, customTok.trim(), '', '');
+    }
+  }
+  else if (act === '6') {
     if (confirm('确定要拉黑该机器码吗？')) await deviceAction(mid, 'BAN');
+  }
+}
+
+async function repushLatestLicense(mid) {
+  try {
+    const res = await fetch('/admin/api/device/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        machine_id: mid,
+        action: 'GET_LATEST_LICENSE'
+      })
+    });
+    const d = await res.json();
+    if (!d.success || !d.license) {
+      alert(['⚠️ 未找到工位机 [' + mid + '] 在系统数据库中的历史签发记录。', '', '请点击【⚡ 一键下发新授权】为其生成新授权。'].join(String.fromCharCode(10)));
+      return;
+    }
+    const lic = d.license;
+    const confirmLines = [
+      '📋 找到工位机 [' + mid + '] 最近一次签发的有效授权：',
+      '• 客户名称: ' + lic.customer_name,
+      '• 方案类型: ' + lic.plan_type,
+      '• 到期时间: ' + lic.expire_date,
+      '• 当前状态: ' + (lic.status === 'ACTIVE' ? '正常有效' : '已吊销 (重新下发将自动恢复有效)'),
+      '• 激活码指纹: ' + lic.token.substring(0, 24) + '...',
+      '',
+      '确定将此历史授权码重新下发至工位机吗？',
+      '(工位机将在 15 秒内心跳自动接收并弹出商业授权凭证卡片)'
+    ];
+
+    if (!confirm(confirmLines.join(String.fromCharCode(10)))) return;
+
+    await repushLicenseToDevice(mid, lic.token, lic.customer_name, lic.expire_date);
+  } catch(e) {
+    alert('查询历史授权失败: ' + e.message);
+  }
+}
+
+async function repushLicenseToDevice(mid, token, customer, expireDate) {
+  try {
+    const res = await fetch('/admin/api/device/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        machine_id: mid,
+        action: 'PUSH_TOKEN',
+        value: token
+      })
+    });
+    const d = await res.json();
+    if (d.success) {
+      const okLines = [
+        '🎉 历史授权码已成功重新下发！',
+        '',
+        '• 目标工位机: ' + mid,
+        '• 授权客户: ' + (customer || '-'),
+        '• 有效期至: ' + (expireDate || '-'),
+        '',
+        '工位机将在下一次心跳握手（未激活时仅 15 秒）或操作员点击【在线激活】时自动激活并弹出成功凭证卡片！'
+      ];
+      alert(okLines.join(String.fromCharCode(10)));
+      loadDevices();
+      loadLicenses();
+      loadStats();
+    } else {
+      alert('下发失败: ' + (d.error || '未知错误'));
+    }
+  } catch(e) {
+    alert('网络异常: ' + e.message);
   }
 }
 
 async function loadLicenses() {
   const tbody = document.getElementById('license-table-body');
+  const searchInput = document.getElementById('search-license');
+  const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
   try {
     const res = await fetch('/admin/api/licenses');
     const d = await res.json();
     if(d.success && d.licenses.length > 0) {
-      tbody.innerHTML = d.licenses.map(lic => {
+      let list = d.licenses;
+      if (q) {
+        list = list.filter(lic => 
+          (lic.machine_id && lic.machine_id.toLowerCase().includes(q)) ||
+          (lic.customer_name && lic.customer_name.toLowerCase().includes(q)) ||
+          (lic.operator_name && lic.operator_name.toLowerCase().includes(q)) ||
+          (lic.token && lic.token.toLowerCase().includes(q))
+        );
+      }
+      tbody.innerHTML = list.map(lic => {
         let licAction = '';
         if (lic.status === 'REVOKED') {
-          licAction = '<span style="color:#EF4444;font-size:11px;font-weight:bold;">已吊销失效</span>';
+          licAction = 
+            '<span style="color:#EF4444;font-size:11px;font-weight:bold;margin-right:6px;">已吊销</span>' +
+            '<button class="btn-primary" style="padding:2px 7px;font-size:10px;background:#059669;" data-mid="' + lic.machine_id + '" data-tok="' + lic.token + '" data-cust="' + (lic.customer_name || '') + '" data-exp="' + lic.expire_date + '" onclick="repushLicenseToDevice(this.dataset.mid, this.dataset.tok, this.dataset.cust, this.dataset.exp)">⚡ 重新下发此码</button>';
         } else {
-          licAction = '<button class="btn-secondary" style="padding:2px 7px;font-size:10px;color:#EF4444;border-color:#FCA5A5;" onclick="revokeLicenseToken(\\'' + lic.token + '\\')">吊销此码</button>';
+          licAction = 
+            '<button class="btn-primary" style="padding:2px 7px;font-size:10px;background:#2563EB;margin-right:4px;" data-mid="' + lic.machine_id + '" data-tok="' + lic.token + '" data-cust="' + (lic.customer_name || '') + '" data-exp="' + lic.expire_date + '" onclick="repushLicenseToDevice(this.dataset.mid, this.dataset.tok, this.dataset.cust, this.dataset.exp)">⚡ 重新下发此码</button>' +
+            '<button class="btn-secondary" style="padding:2px 7px;font-size:10px;color:#EF4444;border-color:#FCA5A5;" data-tok="' + lic.token + '" onclick="revokeLicenseToken(this.dataset.tok)">吊销</button>';
         }
 
         return '<tr>' +
           '<td>' + lic.id + '</td>' +
-          '<td><span class="mono">' + lic.machine_id + '</span></td>' +
+          '<td><span class="mono click-copy" data-copy="' + lic.machine_id + '" onclick="copyText(this.dataset.copy)">' + lic.machine_id + '</span></td>' +
           '<td><span class="badge badge-info">' + lic.plan_type + '</span></td>' +
           '<td><b>' + lic.expire_date + '</b><br><span style="font-size:10px;color:#64748B;">维护升级至: ' + (lic.maint_expire || lic.expire_date) + '</span></td>' +
-          '<td>' + lic.customer_name + '</td>' +
+          '<td><b>' + (lic.customer_name || '-') + '</b></td>' +
           '<td>' + (lic.operator_name || 'ADMIN') + '</td>' +
           '<td>' + lic.created_at + '</td>' +
-          '<td><span class="mono click-copy" style="font-size:10px;" onclick="copyText(\\'' + lic.token + '\\')">' + lic.token.substring(0, 32) + '...</span></td>' +
+          '<td><span class="mono click-copy" style="font-size:10px;" data-copy="' + lic.token + '" onclick="copyText(this.dataset.copy)">' + lic.token.substring(0, 32) + '...</span></td>' +
           '<td>' + licAction + '</td>' +
         '</tr>';
       }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 30px; color:#94A3B8;">暂无符合条件的授权签发记录</td></tr>';
     }
   } catch(e){}
 }
