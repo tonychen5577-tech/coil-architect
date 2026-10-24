@@ -1440,11 +1440,11 @@ class ComparisonDrawer(QFrame):
     def get_project_name(self) -> str:
         """获取所属主窗口的工程项目名称 (默认 Coli-Architect)"""
         win = self.window()
-        if win and hasattr(win, "get_project_name"):
+        if win and win is not self and hasattr(win, "get_project_name"):
             return win.get_project_name()
         parent = self.parent()
         while parent:
-            if hasattr(parent, "get_project_name"):
+            if parent is not self and hasattr(parent, "get_project_name"):
                 return parent.get_project_name()
             parent = parent.parent()
         return "Coli-Architect"
@@ -1746,7 +1746,6 @@ class ComparisonDrawer(QFrame):
                 inp_dict["coil_type"] = int(s.inputs.coil_type)
                 inp_dict["winding_mode"] = int(s.inputs.winding_mode)
                 out_dict = asdict(s.outputs)
-                out_dict["dfm_status"] = int(s.outputs.dfm_status)
                 data["snapshots"].append({
                     "name": s.name,
                     "created_at": s.created_at,
