@@ -5,6 +5,14 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B4：
+                             1) 优化英文模式下主界面「导出仿真报告」按钮文字：精简优化为「📊 Export Report」，宽度完美自适应；
+                             2) 在「关于系统」弹窗中新增专属「🐛 BUG反馈与技术支持渠道」卡片，完整罗列官方公众号 (ANSV微型执行器)、工程师微信 (ansv-net)、WhatsApp (ansv_net) 以及支持邮箱 (support@ansv.net)；
+                             3) 升级左侧渠道切换卡片，增加「✉️ Email」邮件直发与一键复制功能。
+- 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B3：
+                             1) 全局彻底去中文化导出文件命名：工程算例 (.ansvcoil)、方案归档 (.ansvschemes)、仿真报告 (.xlsx)、对比矩阵 (.xlsx / .csv) 严格采用 100% 纯 ASCII 规范化命名，彻底杜绝跨平台乱码；
+                             2) 修复英文模式下导入案例文件崩溃问题：新增智能拓扑/绕线枚举安全解析与多编码容错（utf-8-sig / utf-8 / gbk），全面支持单算例与多方案集双向自适应识别；
+                             3) 规范桌面快捷方式名称为统一标杆格式：「ANSV - Coil-Architect Pro」；
 - 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B2：
                              1) 修复方案比对抽屉点击「⏪ 还原」时抛出 NameError: name 'i18n' is not defined 致命异常；
                              2) 为 .ansvschemes 方案对比集量身定制专属工程文件图标（多线圈对比拓扑 + 翡翠绿 SCHEMES 徽标）；
@@ -91,9 +99,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261024B3"
+APP_BUILD = "20261024B4"
 APP_DATE = "2026-10-24"
-BUILD_TIME = "2026-10-24 10:30:00 CST"
+BUILD_TIME = "2026-10-24 11:00:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"

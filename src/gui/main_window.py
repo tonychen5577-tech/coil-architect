@@ -304,6 +304,7 @@ class MainWindow(QMainWindow):
             self.btn_save.setText(t("btn_save_project", "💾 导出文件"))
         if hasattr(self, "btn_export"):
             self.btn_export.setText(t("btn_export_report", "📊 导出仿真报告"))
+            self.btn_export.setFixedWidth(108 if i18n.is_english() else 116)
         if hasattr(self, "btn_about"):
             self.btn_about.setText(t("btn_about_system", "ℹ️ 关于系统"))
         self._refresh_license_status()

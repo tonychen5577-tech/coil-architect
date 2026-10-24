@@ -195,11 +195,12 @@ class AboutDialog(QDialog):
         tab_h = QHBoxLayout()
         tab_h.setSpacing(4)
 
-        btn_tab_official = QPushButton("📢 Official Account" if is_en else "📢 官方公众号")
-        btn_tab_wechat = QPushButton("💬 WeChat Support" if is_en else "💬 微信技术咨询")
+        btn_tab_official = QPushButton("📢 Official" if is_en else "📢 官方公众号")
+        btn_tab_wechat = QPushButton("💬 WeChat" if is_en else "💬 工程师微信")
         btn_tab_whatsapp = QPushButton("🌐 WhatsApp")
+        btn_tab_email = QPushButton("✉️ Email" if is_en else "✉️ 邮箱支持")
 
-        for b in [btn_tab_official, btn_tab_wechat, btn_tab_whatsapp]:
+        for b in [btn_tab_official, btn_tab_wechat, btn_tab_whatsapp, btn_tab_email]:
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet("""
                 QPushButton {
@@ -220,6 +221,7 @@ class AboutDialog(QDialog):
         tab_h.addWidget(btn_tab_official)
         tab_h.addWidget(btn_tab_wechat)
         tab_h.addWidget(btn_tab_whatsapp)
+        tab_h.addWidget(btn_tab_email)
         left_layout.addLayout(tab_h)
 
         # 头部卡片标题与动态复制按钮
@@ -342,6 +344,23 @@ class AboutDialog(QDialog):
                 "qr_paths": [
                     res_dir / "whatsapp_qr.png"
                 ]
+            },
+            "email": {
+                "title": "✉️ Technical Support & Bug Feedback" if is_en else "✉️ 官方技术支持与BUG反馈邮箱",
+                "title_color": "#0284C7",
+                "name_html": (
+                    f"Email: <b style='color:#0284C7;'>{OFFICIAL_EMAIL}</b>"
+                    if is_en else
+                    f"官方邮箱: <b style='color:#0284C7;'>{OFFICIAL_EMAIL}</b>"
+                ),
+                "copy_text": OFFICIAL_EMAIL,
+                "btn_text": "📋 Copy Email" if is_en else "📋 复制邮箱",
+                "tip": "Send error logs, sample files & bug reports directly to R&D team" if is_en else "直发缺陷报告、运行日志与算例附件至研发技术支持团队",
+                "val_title": "Bug feedback, corporate licensing & customization support:" if is_en else "BUG反馈通道、商业批量授权与专属功能定制：",
+                "qr_paths": [
+                    res_dir / "app_icon.png",
+                    res_dir / "official-account-qr.jpg"
+                ]
             }
         }
 
@@ -371,7 +390,7 @@ class AboutDialog(QDialog):
                 lbl_qr_img.setText("Loading QR..." if is_en else "二维码加载中")
 
             # 激活状态高亮
-            for b, k in [(btn_tab_official, "official"), (btn_tab_wechat, "wechat"), (btn_tab_whatsapp, "whatsapp")]:
+            for b, k in [(btn_tab_official, "official"), (btn_tab_wechat, "wechat"), (btn_tab_whatsapp, "whatsapp"), (btn_tab_email, "email")]:
                 if k == key:
                     b.setStyleSheet("""
                         background-color: #0284C7;
@@ -396,6 +415,7 @@ class AboutDialog(QDialog):
         btn_tab_official.clicked.connect(lambda: switch_channel("official"))
         btn_tab_wechat.clicked.connect(lambda: switch_channel("wechat"))
         btn_tab_whatsapp.clicked.connect(lambda: switch_channel("whatsapp"))
+        btn_tab_email.clicked.connect(lambda: switch_channel("email"))
         btn_copy_wc.clicked.connect(lambda: self._copy_to_clipboard(self._current_channel_copy, btn_copy_wc, "Copied" if is_en else "已复制"))
 
         # 默认初始化：英文环境下优先展示 WhatsApp 国际通道，中文环境下展示官方公众号
@@ -696,6 +716,72 @@ class AboutDialog(QDialog):
             fc_box.addLayout(f_row)
 
         right_layout.addWidget(feat_card)
+
+        # 10. BUG反馈与技术支持渠道 (用户专属文字说明与多渠道通道)
+        bug_card = QFrame()
+        bug_card.setObjectName("bugCard")
+        bug_card.setStyleSheet("""
+            QFrame#bugCard {
+                background-color: #F0F9FF;
+                border: 1px solid #BAE6FD;
+                border-radius: 5px;
+                padding: 4px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        bc_box = QVBoxLayout(bug_card)
+        bc_box.setContentsMargins(6, 4, 6, 4)
+        bc_box.setSpacing(3)
+
+        lbl_bc_t = QLabel(
+            "🐛 Bug Feedback & Technical Support Channels"
+            if is_en else
+            "🐛 BUG反馈与技术支持渠道"
+        )
+        lbl_bc_t.setStyleSheet("font-size: 10px; font-weight: 700; color: #0284C7;")
+        bc_box.addWidget(lbl_bc_t)
+
+        lbl_bc_desc = QLabel(
+            "Encountered issues or have suggestions? Contact our R&D team directly via:"
+            if is_en else
+            "如遇计算偏差、运行报错或改进建议，欢迎随时通过以下渠道向研发团队反馈："
+        )
+        lbl_bc_desc.setStyleSheet("font-size: 8.5px; color: #475569;")
+        bc_box.addWidget(lbl_bc_desc)
+
+        # 4大渠道表格展示
+        ch_grid = QHBoxLayout()
+        ch_grid.setSpacing(8)
+
+        # 左列: 公众号 & 微信
+        col1_v = QVBoxLayout()
+        col1_v.setSpacing(2)
+        lbl_c1 = QLabel(f"📢 <b>公众号:</b> {WECHAT_OFFICIAL_ACCOUNT}" if not is_en else f"📢 <b>WeChat Official:</b> {WECHAT_OFFICIAL_ACCOUNT}")
+        lbl_c1.setStyleSheet("font-size: 9px; color: #1E293B;")
+        lbl_c2 = QLabel(f"💬 <b>工程师微信:</b> {WECHAT_CONTACT_ID}" if not is_en else f"💬 <b>WeChat ID:</b> {WECHAT_CONTACT_ID}")
+        lbl_c2.setStyleSheet("font-size: 9px; color: #1E293B;")
+        col1_v.addWidget(lbl_c1)
+        col1_v.addWidget(lbl_c2)
+
+        # 右列: WhatsApp & 邮箱
+        col2_v = QVBoxLayout()
+        col2_v.setSpacing(2)
+        lbl_c3 = QLabel(f"🌐 <b>WhatsApp:</b> {WHATSAPP_CONTACT_ID}")
+        lbl_c3.setStyleSheet("font-size: 9px; color: #1E293B;")
+        lbl_c4 = QLabel(f"✉️ <b>支持邮箱:</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7; text-decoration:none;'>{OFFICIAL_EMAIL}</a>" if not is_en else f"✉️ <b>Email:</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7; text-decoration:none;'>{OFFICIAL_EMAIL}</a>")
+        lbl_c4.setStyleSheet("font-size: 9px; color: #1E293B;")
+        lbl_c4.setOpenExternalLinks(True)
+        col2_v.addWidget(lbl_c3)
+        col2_v.addWidget(lbl_c4)
+
+        ch_grid.addLayout(col1_v)
+        ch_grid.addLayout(col2_v)
+        bc_box.addLayout(ch_grid)
+
+        right_layout.addWidget(bug_card)
         right_layout.addStretch()
 
         body_layout.addWidget(right_box, 52)

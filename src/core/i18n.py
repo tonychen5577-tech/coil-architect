@@ -80,7 +80,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
     "btn_export_report": {
         "zh": "📊 导出仿真报告",
-        "en": "📊 Export Simulation Report"
+        "en": "📊 Export Report"
     },
     "btn_license_trial": {
         "zh": "🛡️ 试用期剩 {days} 天",
