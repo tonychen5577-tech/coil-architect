@@ -889,21 +889,59 @@ class MainWindow(QMainWindow):
             from src.core.cloud_client import CloudClient
             CloudClient.stop_background_sync()
 
+            from src.version import OFFICIAL_EMAIL, WECHAT_CONTACT_ID, WECHAT_OFFICIAL_ACCOUNT, OFFICIAL_URL
+            from src.core.license_manager import get_machine_code
+            mid = get_machine_code()
+
             msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Commercial License Revoked" if is_en else "商业授权终止通知")
+            msg_box.setWindowTitle("Commercial License Revoked" if is_en else "商业授权取消 / 终止通知")
             msg_box.setIcon(QMessageBox.Icon.Critical)
-            msg_box.setText(
-                "[Your workstation commercial license has been revoked by the administrator]\n\n"
-                "The application has been safely locked and local credentials have been cleared.\n"
-                "Please contact ANSV official support to reissue a valid license."
-                if is_en else
-                "【当前工位机商业授权已被管理员在云端控制台吊销 / 终止】\n\n"
-                "软件已安全锁定并清除本地授权凭证。\n"
-                "如需恢复或重新开通授权，请联系 ANSV 官方管理员重新签发。"
-            )
-            btn_exit = msg_box.addButton("Exit" if is_en else "关闭退出", QMessageBox.ButtonRole.AcceptRole)
+
+            if is_en:
+                msg_text = (
+                    "<b>[Your Workstation Commercial License Has Been Cancelled / Revoked]</b><br><br>"
+                    "The application has been safely locked and local license credentials cleared.<br>"
+                    "To restore authorization, reissue a license, or for technical support, please contact ANSV Official Team:<br><br>"
+                    f"• <b>Email (支持邮箱):</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7;'>{OFFICIAL_EMAIL}</a><br>"
+                    f"• <b>WeChat (工程师微信):</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
+                    f"• <b>WeChat Official (微信公众号):</b> {WECHAT_OFFICIAL_ACCOUNT}<br>"
+                    f"• <b>Official Portal (官方门户):</b> <a href='{OFFICIAL_URL}' style='color:#0284C7;'>{OFFICIAL_URL}</a><br>"
+                    f"• <b>Hardware Machine ID (本机机器码):</b> <code style='color:#475569;'>{mid}</code>"
+                )
+            else:
+                msg_text = (
+                    "<b>【当前工位机商业授权已被管理员在云端控制台取消 / 终止】</b><br><br>"
+                    "软件已安全锁定并清除本地授权凭证。<br>"
+                    "如需恢复激活、重新开通或咨询技术支持，请通过以下方式联系 ANSV 官方团队：<br><br>"
+                    f"• <b>支持邮箱 (Email):</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7;'>{OFFICIAL_EMAIL}</a><br>"
+                    f"• <b>工程师微信 (WeChat):</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
+                    f"• <b>官方微信公众号:</b> {WECHAT_OFFICIAL_ACCOUNT}<br>"
+                    f"• <b>官方服务门户:</b> <a href='{OFFICIAL_URL}' style='color:#0284C7;'>{OFFICIAL_URL}</a><br>"
+                    f"• <b>本机机器识别码:</b> <code style='color:#475569;'>{mid}</code>"
+                )
+
+            msg_box.setText(msg_text)
+            btn_copy = msg_box.addButton("📋 Copy Contact Info" if is_en else "📋 复制联系方式", QMessageBox.ButtonRole.ActionRole)
+            btn_exit = msg_box.addButton("Exit Application" if is_en else "关闭退出", QMessageBox.ButtonRole.AcceptRole)
             msg_box.setDefaultButton(btn_exit)
-            msg_box.exec()
+
+            while True:
+                msg_box.exec()
+                if msg_box.clickedButton() == btn_copy:
+                    from PyQt6.QtWidgets import QApplication
+                    clipboard = QApplication.clipboard()
+                    contact_copy = (
+                        f"【ANSV Coil-Architect Pro 商业授权咨询与恢复】\n"
+                        f"机器码 (Machine ID): {mid}\n"
+                        f"支持邮箱 (Email): {OFFICIAL_EMAIL}\n"
+                        f"工程师微信 (WeChat): {WECHAT_CONTACT_ID}\n"
+                        f"官方公众号 (WeChat Official): {WECHAT_OFFICIAL_ACCOUNT}\n"
+                        f"官方门户: {OFFICIAL_URL}"
+                    )
+                    clipboard.setText(contact_copy)
+                    btn_copy.setText("✅ Copied!" if is_en else "✅ 已复制联系方式")
+                    continue
+                break
 
             self.close()
             from PyQt6.QtWidgets import QApplication
@@ -913,6 +951,7 @@ class MainWindow(QMainWindow):
 
         elif cmd_upper == "UPDATE_LICENSE":
             logger.info("MainWindow 捕获云端远程授权下发指令: UPDATE_LICENSE，刷新状态与界面...")
+            self._remote_locked_flag = False
             # 1. 若当前正打开激活向导弹窗，自动关闭它
             if hasattr(self, "_current_activation_dialog") and self._current_activation_dialog:
                 try:
