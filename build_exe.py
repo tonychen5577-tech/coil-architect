@@ -413,6 +413,16 @@ def main():
     print(f"全量绿色发布包: {zip_file}")
     print(f"增量补丁发布包: {patch_file}")
 
+    # 5. 云端 OTA 边缘发版元数据自动化同步
+    print("\n" + "=" * 68)
+    print("  [5/5] 云端 OTA 边缘节点发版元数据同步 (Cloudflare D1)")
+    print("=" * 68)
+    try:
+        from tools.publish_release_to_cloud import publish_release
+        publish_release()
+    except Exception as e:
+        print(f"  ⚠️  [OTA-Warn] 云端发版元数据自动同步跳过: {e}")
+
 
 if __name__ == "__main__":
     main()
