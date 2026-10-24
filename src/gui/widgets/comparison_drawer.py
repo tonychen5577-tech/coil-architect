@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ...core.models import CoilInputs, CoilOutputs, CoilType, WindingMode
+from ...core.i18n import i18n, t
 
 
 @dataclass
@@ -1116,6 +1117,7 @@ class ComparisonDrawer(QFrame):
 
     def _on_restore_clicked(self, snap: SchemeSnapshot):
         """响应还原方案点击（未激活时拦截弹窗）"""
+        from src.core.i18n import i18n
         if not self._check_auth("Restore Scheme Parameters" if i18n.is_english() else "还原历史方案参数"):
             return
         self.restore_requested.emit(snap)

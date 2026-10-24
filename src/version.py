@@ -5,6 +5,10 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B2：
+                             1) 修复方案比对抽屉点击「⏪ 还原」时抛出 NameError: name 'i18n' is not defined 致命异常；
+                             2) 为 .ansvschemes 方案对比集量身定制专属工程文件图标（多线圈对比拓扑 + 翡翠绿 SCHEMES 徽标）；
+                             3) 升级 Windows 文件关联引擎，支持 .ansvcoil (单算例) 与 .ansvschemes (多方案集) 双扩展名注册与双击一键唤起自动还原。
 - 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B1：
                              1) 彻底统一商业授权悬停与点击的到期日判定逻辑，避免永久有效与实际到期日显示冲突；
                              2) 规范化主界面动作矩阵命名：重命名为「📂 导入文件」、「💾 导出文件」与「📊 导出仿真报告」；
@@ -87,7 +91,7 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261024B1"
+APP_BUILD = "20261024B2"
 APP_DATE = "2026-10-23"
 BUILD_TIME = "2026-10-24 09:00:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"

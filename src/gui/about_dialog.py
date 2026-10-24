@@ -753,13 +753,13 @@ class AboutDialog(QDialog):
         btn_shortcut.clicked.connect(self._on_create_shortcut_clicked)
         row1_layout.addWidget(btn_shortcut)
 
-        # 辅助按钮 2: 🔗 关联 .ansvcoil 算例
-        btn_assoc = QPushButton("🔗 Associate .ansvcoil" if is_en else "🔗 关联 .ansvcoil 算例")
+        # 辅助按钮 2: 🔗 关联工程与方案格式
+        btn_assoc = QPushButton("🔗 Associate File Types" if is_en else "🔗 关联工程与方案格式")
         btn_assoc.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_assoc.setToolTip(
-            "Register .ansvcoil project extension in Windows so double-clicking opens Coil-Architect Pro"
+            "Register .ansvcoil & .ansvschemes extensions with distinctive icons in Windows"
             if is_en else
-            "在 Windows 系统中注册 .ansvcoil 专属算例格式与科技感图标，支持双击算例直接唤起工作站"
+            "在 Windows 系统中注册 .ansvcoil (单算例) 与 .ansvschemes (多方案对比集) 专属科技图标并支持双击直达"
         )
         btn_assoc.setStyleSheet("""
             QPushButton {
@@ -993,19 +993,21 @@ class AboutDialog(QDialog):
                 QMessageBox.information(
                     self,
                     "File Association Registered",
-                    "🎉 Successfully registered the .ansvcoil project file type in Windows!\n\n"
-                    "• Custom Icon: Bound to the high-DPI vector coil icon\n"
-                    "• One-Click Launch: Double-click any .ansvcoil file to open it directly\n"
-                    "• Backward Compatible: Legacy .ansv files remain supported",
+                    "🎉 Successfully registered .ansvcoil & .ansvschemes file types in Windows!\n\n"
+                    "• .ansvcoil: Single coil project case (Blue COIL badge icon)\n"
+                    "• .ansvschemes: Multi-scheme comparison matrix (Emerald SCHEMES multi-coil icon)\n"
+                    "• One-Click Launch: Double-click any file to open Coil-Architect Pro directly\n"
+                    "• Backward Compatible: Legacy .ansv cases remain supported",
                     QMessageBox.StandardButton.Ok
                 )
             else:
                 QMessageBox.information(
                     self,
                     "文件关联注册成功",
-                    "🎉 已在 Windows 系统中成功注册 .ansvcoil 专属算例文件类型！\n\n"
-                    "• 专属图标: 已绑定高科技矢量线圈图标\n"
-                    "• 便捷启动: 任何地方双击 .ansvcoil 文件均可秒级调用本系统打开\n"
+                    "🎉 已在 Windows 系统中成功注册 .ansvcoil 与 .ansvschemes 专属工程格式！\n\n"
+                    "• .ansvcoil: 单线圈工程算例 (蓝色 COIL 图标)\n"
+                    "• .ansvschemes: 多方案对比集 (翡翠绿 SCHEMES 多线圈对比图标)\n"
+                    "• 便捷启动: 任何地方双击文件均可秒级调用本系统并自动还原\n"
                     "• 兼容支持: 历史 .ansv 算例依然可随时导入",
                     QMessageBox.StandardButton.Ok
                 )

@@ -128,12 +128,17 @@ def main():
         )
         window = MainWindow()
 
-        # 检查命令行入参，支持 Windows 双击 .ansvcoil 算例直接唤起并自动载入
+        # 检查命令行入参，支持 Windows 双击 .ansvcoil 或 .ansvschemes 算例直接唤起并自动载入
         if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
             target_file = sys.argv[1]
             if target_file.lower().endswith((".ansvcoil", ".ansv", ".json")):
                 logger.info(f"检测到外部文件打开请求，自动载入算例: {target_file}")
                 window.load_project_file(target_file)
+            elif target_file.lower().endswith(".ansvschemes"):
+                logger.info(f"检测到外部方案对比集打开请求，自动载入方案库: {target_file}")
+                window.drawer.import_schemes_file(target_file)
+                if not window.drawer.is_expanded:
+                    window.drawer.toggle_drawer()
 
         # 12. Win32 原生图标强注入 (规范 04.三: 直接注入 HWND)
         apply_window_icon_to_hwnd(window)
@@ -173,9 +178,44 @@ def main():
             except Exception:
                 pass
 
-            # 2. 弹出高对比度覆盖确认弹窗
             filename = os.path.basename(filepath)
             en_mode = i18n.is_english()
+
+            # 如果是 .ansvschemes 多方案对比集文件
+            if filepath.lower().endswith(".ansvschemes"):
+                reply = QMessageBox.question(
+                    window,
+                    "Confirm External Schemes Import" if en_mode else "导入外部多方案对比集确认",
+                    (
+                        f"External request to open coil comparison schemes detected:\n\n"
+                        f"📄 File: {filename}\n"
+                        f"📁 Path: {filepath}\n\n"
+                        f"Import these comparison schemes into the current schemes drawer?"
+                    ) if en_mode else (
+                        f"检测到外部请求打开多方案对比集文件：\n\n"
+                        f"📄 方案文件: {filename}\n"
+                        f"📁 方案路径: {filepath}\n\n"
+                        f"是否确认将此对比方案集导入到底部方案抽屉中？"
+                    ),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    window.drawer.import_schemes_file(filepath)
+                    if not window.drawer.is_expanded:
+                        window.drawer.toggle_drawer()
+                    window.status_bar.showMessage(
+                        f"External schemes imported: {filename}" if en_mode else f"已成功导入外部方案对比集: {filename}",
+                        5000
+                    )
+                else:
+                    window.status_bar.showMessage(
+                        "External schemes import canceled." if en_mode else "已取消导入外部方案对比集。",
+                        3500
+                    )
+                return
+
+            # 如果是 .ansvcoil 单算例文件
             reply = QMessageBox.question(
                 window,
                 "Confirm External Case Import" if en_mode else "导入外部线圈算例确认",
