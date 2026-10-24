@@ -346,11 +346,23 @@ class OtaUpdater(QObject):
         dl_rel_url = version_info.get("download_url") or ""
         gh_url = version_info.get("github_download_url") or ""
 
-        # 智能双轨优先决策：工位机已处于安装运行态，优先拉取 ~8.7 MB 累积热补丁包
+        # 智能双轨优先决策：工位机已处于安装运行态，优先拉取 ~29 MB 累积热补丁包
+        clean_ver_str = str(latest_ver or "").strip()
+        if clean_ver_str.isdigit() and len(clean_ver_str) == 4:
+            clean_tag = clean_ver_str
+        elif clean_ver_str.startswith("v") or clean_ver_str.startswith("V"):
+            clean_tag = clean_ver_str
+        else:
+            clean_tag = f"v{clean_ver_str}"
+
         patch_url = version_info.get("patch_download_url") or version_info.get("patch_url") or ""
-        clean_tag = latest_ver if str(latest_ver).startswith("v") else f"v{latest_ver}"
-        if not patch_url or "ansv.net/download" in patch_url:
-            patch_url = f"https://github.com/tonychen5577-tech/coil-architect/releases/download/{clean_tag}/ANSV_Coil_Architect_Pro_{clean_tag}_Incremental_Patch.zip"
+        # 若调用方显式清空了 patch_url (如用户选择下载全量安装包)，则绝不重组增量补丁
+        explicitly_disabled_patch = bool(version_info.get("patch_url") == "" and version_info.get("patch_download_url") == "")
+        if not explicitly_disabled_patch:
+            if not patch_url or "ansv.net/download" in patch_url:
+                patch_url = f"https://github.com/tonychen5577-tech/coil-architect/releases/download/{clean_tag}/ANSV_Coil_Architect_Pro_{clean_tag}_Incremental_Patch.zip"
+        else:
+            patch_url = ""
 
         if not dl_rel_url or "ansv.net/download" in dl_rel_url:
             dl_rel_url = f"https://github.com/tonychen5577-tech/coil-architect/releases/download/{clean_tag}/ANSV_Coil_Architect_Pro_{clean_tag}_Full.zip"

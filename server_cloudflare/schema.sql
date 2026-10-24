@@ -100,22 +100,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 -- 初始基准数据注入
 -- ==============================================================================
 
--- 写入当前官方正式发布版本 (v1.1.0)
+-- 写入当前官方正式发布版本 (2027 年度正式版)
 INSERT OR REPLACE INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
 VALUES (
-    'v1.1.0',
-    '20261014_B1',
-    '2026-10-20',
-    'https://github.com/tonychen5577-tech/coil-architect/releases/download/v1.1.0/ANSV_Coil_Architect_Pro_v1.1.0_20261020_12e1dc6.zip',
-    'https://ansv.net/download/coil-architect-v1.1.0.zip',
-    '60b84e04a59953c3b3de346d4355baa09eb92ad3deaaf75b3a49c01e6a5e11d8',
-    60.60,
-    '### ANSV Coil-Architect Pro v1.1.0 商业正式版
-- 🌟 全面支持八角形、跑道形(Sensor-Shift)、圆环形与矩形圆角/多边形异形四大微型电磁线圈拓扑；
-- ⚡ 毫米级装配空间与目标电阻极速反推求解引擎；
-- 🛡️ 磁钢装配气隙 DFM 制造安全红线预警与 ISO 129 截面标注；
-- 📊 底部多方案微调数据对比折叠抽屉与 Excel 自适应列宽报表导出；
-- 🔑 硬件指纹看门狗与 Cython C 机器码全面加固。',
+    '2027',
+    '20261024B6',
+    '2026-10-24',
+    'https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Full.zip',
+    'https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Incremental_Patch.zip',
+    'a2d8f0920b981f4764d4c8cf2182940cf04075729c9c1f48db0cf6035fbc3f4f',
+    81.92,
+    '### ANSV Coil-Architect Pro 2027 官方年度正式版 (Build 20261024B6)
+- 🌟 核心算法与拓扑：优化微观多层密排绕线算法与实际截面拓扑（支持不在同一层出现的绕线计算）；
+- 📊 报表与方案比对：强化 Excel 仿真报告自适应导出，方案比对抽屉补齐内长内宽等几何指标并支持方案导入导出与现场还原；
+- 🛡️ 工业授权与网络：支持一键云端在线极速授权与15秒自适应心跳；
+- 📖 双语手册全量内置：中英双语离线说明书与非同层截面图全量打包，F1 一键本地离线查看。',
     0,
     1
 );

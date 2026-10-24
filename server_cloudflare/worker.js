@@ -256,19 +256,19 @@ async function ensureTables(db) {
         `).run();
     } catch (_) { }
 
-    // 初始基准数据注入
+    // 初始基准数据注入 (默认 2027 年度正式版)
     try {
         await db.prepare(`
             INSERT OR IGNORE INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
             VALUES (
-                'v1.1.0',
-                '20261021B1',
-                '2026-10-20',
-                'https://github.com/tonychen5577-tech/coil-architect/releases/download/v1.1.0/ANSV_Coil_Architect_Pro_v1.1.0_20261020_12e1dc6.zip',
-                'https://ansv.net/download/coil-architect-v1.1.0.zip',
-                '60b84e04a59953c3b3de346d4355baa09eb92ad3deaaf75b3a49c01e6a5e11d8',
-                60.60,
-                '### ANSV Coil-Architect Pro v1.1.0 商业正式版',
+                '2027',
+                '20261024B6',
+                '2026-10-24',
+                'https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Full.zip',
+                'https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Incremental_Patch.zip',
+                'a2d8f0920b981f4764d4c8cf2182940cf04075729c9c1f48db0cf6035fbc3f4f',
+                81.92,
+                '### ANSV Coil-Architect Pro 2027 (Build 20261024B6)\n- 🌟 核心算法与拓扑：优化微观多层密排绕线算法与实际截面拓扑；\n- 📊 报表与方案比对：强化 Excel 仿真报告自适应导出，方案比对抽屉补齐内长内宽等几何指标；\n- 🛡️ 工业授权与网络：支持一键云端在线极速授权与15秒自适应心跳；\n- 📖 双语手册全量内置：中英双语离线说明书全量打包，F1 一键本地离线查看。',
                 0,
                 1
             )
@@ -307,9 +307,9 @@ export default {
             }
 
             // ------------------------------------------------------------------
-            // 2. 客户端静默 API 接口 (/api/v1/...)
+            // 2. 客户端静默 API 接口 (/api/v1/... 与兼容端点)
             // ------------------------------------------------------------------
-            if (path.startsWith("/api/v1/")) {
+            if (path.startsWith("/api/") || path === "/version" || path === "/health") {
                 return await handleClientApi(path, request, env);
             }
 
@@ -321,10 +321,25 @@ export default {
             }
 
             // ------------------------------------------------------------------
-            // 4. 软件发布包与增量补丁下载直连重定向
+            // 4. 软件发布包与增量补丁下载智能直连重定向
             // ------------------------------------------------------------------
             if (path.startsWith("/download")) {
-                return Response.redirect(GITHUB_RELEASES_URL, 302);
+                const db = env.DB;
+                let activeRelease = null;
+                if (db) {
+                    try {
+                        activeRelease = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
+                    } catch(_) {}
+                }
+                const defaultFull = "https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Full.zip";
+                const defaultPatch = "https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Incremental_Patch.zip";
+                
+                const isPatchRequest = path.toLowerCase().includes("patch");
+                let targetUrl = isPatchRequest ? 
+                    (activeRelease?.backup_url || defaultPatch) : 
+                    (activeRelease?.download_url || defaultFull);
+
+                return Response.redirect(targetUrl, 302);
             }
 
             // 兜底重定向
@@ -578,23 +593,33 @@ async function handleClientApi(path, request, env) {
         return jsonResponse({ success: true, message: "ACK received" });
     }
 
-    // 2. 检查版本更新
-    if ((path === "/api/v1/check_update" || path === "/api/v1/update") && (request.method === "GET" || request.method === "POST")) {
+    // 2. 检查版本更新 (兼容所有历史路由与标准端点)
+    const isUpdateCheckRoute = (
+        path === "/api/v1/check_update" ||
+        path === "/api/v1/update" ||
+        path === "/api/v1/app/version-check" ||
+        path === "/api/v1/version" ||
+        path === "/api/version" ||
+        path === "/version"
+    );
+    if (isUpdateCheckRoute && (request.method === "GET" || request.method === "POST")) {
         const release = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
         if (!release) {
             return jsonResponse({ success: false, message: "No active release found" });
         }
+        const defaultFull = "https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Full.zip";
+        const defaultPatch = "https://github.com/tonychen5577-tech/coil-architect/releases/download/2027/ANSV_Coil_Architect_Pro_2027_Incremental_Patch.zip";
         return jsonResponse({
             success: true,
             version: release.version,
             build: release.build,
             release_date: release.release_date,
-            download_url: release.download_url,
-            patch_url: release.backup_url || release.download_url,
-            patch_size_mb: 8.7,
-            backup_url: release.backup_url,
+            download_url: release.download_url || defaultFull,
+            patch_url: release.backup_url || defaultPatch,
+            patch_size_mb: 29.03,
+            backup_url: release.backup_url || defaultPatch,
             sha256: release.sha256,
-            file_size_mb: release.file_size_mb,
+            file_size_mb: release.file_size_mb || 81.92,
             changelog: release.changelog,
             is_mandatory: release.is_mandatory === 1
         });
@@ -1826,7 +1851,7 @@ async function loadDevices() {
 async function autoAuthorizeDevice(mid, customer) {
   const cust = prompt('请输入授权企业/客户名称 (将写入证书凭证):', customer && customer !== '散户/未登记' && customer !== '在线申请用户' ? customer : 'ANSV 商业VIP客户');
   if (cust === null) return;
-  const planChoice = prompt('请选择授权周期方案：\n1: 年度商业版 (365天) [默认]\n2: 永久企业买断版\n3: 季度项目版 (90天)\n\n请输入数字 (1-3):', '1');
+  const planChoice = prompt('请选择授权周期方案：\\n1: 年度商业版 (365天) [默认]\\n2: 永久企业买断版\\n3: 季度项目版 (90天)\\n\\n请输入数字 (1-3):', '1');
   if (planChoice === null) return;
 
   let planType = 'SUB_ANNUAL_365';
@@ -1846,7 +1871,7 @@ async function autoAuthorizeDevice(mid, customer) {
     });
     const d = await res.json();
     if (d.success) {
-      alert('🎉 商业授权已成功生成并下发至工位机 [' + mid + ']！\n\n客户名称: ' + d.customer_name + '\n方案级别: ' + d.plan_label + '\n有效期至: ' + d.expire_date + '\n\n工位机将在下一次心跳（未激活时仅15秒）或用户点击“在线激活”时自动激活并弹出成功信息！');
+      alert('🎉 商业授权已成功生成并下发至工位机 [' + mid + ']！\\n\\n客户名称: ' + d.customer_name + '\\n方案级别: ' + d.plan_label + '\\n有效期至: ' + d.expire_date + '\\n\\n工位机将在下一次心跳（未激活时仅15秒）或用户点击“在线激活”时自动激活并弹出成功信息！');
       loadDevices();
       loadStats();
     } else {

@@ -33,7 +33,7 @@ from typing import Dict, Any, Optional, Tuple, Callable, List
 
 # 导入智能 DNS 韧性解析器 (企业内网防 11001 域名解析阻断)
 import src.core.smart_dns
-from src.version import APP_VERSION, APP_BUILD
+from src.version import APP_VERSION, APP_BUILD, compare_versions, compare_builds
 from src.core.license_manager import (
     get_machine_code, get_mac_address, detect_virtual_machine, 
     LicenseManager
@@ -784,8 +784,11 @@ class CloudClient:
             api_url = f"{base_url}/api/v1/check_update"
             res = _make_get_request(api_url, timeout=3.5)
             if res and res.get("success"):
-                remote_ver = res.get("version", "")
-                is_newer = (remote_ver != APP_VERSION and remote_ver > APP_VERSION)
+                remote_ver = str(res.get("version") or "").strip()
+                remote_build = str(res.get("build") or "").strip()
+                v_cmp = compare_versions(remote_ver, APP_VERSION)
+                b_cmp = compare_builds(remote_build, APP_BUILD) if remote_build else 0
+                is_newer = (v_cmp > 0) or (v_cmp == 0 and b_cmp > 0)
                 return is_newer, res, f"已连接至云端 ({base_url})"
 
         return False, None, "无法连接至云端服务 (当前运行本地离线模式)"
