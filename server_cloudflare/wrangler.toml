@@ -1,0 +1,15 @@
+name = "coil-architect-cloud"
+main = "worker.js"
+compatibility_date = "2026-10-20"
+compatibility_flags = ["nodejs_compat"]
+
+# 绑定 Cloudflare D1 边缘分布式数据库
+[[d1_databases]]
+binding = "DB"
+database_name = "coil_architect_db"
+database_id = "YOUR_D1_DATABASE_ID"
+
+# 环境变量配置 (也可直接在 Cloudflare 控制台环境变量中配置)
+[vars]
+ADMIN_PASSWORD = "Ansv@Coil#2026"
+ADMIN_AUTH_TOKEN = "COIL_AUTH_VALID_ANSV_2026_SESSION"
