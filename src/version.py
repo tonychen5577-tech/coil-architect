@@ -1,4 +1,4 @@
-﻿"""
+"""
 =============================================================================
 Module: src.version
 Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
@@ -91,9 +91,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261024B2"
-APP_DATE = "2026-10-23"
-BUILD_TIME = "2026-10-24 09:00:00 CST"
+APP_BUILD = "20261024B3"
+APP_DATE = "2026-10-24"
+BUILD_TIME = "2026-10-24 10:30:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"

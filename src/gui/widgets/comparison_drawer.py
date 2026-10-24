@@ -8,6 +8,7 @@ Coil-Architect Pro - Scheme Comparison Drawer Widget
 5. 报表导出：一键复制 TSV 格式对比表至剪贴板，或导出为 UTF-8 CSV
 """
 
+import os
 import copy
 import csv
 from datetime import datetime
@@ -25,6 +26,7 @@ from PyQt6.QtWidgets import (
 
 from ...core.models import CoilInputs, CoilOutputs, CoilType, WindingMode
 from ...core.i18n import i18n, t
+from ..utils import sanitize_filename_ascii, parse_coil_type, parse_winding_mode
 
 
 @dataclass
@@ -1459,10 +1461,10 @@ class ComparisonDrawer(QFrame):
             return
         current_name = self.get_project_name()
         proj_name, ok = QInputDialog.getText(
-            self, 
-            "Export Comparison Matrix - Confirm Project Name" if is_en else "导出方案比对表 - 确认项目名称", 
-            "Enter project code/name (injected into filename & matrix header):" if is_en else "请输入工程项目名称 (将注入文件名与方案对比表):", 
-            QLineEdit.EchoMode.Normal, 
+            self,
+            "Export Comparison Matrix - Confirm Project Name" if is_en else "导出方案比对表 - 确认项目名称",
+            "Enter project code/name (injected into filename & matrix header):" if is_en else "请输入工程项目名称 (将注入文件名与方案对比表):",
+            QLineEdit.EchoMode.Normal,
             current_name
         )
         if not ok:
@@ -1476,11 +1478,8 @@ class ComparisonDrawer(QFrame):
             win.txt_project_name.setText(proj_name)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = (
-            f"{proj_name}_Coil_Comparison_Matrix_{timestamp}.xlsx"
-            if is_en else
-            f"{proj_name}_线圈多方案对比表_{timestamp}.xlsx"
-        )
+        clean_name = sanitize_filename_ascii(proj_name, fallback="Coil_Comparison_Matrix")
+        default_filename = f"{clean_name}_Coil_Comparison_Matrix_{timestamp}.xlsx"
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Comparison Matrix to Excel" if is_en else "导出方案比对表为 Excel",
@@ -1641,11 +1640,8 @@ class ComparisonDrawer(QFrame):
             win.txt_project_name.setText(proj_name)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = (
-            f"{proj_name}_Coil_Comparison_Matrix_{timestamp}.csv"
-            if is_en else
-            f"{proj_name}_线圈多方案对比表_{timestamp}.csv"
-        )
+        clean_name = sanitize_filename_ascii(proj_name, fallback="Coil_Comparison_Matrix")
+        default_filename = f"{clean_name}_Coil_Comparison_Matrix_{timestamp}.csv"
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Comparison Matrix to CSV" if is_en else "导出方案比对表为 CSV",
@@ -1721,8 +1717,9 @@ class ComparisonDrawer(QFrame):
             return
 
         proj_name = self.get_project_name()
+        clean_name = sanitize_filename_ascii(proj_name, fallback="Coil_Schemes")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        def_name = f"{proj_name}_Coil_Schemes_{timestamp}.ansvschemes" if is_en else f"{proj_name}_线圈对比方案_{timestamp}.ansvschemes"
+        def_name = f"{clean_name}_Coil_Schemes_{timestamp}.ansvschemes"
 
         path, _ = QFileDialog.getSaveFileName(
             self,
@@ -1766,27 +1763,74 @@ class ComparisonDrawer(QFrame):
             err_msg = f"Failed to export schemes: {e}" if is_en else f"导出方案文件失败: {e}"
             QMessageBox.critical(self, "Error" if is_en else "错误", err_msg)
 
-    def import_schemes_file(self):
-        """导入 .ansvschemes 文件，将历史多组方案重新载入抽屉进行横向对比与验证还原"""
+    def import_schemes_file(self, file_path: Optional[str] = None):
+        """导入 .ansvschemes 方案对比集或 .ansvcoil 算例，将多组方案载入抽屉进行横向对比与验证还原"""
         from src.core.i18n import i18n
+        from dataclasses import fields
         import json
         is_en = i18n.is_english()
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Import Comparison Schemes" if is_en else "导入方案比对归档文件",
-            "",
-            "ANSV Coil Schemes (*.ansvschemes *.json);;All Files (*.*)" if is_en else "ANSV 线圈方案归档 (*.ansvschemes *.json);;所有文件 (*.*)"
-        )
+
+        path = file_path
         if not path:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Import Comparison Schemes" if is_en else "导入方案比对归档文件",
+                "",
+                "ANSV Schemes & Cases (*.ansvschemes *.ansvcoil *.json);;All Files (*.*)"
+                if is_en else
+                "ANSV 方案归档与算例 (*.ansvschemes *.ansvcoil *.json);;所有文件 (*.*)"
+            )
+        if not path or not os.path.exists(path):
             return
 
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            raw_text = None
+            for enc in ("utf-8-sig", "utf-8", "gbk", "latin-1"):
+                try:
+                    with open(path, "r", encoding=enc) as f:
+                        raw_text = f.read()
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if not raw_text:
+                raise ValueError("Cannot read file content or file is empty")
 
+            data = json.loads(raw_text)
+
+            from src.core.physics_engine import CoilPhysicsEngine
+            from src.core.models import DFMCheckResult
+            valid_keys = {f.name for f in fields(CoilInputs)}
+
+            # 智能兼容：如果用户在抽屉导入中载入的是单个算例 (.ansvcoil 或仅含单个 inputs)
             raw_snaps = data.get("snapshots", [])
+            if not raw_snaps and "inputs" in data:
+                inp_dict = data.get("inputs", {})
+                inp_dict["coil_type"] = parse_coil_type(inp_dict.get("coil_type", 0))
+                inp_dict["winding_mode"] = parse_winding_mode(inp_dict.get("winding_mode", 1))
+                filtered_inp = {k: v for k, v in inp_dict.items() if k in valid_keys}
+                inp_obj = CoilInputs(**filtered_inp)
+                out_obj = CoilPhysicsEngine.calculate(inp_obj)
+                case_name = data.get("project_name", os.path.splitext(os.path.basename(path))[0])
+                snap = SchemeSnapshot(
+                    name=case_name,
+                    created_at=datetime.now().strftime("%H:%M:%S"),
+                    inputs=inp_obj,
+                    outputs=out_obj,
+                    is_baseline=(len(self.snapshots) == 0)
+                )
+                self.snapshots.append(snap)
+                self._rebuild_table_columns()
+                ok_msg = (
+                    f"✓ Loaded project case as scheme [{case_name}] from:\n{os.path.basename(path)}"
+                    if is_en else
+                    f"✓ 已成功将工程算例 [{case_name}] 导入比对抽屉！\n随时可点击方案列底部的【↺ 还原】按钮一键装载验证。"
+                )
+                self.status_message.emit(ok_msg)
+                QMessageBox.information(self, "Import Successful" if is_en else "导入成功", ok_msg)
+                return
+
             if not raw_snaps:
-                raise ValueError("未在文件中找到方案快照数据 (snapshots 为空)")
+                raise ValueError("No snapshot data found in file (snapshots array is empty)" if is_en else "未在文件中找到方案快照数据 (snapshots 为空)")
 
             # 如果当前已有快照，询问是否追加或替换
             if self.snapshots:
@@ -1809,19 +1853,16 @@ class ComparisonDrawer(QFrame):
                 elif msg_box.clickedButton() == b_rep:
                     self.snapshots.clear()
 
-            from src.core.physics_engine import CoilPhysicsEngine
-            from src.core.models import DFMCheckResult
             for s_data in raw_snaps:
                 inp_dict = s_data.get("inputs", {})
-                if "coil_type" in inp_dict:
-                    inp_dict["coil_type"] = CoilType(inp_dict["coil_type"])
-                if "winding_mode" in inp_dict:
-                    inp_dict["winding_mode"] = WindingMode(inp_dict["winding_mode"])
-                inp_obj = CoilInputs(**inp_dict)
+                inp_dict["coil_type"] = parse_coil_type(inp_dict.get("coil_type", 0))
+                inp_dict["winding_mode"] = parse_winding_mode(inp_dict.get("winding_mode", 1))
+                filtered_inp = {k: v for k, v in inp_dict.items() if k in valid_keys}
+                inp_obj = CoilInputs(**filtered_inp)
                 # 使用物理引擎重新解算确保真实有效
                 out_obj = CoilPhysicsEngine.calculate(inp_obj)
                 snap = SchemeSnapshot(
-                    name=s_data.get("name", f"方案 {len(self.snapshots)+1}"),
+                    name=s_data.get("name", f"方案 {len(self.snapshots)+1}" if not is_en else f"Scheme {len(self.snapshots)+1}"),
                     created_at=s_data.get("created_at", datetime.now().strftime("%H:%M:%S")),
                     inputs=inp_obj,
                     outputs=out_obj,
@@ -1835,7 +1876,11 @@ class ComparisonDrawer(QFrame):
                 self.snapshots[0].is_baseline = True
 
             self._rebuild_table_columns()
-            ok_msg = (f"✓ Successfully loaded {len(raw_snaps)} comparison schemes from:\n{os.path.basename(path)}" if is_en else f"✓ 已成功载入 {len(raw_snaps)} 组对比方案至比对抽屉！\n随时可点击方案列底部的【↺ 还原】按钮一键装载验证。")
+            ok_msg = (
+                f"✓ Successfully loaded {len(raw_snaps)} comparison schemes from:\n{os.path.basename(path)}"
+                if is_en else
+                f"✓ 已成功载入 {len(raw_snaps)} 组对比方案至比对抽屉！\n随时可点击方案列底部的【↺ 还原】按钮一键装载验证。"
+            )
             self.status_message.emit(ok_msg)
             QMessageBox.information(self, "Import Successful" if is_en else "导入成功", ok_msg)
         except Exception as e:

@@ -14,8 +14,8 @@ import subprocess
 from pathlib import Path
 from typing import Tuple
 
-SHORTCUT_FILENAME = "ANSV 微型执行器 - Coil-Architect Pro.lnk"
-SHORTCUT_DESCRIPTION = "ANSV 微型执行器与精密传动仿真验证平台 (Coil-Architect Pro)"
+SHORTCUT_FILENAME = "ANSV - Coil-Architect Pro.lnk"
+SHORTCUT_DESCRIPTION = "ANSV - Coil-Architect Pro"
 
 
 def get_desktop_dir() -> Path:
@@ -52,6 +52,7 @@ def is_desktop_shortcut_exists() -> bool:
     if (desktop / SHORTCUT_FILENAME).exists():
         return True
     for alt in [
+        "ANSV 微型执行器 - Coil-Architect Pro.lnk",
         "Coil-Architect Pro.lnk",
         "CoilArchitect.lnk",
         "ANSV 微型执行器.lnk"

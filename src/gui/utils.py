@@ -180,3 +180,75 @@ def adapt_dialog_geometry(
         x = avail.x() + (avail.width() - final_w) // 2
         y = avail.y() + (avail.height() - final_h) // 2
         dialog.move(x, y)
+
+
+def sanitize_filename_ascii(name: str, fallback: str = "Coil_Project") -> str:
+    """
+    清洗文件名确保 100% 纯 ASCII 且合法，杜绝跨语言/跨平台文件系统乱码及解析崩溃：
+    1. 过滤掉所有中文字符与非 ASCII 字符；
+    2. 将非法字符与空白替换为下划线；
+    3. 若清洗后为空，使用安全后备名称。
+    """
+    import re
+    if not name:
+        return fallback
+    cleaned = re.sub(r'[\s\\/:*?"<>|]+', '_', str(name).strip())
+    ascii_only = ''.join(c for c in cleaned if c.isascii() and (c.isalnum() or c in ('-', '_')))
+    ascii_only = re.sub(r'_+', '_', ascii_only).strip('_-')
+    return ascii_only if ascii_only else fallback
+
+
+def parse_coil_type(val):
+    """
+    智能解析线圈拓扑类型，兼容 int、枚举、字符串及异常值，杜绝类型不匹配崩溃
+    """
+    from ..core.models import CoilType
+    if isinstance(val, CoilType):
+        return val
+    if isinstance(val, int):
+        try:
+            return CoilType(val)
+        except ValueError:
+            return CoilType.RACETRACK
+    val_str = str(val).split(".")[-1].strip().upper()
+    for member in CoilType:
+        if member.name.upper() == val_str:
+            return member
+    try:
+        return CoilType(int(val))
+    except Exception:
+        pass
+    lower_str = str(val).lower()
+    if "circ" in lower_str or "圆" in lower_str:
+        return CoilType.CIRCULAR
+    if "oct" in lower_str or "八角" in lower_str:
+        return CoilType.OCTAGONAL
+    if "arb" in lower_str or "cad" in lower_str or "异形" in lower_str:
+        return CoilType.ARBITRARY_PERIMETER
+    return CoilType.RACETRACK
+
+
+def parse_winding_mode(val):
+    """
+    智能解析密排排法模式，兼容 int、枚举、字符串及异常值，杜绝类型不匹配崩溃
+    """
+    from ..core.models import WindingMode
+    if isinstance(val, WindingMode):
+        return val
+    if isinstance(val, int):
+        try:
+            return WindingMode(val)
+        except ValueError:
+            return WindingMode.VARIABLE
+    val_str = str(val).split(".")[-1].strip().upper()
+    for member in WindingMode:
+        if member.name.upper() == val_str:
+            return member
+    try:
+        return WindingMode(int(val))
+    except Exception:
+        pass
+    lower_str = str(val).lower()
+    if "even" in lower_str or "同数" in lower_str or lower_str == "0":
+        return WindingMode.EVEN
+    return WindingMode.VARIABLE

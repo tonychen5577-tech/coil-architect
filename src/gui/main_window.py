@@ -10,8 +10,8 @@ from datetime import datetime
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QEvent, QTimer
 from PyQt6.QtGui import QIcon, QFont
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
-    QLabel, QPushButton, QComboBox, QFrame, QSplitter, 
+    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
+    QLabel, QPushButton, QComboBox, QFrame, QSplitter,
     QScrollArea, QFileDialog, QMessageBox, QStatusBar, QCheckBox,
     QLineEdit, QInputDialog, QApplication, QScrollBar, QSizePolicy
 )
@@ -24,7 +24,7 @@ from .widgets.metric_card import MetricCard
 from .widgets.dfm_indicator import DFMStatusStrip
 from .widgets.coil_canvas import CoilDualCanvasWidget
 from .widgets.comparison_drawer import ComparisonDrawer, SchemeSnapshot
-from .utils import atomic_write_json, atomic_write_text
+from .utils import atomic_write_json, atomic_write_text, sanitize_filename_ascii, parse_coil_type, parse_winding_mode
 from .about_dialog import AboutDialog
 from src.gui.icon_helper import get_ansv_logo_pixmap
 from src.core.ota_updater import OtaUpdater, OtaChecker
@@ -1825,9 +1825,9 @@ class MainWindow(QMainWindow):
         self.sb_inner_wid.valueChanged.connect(self._on_inner_wid_changed)
 
         for widget in [
-            self.sb_radial_layers, self.sb_axial_turns, 
+            self.sb_radial_layers, self.sb_axial_turns,
             self.sb_tension, self.sb_copper_rho,
-            self.sb_ambient_temp, self.sb_drive_current, 
+            self.sb_ambient_temp, self.sb_drive_current,
             self.sb_convection_h,
             self.sb_limit_x, self.sb_limit_y, self.sb_limit_z,
             self.sb_limit_v
@@ -2591,11 +2591,8 @@ class MainWindow(QMainWindow):
             return
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         proj_name = self.get_project_name()
-        default_filename = (
-            f"{proj_name}_Coil_Project_{timestamp}.ansvcoil"
-            if is_en else
-            f"{proj_name}_线圈工程算例_{timestamp}.ansvcoil"
-        )
+        clean_name = sanitize_filename_ascii(proj_name, fallback="Coil_Project")
+        default_filename = f"{clean_name}_Coil_Project_{timestamp}.ansvcoil"
         path, _ = QFileDialog.getSaveFileName(
             self, 
             "Export Coil Project File" if is_en else "导出线圈工程文件", 
@@ -2651,64 +2648,92 @@ class MainWindow(QMainWindow):
 
     def load_project_file(self, path: str) -> bool:
         """
-        统一解析并装载工程算例文件 (.ansvcoil / .ansv / .json)
+        统一解析并装载工程算例文件 (.ansvcoil / .ansv / .json / .ansvschemes)
         支持界面按钮触发、启动命令行传入与 Windows 双击文件自动载入
         """
         is_en = i18n.is_english()
         if not path or not os.path.exists(path):
             return False
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            # 兼容多种编码格式 (带BOM UTF-8, 纯UTF-8, GBK等)，杜绝解码崩溃
+            raw_text = None
+            for enc in ("utf-8-sig", "utf-8", "gbk", "latin-1"):
+                try:
+                    with open(path, "r", encoding=enc) as f:
+                        raw_text = f.read()
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if not raw_text:
+                raise ValueError("Cannot read file content or file is empty")
+
+            data = json.loads(raw_text)
+
+            # 智能探测：若用户载入的是多方案比对集 (.ansvschemes 或含有 snapshots 结构)
+            if data.get("file_type") == "ANSV_COIL_SCHEMES_BUNDLE" or "snapshots" in data or str(path).lower().endswith(".ansvschemes"):
+                if hasattr(self, "comparison_drawer"):
+                    self.comparison_drawer.import_schemes_file(path)
+                    if hasattr(self.comparison_drawer, "set_expanded"):
+                        self.comparison_drawer.set_expanded(True)
+                    return True
+
             inp = data.get("inputs", {})
             if "project_name" in data and hasattr(self, "txt_project_name"):
-                self.txt_project_name.setText(data["project_name"])
+                self.txt_project_name.setText(str(data["project_name"]))
             self._is_syncing_params = True
             try:
-                c_type = inp.get("coil_type", 0)
-                self.combo_coil_type.setCurrentIndex(c_type)
-                self.sb_inner_len.setValue(inp.get("inner_len", 4.86))
-                self.sb_inner_wid.setValue(inp.get("inner_wid", 1.50))
-                self.sb_radial_layers.setValue(inp.get("radial_layers", 14))
-                self.sb_axial_turns.setValue(inp.get("axial_turns", 12))
-                self.sb_bare_dia.setValue(inp.get("bare_dia", 0.075))
-                self.sb_max_od.setValue(inp.get("max_od", 0.085))
-                self.sb_tension.setValue(inp.get("tension_factor", 0.99))
+                # 兼容 int / str / enum 多种格式设置 coil_type
+                c_type_val = parse_coil_type(inp.get("coil_type", 0))
+                for i in range(self.combo_coil_type.count()):
+                    if self.combo_coil_type.itemData(i) == c_type_val:
+                        self.combo_coil_type.setCurrentIndex(i)
+                        break
+
+                self.sb_inner_len.setValue(float(inp.get("inner_len", 4.86)))
+                self.sb_inner_wid.setValue(float(inp.get("inner_wid", 1.50)))
+                self.sb_radial_layers.setValue(float(inp.get("radial_layers", 14)))
+                self.sb_axial_turns.setValue(int(inp.get("axial_turns", 12)))
+                self.sb_bare_dia.setValue(float(inp.get("bare_dia", 0.075)))
+                self.sb_max_od.setValue(float(inp.get("max_od", 0.085)))
+                self.sb_tension.setValue(float(inp.get("tension_factor", 0.99)))
                 if hasattr(self, "sb_copper_rho"):
-                    self.sb_copper_rho.setValue(inp.get("copper_resistivity", 0.016959))
-                self.sb_ambient_temp.setValue(inp.get("ambient_temp", 20.0))
-                self.sb_drive_current.setValue(inp.get("drive_current_ma", 10.0))
-                self.sb_convection_h.setValue(inp.get("convection_h", 25.0))
+                    self.sb_copper_rho.setValue(float(inp.get("copper_resistivity", 0.016959)))
+                self.sb_ambient_temp.setValue(float(inp.get("ambient_temp", 20.0)))
+                self.sb_drive_current.setValue(float(inp.get("drive_current_ma", 10.0)))
+                self.sb_convection_h.setValue(float(inp.get("convection_h", 25.0)))
                 
                 # DFM 限值恢复
                 if hasattr(self, "chk_dfm_enabled"):
-                    self.chk_dfm_enabled.setChecked(inp.get("dfm_enabled", False))
-                self.sb_limit_x.setValue(inp.get("max_x_len_limit", 7.20))
-                self.sb_limit_y.setValue(inp.get("max_y_wid_limit", 3.82))
-                self.sb_limit_z.setValue(inp.get("max_z_h_limit", 1.05))
-                self.sb_limit_v.setValue(inp.get("max_v_term_limit", 2.80))
-                self.sb_limit_t.setValue(inp.get("max_temp_limit", 110.0))
+                    self.chk_dfm_enabled.setChecked(bool(inp.get("dfm_enabled", False)))
+                self.sb_limit_x.setValue(float(inp.get("max_x_len_limit", 7.20)))
+                self.sb_limit_y.setValue(float(inp.get("max_y_wid_limit", 3.82)))
+                self.sb_limit_z.setValue(float(inp.get("max_z_h_limit", 1.05)))
+                self.sb_limit_v.setValue(float(inp.get("max_v_term_limit", 2.80)))
+                self.sb_limit_t.setValue(float(inp.get("max_temp_limit", 110.0)))
 
                 # 异形线圈参数恢复
                 if hasattr(self, "sb_oct_id1"):
-                    self.sb_oct_id1.setValue(inp.get("oct_id1", 6.80))
+                    self.sb_oct_id1.setValue(float(inp.get("oct_id1", 6.80)))
                 if hasattr(self, "sb_oct_id2"):
-                    self.sb_oct_id2.setValue(inp.get("oct_id2", 7.60))
+                    self.sb_oct_id2.setValue(float(inp.get("oct_id2", 7.60)))
                 if hasattr(self, "sb_oct_l1"):
-                    self.sb_oct_l1.setValue(inp.get("oct_l1", 3.20))
+                    self.sb_oct_l1.setValue(float(inp.get("oct_l1", 3.20)))
                 if hasattr(self, "sb_oct_l2"):
-                    self.sb_oct_l2.setValue(inp.get("oct_l2", 1.80))
+                    self.sb_oct_l2.setValue(float(inp.get("oct_l2", 1.80)))
                 if hasattr(self, "sb_oct_r1"):
-                    self.sb_oct_r1.setValue(inp.get("oct_r1", 0.50))
+                    self.sb_oct_r1.setValue(float(inp.get("oct_r1", 0.50)))
                 if hasattr(self, "sb_perim_in"):
-                    self.sb_perim_in.setValue(inp.get("perimeter_in", 22.0))
+                    self.sb_perim_in.setValue(float(inp.get("perimeter_in", 22.0)))
                 if hasattr(self, "sb_arb_outer_len"):
-                    self.sb_arb_outer_len.setValue(inp.get("arbitrary_outer_len", 8.0))
+                    self.sb_arb_outer_len.setValue(float(inp.get("arbitrary_outer_len", 8.0)))
                 if hasattr(self, "sb_arb_outer_wid"):
-                    self.sb_arb_outer_wid.setValue(inp.get("arbitrary_outer_wid", 6.0))
+                    self.sb_arb_outer_wid.setValue(float(inp.get("arbitrary_outer_wid", 6.0)))
 
-                mode_idx = 0 if inp.get("winding_mode", 1) == 1 else 1
-                self.combo_mode.setCurrentIndex(mode_idx)
+                mode_val = parse_winding_mode(inp.get("winding_mode", 1))
+                for i in range(self.combo_mode.count()):
+                    if self.combo_mode.itemData(i) == mode_val:
+                        self.combo_mode.setCurrentIndex(i)
+                        break
             finally:
                 self._is_syncing_params = False
 
@@ -2740,11 +2765,11 @@ class MainWindow(QMainWindow):
             return
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Open Coil Project Case" if is_en else "载入线圈算例",
+            "Open File" if is_en else "载入文件",
             "",
-            "ANSV Coil Project (*.ansvcoil *.ansv);;JSON File (*.json);;All Files (*.*)"
+            "ANSV Project / Schemes (*.ansvcoil *.ansvschemes *.ansv *.json);;All Files (*.*)"
             if is_en else
-            "ANSV 线圈工程算例 (*.ansvcoil *.ansv);;JSON 算例文件 (*.json);;所有文件 (*.*)"
+            "ANSV 工程文件与方案集 (*.ansvcoil *.ansvschemes *.ansv *.json);;所有文件 (*.*)"
         )
         if not path:
             return
@@ -2773,14 +2798,11 @@ class MainWindow(QMainWindow):
             self.txt_project_name.setText(proj_name)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_filename = (
-            f"{proj_name}_Coil_Engineering_Report_{timestamp}.xlsx"
-            if is_en else
-            f"{proj_name}_线圈工程评审报告_{timestamp}.xlsx"
-        )
+        clean_name = sanitize_filename_ascii(proj_name, fallback="Coil_Simulation_Report")
+        default_filename = f"{clean_name}_Coil_Simulation_Report_{timestamp}.xlsx"
         path, sel_filter = QFileDialog.getSaveFileName(
             self, 
-            "Export Engineering Report" if is_en else "导出工程评审报告", 
+            "Export Simulation Report" if is_en else "导出仿真报告", 
             default_filename, 
             "Excel Workbook (*.xlsx);;CSV Report (*.csv)"
             if is_en else
@@ -2788,7 +2810,7 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        
+
         if path.lower().endswith(".xlsx") or "xlsx" in sel_filter.lower():
             if not path.lower().endswith(".xlsx"):
                 path += ".xlsx"
@@ -2901,4 +2923,3 @@ class MainWindow(QMainWindow):
             atomic_write_text(Path(path), "\n".join(lines), encoding="utf-8-sig")
             self.status_bar.showMessage(f"CSV 报表已成功原子持久化导出: {os.path.basename(path)}", 4000)
             QMessageBox.information(self, "导出成功", f"线圈多物理场 CSV 评审报告已导出至:\n{path}")
-
