@@ -626,6 +626,11 @@ class CloudClient:
                         logger.info("接收到云端推送的新授权凭证，自动安装...")
                         ok_inst, _ = LicenseManager.install_license(remote_payload)
                         cls._ack_remote_command(base_url, mid, remote_cmd, "SUCCESS" if ok_inst else "FAILED")
+                        if ok_inst and on_command_callback:
+                            try:
+                                on_command_callback(remote_cmd, remote_payload)
+                            except Exception as cb_err:
+                                logger.error(f"回调 on_command_callback 异常: {cb_err}")
 
 
                     status_text = "授权服务器已连接"
@@ -665,13 +670,25 @@ class CloudClient:
         cls._is_running = True
 
         def _worker_loop():
-            logger.info("云端授权与数据库协同守护引擎已启动 (每 30 分钟自动检测)")
+            logger.info("云端授权与数据库协同守护引擎已启动 (智能自适应心跳检测)")
             # 启动时立即执行一次探测
             cls.send_heartbeat_sync(on_command_callback=cls._command_callback)
 
             while not cls._stop_event.is_set():
+                # 智能动态自适应心跳轮询：
+                # 1. 若当前未激活商业授权（试用或未授权），将心跳缩短至 15 秒，确保管理员在云端控制台点击【一键下发】后瞬时触达；
+                # 2. 一旦检测到正式商业授权有效激活，自动拉长至常规周期 (默认1800秒/30分钟)，极度节约网络流量
+                try:
+                    auth_ok, _, lic_info = LicenseManager.is_system_authorized()
+                    is_trial = lic_info.get("is_trial", False) if lic_info else True
+                    is_commercial = auth_ok and not is_trial
+                except Exception:
+                    is_commercial = False
+
+                current_timeout = interval_seconds if is_commercial else 15
+
                 # 等待定时到期或主动触发信号
-                triggered = cls._trigger_event.wait(timeout=interval_seconds)
+                triggered = cls._trigger_event.wait(timeout=current_timeout)
                 if cls._stop_event.is_set():
                     break
                 if triggered:
@@ -690,6 +707,51 @@ class CloudClient:
         cls._stop_event.set()
         cls._trigger_event.set()
         cls._is_running = False
+
+    @classmethod
+    def request_online_activation(
+        cls, 
+        customer_name: str = "", 
+        contact: str = ""
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        向云端发起在线一键激活请求 (免去繁琐的手动输入激活码流程)
+        1. 收集本机硬件指纹；
+        2. 向云端 /api/v1/online_activate 发送请求；
+        3. 若云端已下发授权，自动安装凭证并触发状态刷新；
+        4. 若尚未下发，登记工位机信息便于管理员后台一键授权。
+        """
+        mid = LicenseManager.get_machine_code()
+        payload = {
+            "machine_id": mid,
+            "hostname": socket.gethostname(),
+            "mac_address": get_mac_address(),
+            "app_version": APP_VERSION,
+            "app_build": APP_BUILD,
+            "customer_name": customer_name or "-",
+            "contact": contact or "-",
+            "is_virtual_machine": detect_virtual_machine(),
+            "timestamp": int(time.time()),
+        }
+
+        for base_url in cls.get_api_urls():
+            api_url = f"{base_url}/api/v1/online_activate"
+            res = _make_post_request(api_url, payload, timeout=_DEFAULT_TIMEOUT_SEC)
+            if res:
+                if res.get("success") and res.get("status") == "ACTIVATED":
+                    token = res.get("token")
+                    if token:
+                        ok, msg = LicenseManager.install_license(token)
+                        if ok:
+                            cls.trigger_heartbeat_now()
+                            return True, "🎉 在线授权激活成功！商业特权已全面解锁。", res
+                        else:
+                            return False, f"凭证安装失败: {msg}", res
+                else:
+                    msg = res.get("message") or "在线激活申请已提交，等待管理员审核授权。"
+                    return False, msg, res
+
+        return False, "未能连通云端授权服务器，请检查网络连接或防火墙设置。", {}
 
     @classmethod
     def trigger_heartbeat_now(cls):

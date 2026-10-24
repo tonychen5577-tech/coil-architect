@@ -54,7 +54,7 @@ class ActivationDialog(QDialog):
 
         self.machine_code = get_machine_code()
         self._init_ui()
-        adapt_dialog_geometry(self, target_w=870, target_h=560, min_w=800, min_h=500)
+        adapt_dialog_geometry(self, target_w=890, target_h=620, min_w=820, min_h=560)
 
     def _init_ui(self):
         is_en = self.is_en
@@ -508,6 +508,86 @@ class ActivationDialog(QDialog):
 
         right_layout.addSpacing(4)
 
+        # -------------------------------------------------------------
+        # ⚡ 联网一键在线极速激活面板 (无需手动输码 · 优先首选)
+        # -------------------------------------------------------------
+        online_panel = QFrame()
+        online_panel.setObjectName("onlinePanel")
+        online_panel.setStyleSheet("""
+            QFrame#onlinePanel {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #EFF6FF, stop:1 #F0FDF4);
+                border: 1px solid #93C5FD;
+                border-radius: 6px;
+            }
+        """)
+        online_vbox = QVBoxLayout(online_panel)
+        online_vbox.setContentsMargins(10, 8, 10, 8)
+        online_vbox.setSpacing(5)
+
+        lbl_online_header = QLabel(
+            "⚡ Instant Online Activation (No Code Required)"
+            if is_en else
+            "⚡ 联网一键极速激活 (无需手动输入激活码 · 官方推荐)"
+        )
+        lbl_online_header.setStyleSheet("font-size: 11.5px; font-weight: 800; color: #1D4ED8;")
+        online_vbox.addWidget(lbl_online_header)
+
+        lbl_online_desc = QLabel(
+            "Contact our support to authorize this workstation. Once approved, click below to activate immediately (or keep this window open for auto-activation within 15s)."
+            if is_en else
+            "联系客服或管理员开通后，点击下方按钮即可秒级在线核验激活；或保持软件运行，云端下发后系统亦会在15秒内自动激活！"
+        )
+        lbl_online_desc.setWordWrap(True)
+        lbl_online_desc.setStyleSheet("font-size: 10px; color: #475569; line-height: 1.3;")
+        online_vbox.addWidget(lbl_online_desc)
+
+        self.btn_online_activate = QPushButton(
+            "⚡ Connect && Activate Online Now"
+            if is_en else
+            "⚡ 立即连接云端在线激活"
+        )
+        self.btn_online_activate.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_online_activate.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563EB, stop:1 #1D4ED8);
+                border: 1px solid #1E40AF;
+                border-radius: 5px;
+                color: #FFFFFF;
+                font-size: 11.5px;
+                font-weight: 700;
+                padding: 7px 12px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3B82F6, stop:1 #2563EB);
+            }
+            QPushButton:pressed {
+                background: #1E40AF;
+            }
+            QPushButton:disabled {
+                background: #94A3B8;
+                border-color: #CBD5E1;
+            }
+        """)
+        self.btn_online_activate.clicked.connect(self._on_online_activate_clicked)
+        online_vbox.addWidget(self.btn_online_activate)
+
+        right_layout.addWidget(online_panel)
+
+        # 分割线
+        sep_row = QHBoxLayout()
+        line1 = QFrame()
+        line1.setFrameShape(QFrame.Shape.HLine)
+        line1.setStyleSheet("color: #E2E8F0;")
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.Shape.HLine)
+        line2.setStyleSheet("color: #E2E8F0;")
+        lbl_or = QLabel("Or Offline Manual Verification (Air-Gapped Workstation)" if is_en else "或离线手动输入激活码 (脱网涉密工位)")
+        lbl_or.setStyleSheet("font-size: 10px; color: #94A3B8; font-weight: 600;")
+        sep_row.addWidget(line1)
+        sep_row.addWidget(lbl_or)
+        sep_row.addWidget(line2)
+        right_layout.addLayout(sep_row)
+
         # 激活码输入区域
         lbl_act_title = QLabel(
             "🔑 Enter or Paste Commercial License Token:"
@@ -720,6 +800,62 @@ class ActivationDialog(QDialog):
             else:
                 QMessageBox.critical(self, "读取失败", f"无法读取许可证文件: {str(e)}")
 
+    def _on_online_activate_clicked(self):
+        is_en = self.is_en
+        self.btn_online_activate.setEnabled(False)
+        self.btn_online_activate.setText(
+            "⏳ Connecting to cloud..." if is_en else "⏳ 正在连接云端核发授权..."
+        )
+        QApplication.processEvents()
+
+        try:
+            from src.core.cloud_client import CloudClient
+            ok, msg, res = CloudClient.request_online_activation()
+            if ok:
+                self.btn_online_activate.setText(
+                    "✅ Activated!" if is_en else "✅ 在线激活成功！"
+                )
+                self.accept()
+                show_license_activated_dialog(self.parent(), res)
+            else:
+                self.btn_online_activate.setEnabled(True)
+                self.btn_online_activate.setText(
+                    "🔄 Refresh Online Status" if is_en else "🔄 刷新激活状态"
+                )
+                if res and res.get("status") == "PENDING_APPROVAL":
+                    info_text = (
+                        f"Workstation Machine Code: {self.machine_code}\n\n"
+                        "An online activation request has been submitted to the cloud console.\n"
+                        "Please notify the administrator or customer support to click 'Authorize'.\n"
+                        "Once approved, this software will activate automatically within seconds!"
+                        if is_en else
+                        f"本机机器码：{self.machine_code}\n\n"
+                        "已向云端控制台提交在线激活申请。\n"
+                        "请联系管理员或技术客服在后台点击【⚡ 一键下发授权】。\n"
+                        "授权后本软件将在 15 秒内自动完成激活并弹出凭证，您也可以随时再次点击【刷新激活状态】！"
+                    )
+                    QMessageBox.information(
+                        self,
+                        "Pending Cloud Authorization" if is_en else "在线申请已提交，等待授权",
+                        info_text
+                    )
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Online Activation Notice" if is_en else "在线激活提示",
+                        msg
+                    )
+        except Exception as e:
+            self.btn_online_activate.setEnabled(True)
+            self.btn_online_activate.setText(
+                "⚡ Connect & Activate Online Now" if is_en else "⚡ 立即连接云端在线激活"
+            )
+            QMessageBox.warning(
+                self,
+                "Connection Error" if is_en else "连接异常",
+                f"未能连通云端服务器: {e}"
+            )
+
     def _on_activate(self):
         token = self.txt_token.text().strip()
         if not token:
@@ -731,27 +867,8 @@ class ActivationDialog(QDialog):
 
         ok, msg = LicenseManager.install_license(token)
         if ok:
-            if self.is_en:
-                QMessageBox.information(
-                    self,
-                    "🎉 Activation Successful",
-                    "Congratulations! ANSV Coil-Architect Pro Commercial License is now active!\n\n"
-                    "• Dual-core electromagnetic & thermal solver fully unlocked\n"
-                    "• High-DPI 2D/3D engineering drawings & DXF export ready\n"
-                    "• Multi-scheme comparison matrix & Excel engineering report enabled\n\n"
-                    "Thank you for choosing the ANSV Industrial Simulation Platform!"
-                )
-            else:
-                QMessageBox.information(
-                    self,
-                    "🎉 激活成功",
-                    "恭喜！ANSV Coil-Architect Pro 正式商业授权已成功激活！\n\n"
-                    "• 核心双核物理引擎已全部解锁\n"
-                    "• 2D/3D 高保真出图与 DXF 导出已就绪\n"
-                    "• 方案比对矩阵与 Excel 评审报表全功能已开放\n\n"
-                    "感谢您对 ANSV 工业仿真平台的信任与支持！"
-                )
             self.accept()
+            show_license_activated_dialog(self.parent())
         else:
             if self.is_en:
                 QMessageBox.critical(
@@ -766,3 +883,218 @@ class ActivationDialog(QDialog):
                     "激活失败",
                     f"授权验证未通过，请检查激活码是否正确:\n\n{msg}\n\n如有疑问，可随时联系微信技术支持: {WECHAT_CONTACT_ID} 或 WhatsApp: {WHATSAPP_CONTACT_ID}"
                 )
+
+
+class LicenseActivatedDialog(QDialog):
+    """
+    商业授权激活成功详细凭证卡片弹窗 (对标顶级工业商业软件体验)
+    直观展示：授权客户名称、绑定工位机器码、授权类型方案、有效期截止日、全功能解锁列表
+    """
+
+    def __init__(self, parent=None, payload=None):
+        super().__init__(parent)
+        from src.core.i18n import i18n
+        self.is_en = i18n.is_english()
+        is_en = self.is_en
+
+        self.setWindowTitle(
+            "Commercial License Activated — ANSV Coil-Architect Pro"
+            if is_en else
+            "商业授权激活成功 — ANSV Coil-Architect Pro"
+        )
+        self.setWindowIcon(get_app_icon())
+        self.setModal(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #F8FAFC;
+                font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            }
+        """)
+
+        # 获取当前或传入凭证数据
+        if not payload:
+            auth_ok, _, lic_info = LicenseManager.is_system_authorized()
+            payload = lic_info if (auth_ok and lic_info) else {}
+
+        self.payload = payload
+        self._init_ui()
+        adapt_dialog_geometry(self, target_w=640, target_h=490, min_w=580, min_h=450)
+
+    def _init_ui(self):
+        is_en = self.is_en
+        p = self.payload or {}
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(12)
+
+        # 1. 顶部 Header (高亮金色/绿色微章 + 渐变成功横幅)
+        banner = QFrame()
+        banner.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ECFDF5, stop:1 #EFF6FF);
+                border: 1px solid #A7F3D0;
+                border-radius: 8px;
+            }
+        """)
+        b_h = QHBoxLayout(banner)
+        b_h.setContentsMargins(14, 12, 14, 12)
+        b_h.setSpacing(12)
+
+        lbl_icon = QLabel()
+        lbl_icon.setPixmap(get_ansv_logo_pixmap(46))
+        lbl_icon.setFixedSize(46, 46)
+        b_h.addWidget(lbl_icon)
+
+        v_title = QVBoxLayout()
+        v_title.setSpacing(3)
+        lbl_t = QLabel(
+            "🎉 Commercial License Activated Successfully!"
+            if is_en else
+            "🎉 恭喜！ANSV 正式商业授权已成功激活"
+        )
+        lbl_t.setStyleSheet("font-size: 15px; font-weight: 800; color: #047857;")
+        lbl_st = QLabel(
+            "Hardware bound · All physical solvers & unlimited exports unlocked"
+            if is_en else
+            "硬件一机一码已绑定 · 全套电磁热力学求解器与无损导出特权已全部开放"
+        )
+        lbl_st.setStyleSheet("font-size: 11px; color: #475569;")
+        v_title.addWidget(lbl_t)
+        v_title.addWidget(lbl_st)
+        b_h.addLayout(v_title)
+        b_h.addStretch()
+        root.addWidget(banner)
+
+        # 2. 授权详细凭证卡片 (白色卡片 + 结构化参数网格)
+        card = QFrame()
+        card.setStyleSheet("""
+            QFrame {
+                background-color: #FFFFFF;
+                border: 1px solid #CBD5E1;
+                border-radius: 8px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        c_v = QVBoxLayout(card)
+        c_v.setContentsMargins(14, 12, 14, 12)
+        c_v.setSpacing(8)
+
+        lbl_card_t = QLabel("📜 Commercial License Credentials:" if is_en else "📜 商业授权凭证详情 (License Credentials):")
+        lbl_card_t.setStyleSheet("font-size: 11.5px; font-weight: 700; color: #0F172A;")
+        c_v.addWidget(lbl_card_t)
+
+        cust_name = p.get("cust") or p.get("customer_name") or "ANSV VIP 商业客户"
+        mid = p.get("mid") or get_machine_code()
+        exp_date = p.get("exp") or p.get("expire_date") or "PERMANENT"
+        maint_exp = p.get("maint_exp") or exp_date
+        plan_code = p.get("plan") or p.get("plan_type") or "SUB_ANNUAL_365"
+
+        plan_map = {
+            "SUB_QUARTER_90": ("Quarterly Sprint (90d)", "短期季度冲刺版 (90天)"),
+            "SUB_ANNUAL_365": ("Annual Commercial Pro (365d)", "👑 年度商业标准版 (365天)"),
+            "PERPETUAL_1Y_UPDATE": ("Perpetual Enterprise (Lifetime)", "👑 企业永久买断版 (终身有效)"),
+            "PERMANENT": ("Perpetual Enterprise (Lifetime)", "👑 企业永久买断版 (终身有效)"),
+        }
+        plan_label = plan_map.get(plan_code, (plan_code, plan_code))[1 if not is_en else 0]
+
+        if exp_date == "PERMANENT":
+            exp_display = "Lifetime / Perpetual" if is_en else "永久有效 (终身买断)"
+        else:
+            exp_display = exp_date
+
+        def make_row(title_en, title_zh, val, is_code=False, highlight=False):
+            r = QHBoxLayout()
+            r.setSpacing(8)
+            lbl_k = QLabel((title_en if is_en else title_zh) + ":")
+            lbl_k.setFixedWidth(120 if is_en else 110)
+            lbl_k.setStyleSheet("font-size: 11px; color: #64748B; font-weight: 600;")
+            
+            lbl_v = QLabel(str(val))
+            if highlight:
+                lbl_v.setStyleSheet("font-size: 11.5px; color: #0284C7; font-weight: 800;")
+            elif is_code:
+                lbl_v.setStyleSheet("font-size: 11px; font-family: 'Consolas', monospace; color: #1E293B; font-weight: 700;")
+            else:
+                lbl_v.setStyleSheet("font-size: 11px; color: #1E293B; font-weight: 600;")
+            
+            r.addWidget(lbl_k)
+            r.addWidget(lbl_v)
+            r.addStretch()
+            return r
+
+        c_v.addLayout(make_row("Licensed Entity", "授权所属客户", cust_name, highlight=True))
+        c_v.addLayout(make_row("Workstation ID", "绑定机器特征码", mid, is_code=True))
+        c_v.addLayout(make_row("License Tier", "授权类别方案", plan_label))
+        c_v.addLayout(make_row("Validity Period", "授权有效期限至", exp_display, highlight=True))
+        c_v.addLayout(make_row("Maintenance Exp", "软件维护服务至", maint_exp))
+        c_v.addLayout(make_row("Delivery Mode", "授权分发途径", "⚡ Instant Cloud Push" if is_en else "⚡ 云端在线实时核发 / 边缘微协同"))
+
+        root.addWidget(card)
+
+        # 3. 已解锁高级特权概览 (绿色勾选卡片)
+        feats_card = QFrame()
+        feats_card.setStyleSheet("""
+            QFrame {
+                background-color: #F8FAFC;
+                border: 1px dashed #CBD5E1;
+                border-radius: 6px;
+            }
+        """)
+        f_v = QVBoxLayout(feats_card)
+        f_v.setContentsMargins(12, 8, 12, 8)
+        f_v.setSpacing(4)
+
+        lbl_f_t = QLabel("🚀 Unlocked Industrial Capabilities (All Constraints Lifted):" if is_en else "🚀 商业专属特权已全面就绪 (解除全部仿真与操作限制):")
+        lbl_f_t.setStyleSheet("font-size: 10.5px; font-weight: 700; color: #047857;")
+        f_v.addWidget(lbl_f_t)
+
+        feats = [
+            ("✔ 6 Topologies Full-DOF Parametric Modeling", "✔ 全 6 类线圈拓扑 (方形/赛道/圆角/骨架) 全自由度设计建模"),
+            ("✔ 3D FEM Electro-Thermal Multi-Physics Coupled Solver", "✔ 3D FEM 电磁-热流-瞬态场强耦合有限元求解器"),
+            ("✔ Dynamic Stiffness, Modal Harmonics & NVH Vibration", "✔ 动刚度、模态振型与高阶谐响应 NVH 振动噪声计算"),
+            ("✔ Lossless CAD/DXF/STEP/JSON & Multi-case Comparison Matrix", "✔ 无损 CAD / DXF / STEP 工程出图与多方案比对导出"),
+            ("✔ Cloudflare Anycast OTA Silent Upgrade & SmartDNS Self-Healing", "✔ 全球分布式 Anycast OTA 升级保障与数据库静默自愈")
+        ]
+        for f_en, f_zh in feats:
+            l = QLabel(f_en if is_en else f_zh)
+            l.setStyleSheet("font-size: 10px; color: #334155;")
+            f_v.addWidget(l)
+
+        root.addWidget(feats_card)
+
+        # 4. 底部确认按钮
+        btn_box = QHBoxLayout()
+        btn_box.addStretch()
+
+        btn_start = QPushButton("🚀 Start Designing Now" if is_en else "🚀 立即进入微型线圈工作站")
+        btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_start.setStyleSheet("""
+            QPushButton {
+                background-color: #0284C7;
+                border: 1px solid #0369A1;
+                border-radius: 5px;
+                color: #FFFFFF;
+                font-size: 12px;
+                font-weight: 700;
+                padding: 8px 24px;
+            }
+            QPushButton:hover {
+                background-color: #0369A1;
+            }
+            QPushButton:pressed {
+                background-color: #075985;
+            }
+        """)
+        btn_start.clicked.connect(self.accept)
+        btn_box.addWidget(btn_start)
+        root.addLayout(btn_box)
+
+
+def show_license_activated_dialog(parent=None, payload=None):
+    """全局弹出商业授权激活成功详细凭证卡片对话框"""
+    dlg = LicenseActivatedDialog(parent, payload=payload)
+    return dlg.exec()

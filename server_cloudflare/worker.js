@@ -488,6 +488,83 @@ async function handleClientApi(path, request, env) {
     }
 
     // 1.1 工位机指令执行回执 (ACK) (对标 Gear 规范)
+
+    // 1.2 在线一键激活请求与即时下发
+    if (path === "/api/v1/online_activate" && request.method === "POST") {
+        let body = {};
+        try { body = await request.json(); } catch(e){}
+        const mid = (body.machine_id || "").trim().toUpperCase();
+        if (!mid) return jsonResponse({ success: false, error: "Missing machine_id" }, 400);
+
+        const hostname = body.hostname || "-";
+        const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "-";
+        const mac = body.mac_address || "-";
+        const appVersion = body.app_version || "-";
+        const appBuild = body.app_build || "-";
+        const customer = (body.customer_name || "").trim() || "在线申请用户";
+        const contact = (body.contact || "").trim() || "-";
+
+        // 确保工位机记录在 devices 表
+        await db.prepare(`
+            INSERT INTO devices (
+                machine_id, hostname, ip_address, mac_address, app_version, app_build,
+                customer_name, line_station, license_status, notes, last_sync_time, sync_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'WORKSTATION-01', 'PENDING_APPROVAL', ?, CURRENT_TIMESTAMP, 1)
+            ON CONFLICT(machine_id) DO UPDATE SET
+                hostname = CASE WHEN excluded.hostname != '-' THEN excluded.hostname ELSE devices.hostname END,
+                ip_address = excluded.ip_address,
+                mac_address = CASE WHEN excluded.mac_address != '-' THEN excluded.mac_address ELSE devices.mac_address END,
+                app_version = excluded.app_version,
+                app_build = excluded.app_build,
+                customer_name = CASE WHEN excluded.customer_name != '在线申请用户' AND excluded.customer_name != '' THEN excluded.customer_name ELSE devices.customer_name END,
+                last_sync_time = CURRENT_TIMESTAMP
+        `).bind(mid, hostname, ip, mac, appVersion, appBuild, customer, `在线激活联系: ${contact}`).run();
+
+        // 检查是否有已为该设备签发或等待下发的有效授权
+        const lic = await db.prepare("SELECT * FROM licenses WHERE machine_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1").bind(mid).first();
+        const dev = await db.prepare("SELECT * FROM devices WHERE machine_id = ?").bind(mid).first();
+
+        let tokenToSend = "";
+        let expireDate = "PERMANENT";
+        let customerName = customer;
+        let planType = "SUB_ANNUAL_365";
+
+        if (lic && lic.token) {
+            tokenToSend = lic.token;
+            expireDate = lic.expire_date;
+            customerName = lic.customer_name || customer;
+            planType = lic.plan_type || "SUB_ANNUAL_365";
+        } else if (dev && dev.remote_command === "UPDATE_LICENSE" && dev.remote_command_payload) {
+            tokenToSend = dev.remote_command_payload;
+            expireDate = dev.license_expire || "PERMANENT";
+            customerName = dev.customer_name || customer;
+            planType = dev.plan_type || "SUB_ANNUAL_365";
+        }
+
+        if (tokenToSend) {
+            await db.prepare("UPDATE devices SET remote_command = 'NONE', remote_command_payload = '', license_status = 'ACTIVE' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('ONLINE_ACTIVATE_SUCCESS', ?, ?, ?)").bind(mid, `工位机在线一键激活成功: ${customerName}`, ip).run();
+            return jsonResponse({
+                success: true,
+                status: "ACTIVATED",
+                token: tokenToSend,
+                expire_date: expireDate,
+                customer_name: customerName,
+                plan_type: planType,
+                message: "恭喜！商业授权在线核验成功，凭证已就绪。"
+            });
+        }
+
+        // 尚未下发，登记为申请中
+        await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('ONLINE_ACTIVATE_REQUEST', ?, ?, ?)").bind(mid, `客户在线申请激活: ${customer} (${contact})`, ip).run();
+        return jsonResponse({
+            success: false,
+            status: "PENDING_APPROVAL",
+            machine_id: mid,
+            message: "已向云端提交在线激活申请。管理员在后台点击【一键下发授权】后，软件将立即自动激活！"
+        });
+    }
+
     if ((path === "/api/v1/command_ack" || path === "/api/v1/station/command_ack") && request.method === "POST") {
         let body = {};
         try { body = await request.json(); } catch(e){}
@@ -795,7 +872,90 @@ async function handleAdmin(path, request, env, url) {
         } else if (action === "SET_PERMANENT") {
             await db.prepare("UPDATE devices SET license_expire = 'PERMANENT', remaining_days = 99999, license_status = 'ACTIVE', remote_command = 'NONE' WHERE machine_id = ?").bind(mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('SET_PERMANENT', ?, '设为永久企业买断授权', ?)").bind(mid, ip).run();
-        } else if (action === "PUSH_TOKEN") {
+                } else if (action === "AUTO_AUTHORIZE") {
+            const planType = (body.plan_type || "SUB_ANNUAL_365").trim();
+            let customer = (body.customer_name || "").trim();
+            const station = (body.station_id || "WORKSTATION-01").trim();
+            const days = parseInt(body.expire_days) || 365;
+
+            const devRow = await db.prepare("SELECT * FROM devices WHERE machine_id = ?").bind(mid).first();
+            if (!customer && devRow && devRow.customer_name && devRow.customer_name !== "散户/未登记" && devRow.customer_name !== "在线申请用户") {
+                customer = devRow.customer_name;
+            }
+            if (!customer) customer = "ANSV 商业客户";
+
+            let expireDateStr = "PERMANENT";
+            let maintExpireStr = "PERMANENT";
+            let planLabel = "年度商业标准版";
+
+            if (planType === "SUB_QUARTER_90") {
+                const dt = new Date();
+                dt.setDate(dt.getDate() + 90);
+                expireDateStr = dt.toISOString().substring(0, 10);
+                maintExpireStr = expireDateStr;
+                planLabel = "短期季度冲刺版 (90天)";
+            } else if (planType === "SUB_ANNUAL_365") {
+                const dt = new Date();
+                dt.setDate(dt.getDate() + 365);
+                expireDateStr = dt.toISOString().substring(0, 10);
+                maintExpireStr = expireDateStr;
+                planLabel = "年度商业标准版 (365天)";
+            } else if (planType === "PERPETUAL_1Y_UPDATE") {
+                expireDateStr = "PERMANENT";
+                const dt = new Date();
+                dt.setDate(dt.getDate() + 365);
+                maintExpireStr = dt.toISOString().substring(0, 10);
+                planLabel = "企业永久买断版 (首年维护)";
+            } else {
+                if (days > 0 && days < 10000) {
+                    const dt = new Date();
+                    dt.setDate(dt.getDate() + days);
+                    expireDateStr = dt.toISOString().substring(0, 10);
+                    maintExpireStr = expireDateStr;
+                } else {
+                    expireDateStr = "PERMANENT";
+                    maintExpireStr = "PERMANENT";
+                }
+                planLabel = `商业自定义版 (${days > 0 && days < 10000 ? days + "天" : "永久"})`;
+            }
+
+            const token = await generateCoilToken(mid, expireDateStr, maintExpireStr, planType, customer, station);
+
+            await db.prepare(`
+                INSERT INTO licenses (token, machine_id, plan_type, expire_date, maint_expire, customer_name, station_id, operator_name, status, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'ADMIN', 'ACTIVE', '一键极速在线授权下发')
+            `).bind(token, mid, planType, expireDateStr, maintExpireStr, customer, station).run();
+
+            await db.prepare(`
+                UPDATE devices SET 
+                    customer_name = ?,
+                    line_station = ?,
+                    plan_type = ?,
+                    license_status = 'ACTIVE',
+                    license_expire = ?,
+                    maint_expire = ?,
+                    status = 'ACTIVE',
+                    remote_command = 'UPDATE_LICENSE',
+                    remote_command_payload = ?,
+                    notes = '管理员一键下发商业授权'
+                WHERE machine_id = ?
+            `).bind(customer, station, planType, expireDateStr, maintExpireStr, token, mid).run();
+
+            await db.prepare(`
+                INSERT INTO audit_logs (action_type, target_id, details, ip)
+                VALUES ('AUTO_AUTHORIZE', ?, ?, ?)
+            `).bind(mid, `一键下发授权: ${planLabel}, 有效期至: ${expireDateStr}, 客户: ${customer}`, ip).run();
+
+            return jsonResponse({
+                success: true,
+                token,
+                machine_id: mid,
+                expire_date: expireDateStr,
+                customer_name: customer,
+                plan_type: planType,
+                plan_label: planLabel
+            });
+} else if (action === "PUSH_TOKEN") {
             const token = (val || "").trim();
             await db.prepare("UPDATE devices SET remote_command = 'UPDATE_LICENSE', remote_command_payload = ?, license_status = 'ACTIVE' WHERE machine_id = ?").bind(token, mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('PUSH_TOKEN', ?, '远程推送新授权激活码并通知更新', ?)").bind(mid, ip).run();
@@ -1635,7 +1795,9 @@ async function loadDevices() {
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">重开授权</button>';
         } else {
           actionBtns = 
-            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;margin-right:4px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">开通/续约</button>' +
+
+            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;background:#2563EB;margin-right:4px;" onclick="autoAuthorizeDevice(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">⚡ 一键下发授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;margin-right:4px;" onclick="quickGenForMid(\\'' + dev.machine_id + '\\', \\'' + (dev.customer_name || '') + '\\')">开通/续约</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" onclick="revokeDevice(\\'' + dev.machine_id + '\\')">🚫 取消授权</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="showRemoteMenu(\\'' + dev.machine_id + '\\')">⚙️ 更多</button>';
         }
@@ -1657,6 +1819,41 @@ async function loadDevices() {
     }
   } catch(e) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 20px; color:red;">数据加载异常，请刷新页面重试</td></tr>';
+  }
+}
+
+
+async function autoAuthorizeDevice(mid, customer) {
+  const cust = prompt('请输入授权企业/客户名称 (将写入证书凭证):', customer && customer !== '散户/未登记' && customer !== '在线申请用户' ? customer : 'ANSV 商业VIP客户');
+  if (cust === null) return;
+  const planChoice = prompt('请选择授权周期方案：\n1: 年度商业版 (365天) [默认]\n2: 永久企业买断版\n3: 季度项目版 (90天)\n\n请输入数字 (1-3):', '1');
+  if (planChoice === null) return;
+
+  let planType = 'SUB_ANNUAL_365';
+  if (planChoice === '2') planType = 'PERPETUAL_1Y_UPDATE';
+  else if (planChoice === '3') planType = 'SUB_QUARTER_90';
+
+  try {
+    const res = await fetch('/admin/api/device/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        machine_id: mid,
+        action: 'AUTO_AUTHORIZE',
+        customer_name: cust,
+        plan_type: planType
+      })
+    });
+    const d = await res.json();
+    if (d.success) {
+      alert('🎉 商业授权已成功生成并下发至工位机 [' + mid + ']！\n\n客户名称: ' + d.customer_name + '\n方案级别: ' + d.plan_label + '\n有效期至: ' + d.expire_date + '\n\n工位机将在下一次心跳（未激活时仅15秒）或用户点击“在线激活”时自动激活并弹出成功信息！');
+      loadDevices();
+      loadStats();
+    } else {
+      alert('下发失败: ' + (d.error || '未知错误'));
+    }
+  } catch(e) {
+    alert('网络异常: ' + e.message);
   }
 }
 

@@ -5,6 +5,11 @@ Description: Coil-Architect Pro 软件版本、构建指纹与发布配置
 统一管理软件全量版本标识、语义化版本比对规则与研发代码编辑追溯指纹
 -----------------------------------------------------------------------------
 REVISION HISTORY (软件编辑留痕):
+- 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B5：
+                             1) 重磅上线「⚡ 云端一键在线秒级授权激活」：客户端免输激活码，点击即可直接向云端请求激活凭证；
+                             2) 智能自适应动态心跳轮询引擎：未授权/试用状态下以 15 秒短周期轮询，管理员在网页控制台点击【⚡ 一键下发授权】后最快瞬间、最长15秒内客户端自动完成激活；
+                             3) 商业激活成功高保真凭证卡片弹窗 (LicenseActivatedDialog)：下发或在线激活成功后，自动关闭向导弹窗并弹出详细凭证（授权机构、工位ID、机器特征码、方案类别、有效截止日及全功能解锁列表）；
+                             4) Cloudflare 边缘 Worker 控制台新增 /api/v1/online_activate 接口与 AUTO_AUTHORIZE 一键签发下发指令。
 - 2026-10-24 [Yaming] v1.1.0: 升级构建版本至 20261024B4：
                              1) 优化英文模式下主界面「导出仿真报告」按钮文字：精简优化为「📊 Export Report」，宽度完美自适应；
                              2) 在「关于系统」弹窗中新增专属「🐛 BUG反馈与技术支持渠道」卡片，完整罗列官方公众号 (ANSV微型执行器)、工程师微信 (ansv-net)、WhatsApp (ansv_net) 以及支持邮箱 (support@ansv.net)；
@@ -99,9 +104,9 @@ WECHAT_OFFICIAL_ACCOUNT = "ANSV微型执行器"
 WECHAT_CONTACT_ID = "ansv-net"
 WHATSAPP_CONTACT_ID = "ansv_net"
 APP_VERSION = "v1.1.0"
-APP_BUILD = "20261024B4"
+APP_BUILD = "20261024B5"
 APP_DATE = "2026-10-24"
-BUILD_TIME = "2026-10-24 11:00:00 CST"
+BUILD_TIME = "2026-10-24 12:30:00 CST"
 APP_AUTHOR = "ANSV 传动工程与微型执行器实验室"
 OFFICIAL_URL = "https://ansv.net"
 GITHUB_REPO_URL = "https://github.com/tonychen5577-tech/coil-architect"

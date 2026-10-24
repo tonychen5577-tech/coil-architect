@@ -912,19 +912,32 @@ class MainWindow(QMainWindow):
                 app.quit()
 
         elif cmd_upper == "UPDATE_LICENSE":
+            logger.info("MainWindow 捕获云端远程授权下发指令: UPDATE_LICENSE，刷新状态与界面...")
+            # 1. 若当前正打开激活向导弹窗，自动关闭它
+            if hasattr(self, "_current_activation_dialog") and self._current_activation_dialog:
+                try:
+                    self._current_activation_dialog.accept()
+                except Exception:
+                    pass
+                self._current_activation_dialog = None
+
+            # 2. 刷新主界面顶部授权按钮与功能守卫状态
+            self._refresh_license_status()
+
+            # 3. 状态栏高亮提示
             self.status_bar.showMessage(
-                "🎉 Cloud license updated and applied automatically!"
+                "🎉 Cloud commercial license activated and applied automatically!"
                 if is_en else
-                "🎉 云端已远程下发最新商业授权，系统已自动刷新生效！",
-                5000
+                "🎉 云端已远程下发最新商业授权，系统已自动刷新激活并解除全部限制！",
+                6000
             )
-            QMessageBox.information(
-                self,
-                "Cloud License Updated" if is_en else "云端授权更新成功",
-                "Your commercial license has been extended or upgraded via the cloud console!\n\nLocal credentials have been refreshed automatically."
-                if is_en else
-                "管理员已通过云端控制台为您延长了商业授权 / 升级了方案版本！\n\n当前授权凭证已在本地自动刷新生效。"
-            )
+
+            # 4. 弹出详细商业授权凭证卡片弹窗 (直观展示激活凭证与特权信息)
+            try:
+                from src.gui.activation_dialog import show_license_activated_dialog
+                show_license_activated_dialog(self)
+            except Exception as e:
+                logger.error(f"弹出授权凭证窗口异常: {e}")
 
 
 
@@ -1494,7 +1507,9 @@ class MainWindow(QMainWindow):
 
             from src.gui.activation_dialog import ActivationDialog
             dlg = ActivationDialog(self)
+            self._current_activation_dialog = dlg
             dlg.exec()
+            self._current_activation_dialog = None
 
             # 重新检测授权状态
             auth_ok_now, auth_msg_now, lic_data_now = LicenseManager.is_system_authorized()
