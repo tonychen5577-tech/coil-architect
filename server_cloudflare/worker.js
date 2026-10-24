@@ -899,18 +899,8 @@ async function handleAdmin(path, request, env, url) {
             return jsonResponse({ success: false, error: "请填写完整版本号与下载地址" }, 400);
         }
         await db.prepare(`
-            INSERT INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
+            INSERT OR REPLACE INTO releases (version, build, release_date, download_url, backup_url, sha256, file_size_mb, changelog, is_mandatory, is_active)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            ON CONFLICT(version) DO UPDATE SET
-                build = excluded.build,
-                release_date = excluded.release_date,
-                download_url = excluded.download_url,
-                backup_url = excluded.backup_url,
-                sha256 = excluded.sha256,
-                file_size_mb = excluded.file_size_mb,
-                changelog = excluded.changelog,
-                is_mandatory = excluded.is_mandatory,
-                is_active = 1
         `).bind(
             b.version.trim(),
             b.build || "",
@@ -1751,9 +1741,9 @@ async function loadDevices() {
 
         return '<tr>' +
           '<td>' + onlineHtml + '</td>' +
-          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span></td>' +
+          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span><br><span style="color:#64748B;font-size:11px;">MAC: ' + (dev.mac_address || '-') + '</span></td>' +
           '<td><b>' + (dev.customer_name || '-') + '</b><br><span style="color:#64748B;font-size:11px;">操作员: ' + (dev.operator_name || '-') + ' (' + (dev.system_user || '-') + ')</span><br><span style="color:#94A3B8;font-size:10px;">' + (dev.hostname || '-') + ' (' + (dev.ip_address || '-') + ')</span></td>' +
-          '<td><span class="mono">' + dev.app_version + '</span><br><span style="color:#64748B;font-size:10px;">基准库: ' + (dev.wire_db_version || 'v1.0') + '</span></td>' +
+          '<td><span class="mono">' + dev.app_version + '</span><br><span style="color:#0284C7;font-size:10px;font-family:monospace;">Build ' + (dev.app_build || '-') + '</span></td>' +
           '<td>' + statusBadge + '</td>' +
           '<td>' + dev.license_expire + '<br><span style="font-size:11px;color:#64748B;">(' + remainText + ')</span></td>' +
           '<td><b>' + (dev.last_sync_bj || dev.last_sync_time || '-') + '</b><br><span style="font-size:10px;color:#94A3B8;">已累计心跳 ' + (dev.sync_count || 1) + ' 次</span></td>' +
