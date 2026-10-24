@@ -517,6 +517,13 @@ class LicenseManager:
         try:
             p = get_app_data_dir() / cls.LICENSE_FILE
             _atomic_write_text(p, token.strip())
+            # 若存在历史吊销标记文件，彻底清理
+            revoked_p = p.with_suffix(".key.revoked")
+            try:
+                if revoked_p.exists():
+                    revoked_p.unlink(missing_ok=True)
+            except Exception:
+                pass
             # 刷新内存缓存
             global _CACHED_AUTH_RESULT
             _CACHED_AUTH_RESULT = None
