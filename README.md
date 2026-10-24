@@ -104,7 +104,17 @@ The solver kernel is built upon closed-form analytical geometric integration and
   <em>Figure 3: ISO 129 compliant 2D section projection with datum symbols and assembly air gap clearance assessment</em>
 </p>
 
-### 4. Multi-Scheme Review Matrix & Adaptive Report Export
+### 4. Non-Coplanar Winding Physics & Real Physical Strata Cross-Section
+- **Support for Non-Coplanar & Uneven Layer Turns**: In realistic high-speed winding, wires do not strictly reside on the same layer due to lead-in/out crossovers, layer transition drops, and half-turn offsets. The software fully supports non-coplanar winding calculations to resolve true effective turns, radial wall thickness $E$, outer spans, and DC resistance;
+- **Real-Time Physical Cross-Section Rendering**: The 2D viewport dynamically renders actual microscopic layer strata, providing clear visualization of inner datum boundaries, outer margins, and lead crossovers.
+
+<p align="center">
+  <img src="docs/images/non_coplanar_winding_cross_section_en.png" alt="Non-Coplanar Winding Model & Physical Micro-Layer Strata Cross-Section" width="95%" />
+  <br>
+  <em>Figure 4: Non-Coplanar Winding Model & Real Physical Strata Cross-Section (HCP Interleaved Layers & Jumper Leads)</em>
+</p>
+
+### 5. Multi-Scheme Review Matrix & Adaptive Report Export
 - **Dual Drawer & Standalone Window Modes**: Operates as a collapsible bottom drawer or detaches into a resizable standalone review matrix window via **[⛶ Pop-out]**, allowing full-screen widescreen evaluation of 8 to 10 competing coil proposals;
 - **Side-by-Side Baseline Comparison**: Click **[📌 Freeze Scheme]** to capture candidate proposals into dedicated comparison columns. Supports one-click parameter recall, designating baseline schemes, and highlighting cell-by-cell delta deviations ($\Delta$);
 - **Project Code Auto-Injection**: Project names (default `Coli-Architect`) are automatically injected into exported Excel and CSV filenames and sheet headers (e.g., `{ProjectID}_Coil_Comparison_Matrix_YYYYMMDD_HHMMSS.xlsx`);
@@ -125,7 +135,7 @@ To facilitate global research collaboration, multinational engineering handovers
 <p align="center">
   <img src="docs/images/verify_main_window_en.png" alt="Coil-Architect Pro English Workstation Interface" width="95%" />
   <br>
-  <em>Figure 5: ANSV Coil-Architect Pro Full English Workstation — Standardized industrial terminology, 16 KPI metric cards, and English engineering report export</em>
+  <em>Figure 6: ANSV Coil-Architect Pro Full English Workstation — Standardized industrial terminology, 16 KPI metric cards, and English engineering report export</em>
 </p>
 
 ### 1. Intuitive Top Toolbar Language Toggle
