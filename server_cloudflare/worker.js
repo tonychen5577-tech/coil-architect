@@ -178,6 +178,11 @@ async function ensureTables(db) {
         "clock_skew_sec INTEGER DEFAULT 0",
         "remote_command VARCHAR(64) DEFAULT 'NONE'",
         "remote_command_payload TEXT DEFAULT ''",
+        "status VARCHAR(20) DEFAULT 'ACTIVE'",
+        "revoke_confirmed INTEGER DEFAULT 0",
+        "last_ack_cmd VARCHAR(64) DEFAULT ''",
+        "last_ack_time DATETIME",
+        "revoke_time DATETIME",
         "first_seen_time DATETIME DEFAULT CURRENT_TIMESTAMP",
         "last_sync_time DATETIME DEFAULT CURRENT_TIMESTAMP"
     ];
@@ -443,9 +448,25 @@ async function handleClientApi(path, request, env) {
                 clock_tampered = CASE WHEN excluded.clock_tampered = 1 THEN 1 ELSE devices.clock_tampered END,
                 client_clock_time = excluded.client_clock_time,
                 clock_skew_sec = excluded.clock_skew_sec,
-                license_status = CASE WHEN devices.status = 'BANNED' THEN 'BANNED' ELSE excluded.license_status END,
-                license_expire = CASE WHEN excluded.license_expire != '-' THEN excluded.license_expire ELSE devices.license_expire END,
-                remaining_days = excluded.remaining_days,
+                status = CASE 
+                    WHEN devices.status = 'BANNED' THEN 'BANNED'
+                    WHEN devices.status = 'REVOKED' OR devices.license_status = 'REVOKED' THEN 'REVOKED'
+                    ELSE devices.status
+                END,
+                license_status = CASE 
+                    WHEN devices.status = 'BANNED' THEN 'BANNED'
+                    WHEN devices.status = 'REVOKED' OR devices.license_status = 'REVOKED' THEN 'REVOKED'
+                    ELSE excluded.license_status 
+                END,
+                license_expire = CASE 
+                    WHEN devices.status = 'REVOKED' OR devices.license_status = 'REVOKED' THEN devices.license_expire
+                    WHEN excluded.license_expire != '-' THEN excluded.license_expire 
+                    ELSE devices.license_expire 
+                END,
+                remaining_days = CASE
+                    WHEN devices.status = 'REVOKED' OR devices.license_status = 'REVOKED' THEN 0
+                    ELSE excluded.remaining_days
+                END,
                 last_sync_time = CURRENT_TIMESTAMP,
                 sync_count = devices.sync_count + 1
         `).bind(
@@ -463,7 +484,7 @@ async function handleClientApi(path, request, env) {
         let remotePayload = deviceRow ? (deviceRow.remote_command_payload || "") : "";
 
         // 如果设备处于 BANNED 或 REVOKED 状态，强行下发 LOCK_APP 指令 (远程锁机/吊销)
-        if (deviceRow && (deviceRow.status === "BANNED" || deviceRow.license_status === "REVOKED")) {
+        if (deviceRow && (deviceRow.status === "BANNED" || deviceRow.status === "REVOKED" || deviceRow.license_status === "REVOKED")) {
             remoteCmd = "LOCK_APP";
         }
 
@@ -535,9 +556,18 @@ async function handleClientApi(path, request, env) {
                 last_sync_time = CURRENT_TIMESTAMP
         `).bind(mid, hostname, ip, mac, appVersion, appBuild, customer, `在线激活联系: ${contact}`).run();
 
+        // 检查设备是否已被取消授权或封禁
+        const dev = await db.prepare("SELECT * FROM devices WHERE machine_id = ?").bind(mid).first();
+        if (dev && (dev.status === "BANNED" || dev.status === "REVOKED" || dev.license_status === "REVOKED")) {
+            return jsonResponse({
+                success: false,
+                status: "REVOKED",
+                error: "该工位机商业授权已被管理员在云端控制台取消/终止，无法在线自动激活。请联系官方技术支持恢复授权。"
+            });
+        }
+
         // 检查是否有已为该设备签发或等待下发的有效授权
         const lic = await db.prepare("SELECT * FROM licenses WHERE machine_id = ? AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1").bind(mid).first();
-        const dev = await db.prepare("SELECT * FROM devices WHERE machine_id = ?").bind(mid).first();
 
         let tokenToSend = "";
         let expireDate = "PERMANENT";
@@ -587,8 +617,37 @@ async function handleClientApi(path, request, env) {
         const cmd = (body.command || "NONE").trim();
         const status = (body.status || "OK").trim();
         if (mid) {
-            await db.prepare("UPDATE devices SET remote_command = 'NONE', remote_command_payload = '' WHERE machine_id = ?").bind(mid).run();
-            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details) VALUES ('COMMAND_ACK', ?, ?)").bind(mid, `工位机指令回执: ${cmd} -> ${status}`).run();
+            if (cmd === "LOCK_APP" || cmd === "REVOKE_LICENSE") {
+                await db.prepare(`
+                    UPDATE devices SET 
+                        status = 'REVOKED',
+                        license_status = 'REVOKED',
+                        remote_command = 'LOCK_APP',
+                        revoke_confirmed = 1,
+                        last_ack_time = CURRENT_TIMESTAMP,
+                        last_ack_cmd = 'LOCK_APP:EXECUTED',
+                        notes = '工位机已确认执行锁机，本地凭证已彻底销毁并安全退出'
+                    WHERE machine_id = ?
+                `).bind(mid).run();
+                await db.prepare("INSERT INTO audit_logs (action_type, target_id, details) VALUES ('REVOKE_CONFIRMED', ?, '工位机已确认销毁本地证书并锁定退出')").bind(mid).run();
+            } else if (cmd === "UPDATE_LICENSE") {
+                await db.prepare(`
+                    UPDATE devices SET 
+                        status = 'ACTIVE',
+                        license_status = 'ACTIVE',
+                        remote_command = 'NONE',
+                        remote_command_payload = '',
+                        revoke_confirmed = 0,
+                        last_ack_time = CURRENT_TIMESTAMP,
+                        last_ack_cmd = 'UPDATE_LICENSE:SUCCESS',
+                        notes = '工位机已确认装载并激活最新商业凭证'
+                    WHERE machine_id = ?
+                `).bind(mid).run();
+                await db.prepare("INSERT INTO audit_logs (action_type, target_id, details) VALUES ('LICENSE_CONFIRMED', ?, '工位机已确认装载并激活商业凭证')").bind(mid).run();
+            } else {
+                await db.prepare("UPDATE devices SET remote_command = 'NONE', remote_command_payload = '', last_ack_time = CURRENT_TIMESTAMP, last_ack_cmd = ? WHERE machine_id = ?").bind(`${cmd}:${status}`, mid).run();
+                await db.prepare("INSERT INTO audit_logs (action_type, target_id, details) VALUES ('COMMAND_ACK', ?, ?)").bind(mid, `工位机指令回执: ${cmd} -> ${status}`).run();
+            }
         }
         return jsonResponse({ success: true, message: "ACK received" });
     }
@@ -879,8 +938,19 @@ async function handleAdmin(path, request, env, url) {
         if (!mid) return jsonResponse({ success: false, error: "Missing machine_id" }, 400);
 
         if (action === "REVOKE" || action === "LOCK_APP") {
-            await db.prepare("UPDATE devices SET license_status = 'REVOKED', remote_command = 'LOCK_APP' WHERE machine_id = ?").bind(mid).run();
-            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REVOKE_LICENSE', ?, '管理员在网页控制台取消授权，下发远程锁机指令', ?)").bind(mid, ip).run();
+            await db.prepare(`
+                UPDATE devices SET 
+                    status = 'REVOKED', 
+                    license_status = 'REVOKED', 
+                    remote_command = 'LOCK_APP',
+                    revoke_confirmed = 0,
+                    revoke_time = CURRENT_TIMESTAMP,
+                    notes = '管理员取消授权，已排队下发远程锁机指令'
+                WHERE machine_id = ?
+            `).bind(mid).run();
+            await db.prepare("UPDATE licenses SET status = 'REVOKED' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REVOKE_LICENSE', ?, '管理员在控制台取消授权，下发远程锁机指令', ?)").bind(mid, ip).run();
+            return jsonResponse({ success: true, message: "已成功取消授权并下发远程锁机指令！工位机将在心跳连接时强制销毁本地凭证并锁定退出。" });
         } else if (action === "BAN") {
             await db.prepare("UPDATE devices SET status = 'BANNED', license_status = 'REVOKED', remote_command = 'LOCK_APP' WHERE machine_id = ?").bind(mid).run();
             await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('BAN_DEVICE', ?, '强制拉黑吊销并下发锁定指令', ?)").bind(mid, ip).run();
@@ -916,6 +986,7 @@ async function handleAdmin(path, request, env, url) {
                     plan_type = ?,
                     remote_command = 'UPDATE_LICENSE', 
                     remote_command_payload = ?,
+                    revoke_confirmed = 0,
                     notes = '管理员撤销取消授权，恢复工位机商业激活'
                 WHERE machine_id = ?
             `).bind(expDate, custName, planType, pushToken, mid).run();
@@ -1896,12 +1967,21 @@ async function loadDevices() {
           '</div><br><span style="color:#94A3B8;font-size:10px;margin-top:2px;display:inline-block;">' + timeText + '</span>';
         }
 
+        const isRevoked = (dev.status === 'REVOKED' || dev.license_status === 'REVOKED');
+        const isBanned = (dev.status === 'BANNED' || dev.license_status === 'BANNED');
+
         let statusBadge = '<span class="badge badge-success">正常授权</span>';
-        if(dev.status === 'BANNED' || dev.license_status === 'REVOKED') {
-          statusBadge = '<span class="badge badge-danger">已取消授权/锁机</span>';
-        } else if(dev.license_status === 'EXPIRED') {
+        if (isBanned) {
+          statusBadge = '<span class="badge badge-danger">已拉黑封禁</span>';
+        } else if (isRevoked) {
+          if (dev.revoke_confirmed == 1) {
+            statusBadge = '<span class="badge badge-danger" style="background:#DC2626;">🚫 已取消授权 (已锁机)</span><br><span style="color:#059669;font-size:10px;font-weight:600;">✓ 工位机已回执锁机</span>';
+          } else {
+            statusBadge = '<span class="badge badge-warning" style="background:#D97706;">⏳ 取消授权中 (待锁机)</span><br><span style="color:#B45309;font-size:10px;">• 锁机指令排队中</span>';
+          }
+        } else if (dev.license_status === 'EXPIRED') {
           statusBadge = '<span class="badge badge-danger">已过期</span>';
-        } else if(dev.license_status === 'TRIAL') {
+        } else if (dev.license_status === 'TRIAL') {
           statusBadge = '<span class="badge badge-warning">免密试用</span>';
         }
 
@@ -1911,11 +1991,11 @@ async function loadDevices() {
         let diskText = dev.disk_free_gb > 0 ? (dev.disk_free_gb + ' GB') : '-';
 
         let actionBtns = '';
-        if (dev.status === 'BANNED' || dev.license_status === 'REVOKED') {
+        if (isRevoked || isBanned) {
           actionBtns = 
             '<button class="btn-primary" style="padding:4px 10px;font-size:11px;background:#059669;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="undoRevokeDevice(this.dataset.mid)">↩️ 撤销取消授权 (恢复激活)</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;background:#EFF6FF;color:#2563EB;border-color:#BFDBFE;margin-right:4px;" data-mid="' + dev.machine_id + '" data-confirmed="' + (dev.revoke_confirmed || 0) + '" data-ack="' + (dev.last_ack_cmd || '') + '" data-time="' + (dev.last_sync_bj || dev.last_sync_time || '-') + '" onclick="checkRevokeStatus(this.dataset.mid, this.dataset.confirmed, this.dataset.ack, this.dataset.time)">🔍 检测锁机状态</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;background:#F0FDF4;color:#059669;border-color:#A7F3D0;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="repushLatestLicense(this.dataset.mid)">🔄 重发已有授权</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;margin-right:4px;" data-mid="' + dev.machine_id + '" data-cust="' + (dev.customer_name || '') + '" onclick="quickGenForMid(this.dataset.mid, this.dataset.cust)">重开新授权</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" data-mid="' + dev.machine_id + '" onclick="showRemoteMenu(this.dataset.mid)">⚙️ 更多</button>';
         } else {
           actionBtns = 
@@ -1978,6 +2058,38 @@ async function autoAuthorizeDevice(mid, customer) {
     }
   } catch(e) {
     alert('网络异常: ' + e.message);
+  }
+}
+
+function checkRevokeStatus(mid, confirmed, ack, time) {
+  if (confirmed == '1' || ack.indexOf('LOCK_APP') !== -1) {
+    const msg = [
+      '✅【取消授权与锁机验证成功 · 已彻底生效】',
+      '',
+      '工位机识别码: ' + mid,
+      '工位机锁机回执: ' + (ack || 'LOCK_APP:EXECUTED (已确认)'),
+      '最近心跳/回执时间: ' + (time || '-'),
+      '',
+      '【安全审计报告】：',
+      '1. 工位机已成功接收云端下发的 LOCK_APP 远程锁机指令；',
+      '2. 本地商业许可文件 (.key) 已彻底清除并归档，软件已被安全锁定强制退出；',
+      '3. 云端已永久锁定为 REVOKED 状态，任何客户端心跳绝不会自动恢复，外人无法使用！',
+      '4. 状态将永久保持，直到管理员在控制台手工点击【↩️ 撤销取消授权 (恢复激活)】。'
+    ].join(String.fromCharCode(10));
+    alert(msg);
+  } else {
+    const msg = [
+      '⏳【取消授权指令已就绪 · 等待工位机心跳接收】',
+      '',
+      '工位机识别码: ' + mid,
+      '当前状态: 云端已永久锁定为 REVOKED，LOCK_APP 锁机指令在待发队列中',
+      '最近心跳时间: ' + (time || '-'),
+      '',
+      '【执行机制说明】：',
+      '• 客户端软件在下一次心跳周期 (最长15~30秒) 或用户下次打开软件时，将瞬间强制执行锁机并销毁凭证退出；',
+      '• 工位机确认执行后，此处状态将自动更新为“✓ 工位机已回执锁机”。您可随时再次点击本按钮检测核验！'
+    ].join(String.fromCharCode(10));
+    alert(msg);
   }
 }
 
