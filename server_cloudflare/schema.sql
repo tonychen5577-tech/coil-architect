@@ -54,22 +54,6 @@ CREATE TABLE IF NOT EXISTS licenses (
     notes TEXT DEFAULT ''                            -- 商务合作合同/经手人备注
 );
 
--- 3. 官方标杆工程案例与线圈预设库 (对标 Gear-NVH 专家案例库)
-CREATE TABLE IF NOT EXISTS coil_cases (
-    case_id VARCHAR(64) PRIMARY KEY,                 -- 案例唯一编号 (如 CASE-VCM-OCT-01)
-    case_name VARCHAR(128) NOT NULL,                 -- 案例名称 (如 潜望50MP八角形VCM标杆)
-    coil_type VARCHAR(32) NOT NULL,                  -- 线圈拓扑 (OCTAGONAL / RACETRACK / CIRCULAR / RECTANGULAR)
-    application_scenario VARCHAR(128) DEFAULT '',    -- 适用场景 (如 潜望长焦对焦/防抖)
-    version INTEGER DEFAULT 1,                       -- 算例版本号
-    tags TEXT DEFAULT '[]',                          -- JSON 标签列表
-    parameters TEXT NOT NULL,                        -- JSON 完整线圈几何、材料与物理参数
-    dfm_summary TEXT DEFAULT '',                     -- DFM 制造工艺气隙安全卡控指标
-    created_by VARCHAR(64) DEFAULT 'ANSV R&D',       -- 创建人
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_active INTEGER DEFAULT 1
-);
-
 -- 4. 管理员操作与安全审计留痕表 (不可篡改留痕，IATF 16949 / ISO 9001 质量溯源)
 CREATE TABLE IF NOT EXISTS audit_logs (
     log_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,30 +120,6 @@ VALUES (
     1
 );
 
--- 写入初始官方标杆案例
-INSERT OR REPLACE INTO coil_cases (case_id, case_name, coil_type, application_scenario, version, parameters, dfm_summary, created_by)
-VALUES (
-    'CASE-VCM-OCT-01',
-    '50MP 潜望式变焦马达八角形线圈标杆算例',
-    'OCTAGONAL',
-    '潜望折转长焦镜头双向闭环 AF/OIS',
-    1,
-    '{"oct_id1":7.10,"oct_id2":7.05,"oct_l1":2.62,"oct_l2":2.74,"oct_r1":0.30,"radial_layers":14.0,"axial_turns":12,"bare_dia":0.075,"max_od":0.085,"target_res":19.5,"tension_factor":0.99}',
-    '气隙 >= 0.15mm (安全)',
-    'Yaming.Chen (ANSV Lab)'
-);
-
-INSERT OR REPLACE INTO coil_cases (case_id, case_name, coil_type, application_scenario, version, parameters, dfm_summary, created_by)
-VALUES (
-    'CASE-SENSOR-SHIFT-01',
-    'Sensor-Shift 传感器防抖平面超薄跑道形线圈标杆算例',
-    'RACETRACK',
-    '旗舰手机 CMOS 传感器位移防抖平面驱动',
-    1,
-    '{"inner_len":4.86,"inner_wid":1.50,"radial_layers":12.0,"axial_turns":8,"bare_dia":0.065,"max_od":0.073,"target_res":16.8,"tension_factor":0.985}',
-    '气隙 >= 0.18mm (安全)',
-    'Yaming.Chen (ANSV Lab)'
-);
 
 -- 写入全局配置项
 INSERT OR REPLACE INTO app_config (meta_key, meta_value) VALUES 

@@ -209,26 +209,6 @@ async function ensureTables(db) {
     try { await db.prepare("ALTER TABLE licenses ADD COLUMN maint_expire VARCHAR(64) DEFAULT 'PERMANENT'").run(); } catch (_) { }
     try { await db.prepare("ALTER TABLE licenses ADD COLUMN plan_type VARCHAR(32) DEFAULT 'SUB_ANNUAL_365'").run(); } catch (_) { }
 
-    // 3. coil_cases 官方标杆案例库 (对齐 Gear: gear_cases)
-    try {
-        await db.prepare(`
-            CREATE TABLE IF NOT EXISTS coil_cases (
-                case_id VARCHAR(64) PRIMARY KEY,
-                case_name VARCHAR(128) NOT NULL,
-                coil_type VARCHAR(32) NOT NULL,
-                application_scenario VARCHAR(128) DEFAULT '',
-                version INTEGER DEFAULT 1,
-                tags TEXT DEFAULT '[]',
-                parameters TEXT NOT NULL,
-                dfm_summary TEXT DEFAULT '',
-                created_by VARCHAR(64) DEFAULT 'ANSV R&D',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_active INTEGER DEFAULT 1
-            )
-        `).run();
-    } catch (_) { }
-
     // 4. audit_logs 审计流水日志表 (对齐 Gear: case_audit_logs)
     try {
         await db.prepare(`
@@ -297,22 +277,6 @@ async function ensureTables(db) {
 
     try {
         await db.prepare(`INSERT OR IGNORE INTO app_config (meta_key, meta_value) VALUES ('latest_version', 'v1.1.0')`).run();
-    } catch (_) { }
-
-    try {
-        await db.prepare(`
-            INSERT OR IGNORE INTO coil_cases (case_id, case_name, coil_type, application_scenario, version, parameters, dfm_summary, created_by)
-            VALUES (
-                'CASE-VCM-OCT-01',
-                '50MP 潜望式变焦马达八角形线圈标杆算例',
-                'OCTAGONAL',
-                '潜望折转长焦镜头双向闭环 AF/OIS',
-                1,
-                '{"oct_id1":7.10,"oct_id2":7.05,"oct_l1":2.62,"oct_l2":2.74,"oct_r1":0.30,"radial_layers":14.0,"axial_turns":12,"bare_dia":0.075,"max_od":0.085,"target_res":19.5,"tension_factor":0.99}',
-                '气隙 >= 0.15mm (安全)',
-                'Yaming.Chen (ANSV Lab)'
-            )
-        `).run();
     } catch (_) { }
 
     _isDbInitialized = true;
@@ -559,12 +523,6 @@ async function handleClientApi(path, request, env) {
         });
     }
 
-    // 3. 拉取官方推荐标杆算例 (对齐 Gear 专家库案例同步)
-    if (path === "/api/v1/cases/benchmarks" && request.method === "GET") {
-        const cases = await db.prepare("SELECT * FROM coil_cases WHERE is_active = 1 ORDER BY case_id ASC").all();
-        return jsonResponse({ success: true, cases: cases.results || [] });
-    }
-
     return jsonResponse({ success: false, error: "API route not found" }, 404);
 }
 
@@ -630,13 +588,6 @@ async function handleAdmin(path, request, env, url) {
         });
     }
 
-    // 4. 手动触发数据库初始化/自愈 API (免登录兜底或已登录均可触发)
-    if (path === "/admin/api/init_db" && request.method === "POST") {
-        _isDbInitialized = false;
-        await ensureTables(db);
-        return jsonResponse({ success: true, message: "所有数据表与索引已成功完成自愈热迁移与初始化！" });
-    }
-
     // 5. 下方所有 /admin/api/* 必须校验管理员权限
     if (!isAdminAuthenticated(request, env)) {
         return jsonResponse({ success: false, error: "未授权，请先登录后台" }, 401);
@@ -652,7 +603,7 @@ async function handleAdmin(path, request, env, url) {
         const liveOnline = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= datetime('now', '-40 minutes')").first())?.c || 0;
         const todaySyncs = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= date('now')").first())?.c || 0;
         const totalLicenses = (await db.prepare("SELECT COUNT(*) as c FROM licenses").first())?.c || 0;
-        const totalCases = (await db.prepare("SELECT COUNT(*) as c FROM coil_cases").first())?.c || 0;
+        const totalReleases = (await db.prepare("SELECT COUNT(*) as c FROM releases").first())?.c || 0;
         const activeRelease = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
 
         return jsonResponse({
@@ -664,7 +615,7 @@ async function handleAdmin(path, request, env, url) {
                 expiring_soon: expiringSoon,
                 today_syncs: todaySyncs,
                 total_licenses: totalLicenses,
-                total_cases: totalCases,
+                total_releases: totalReleases,
                 latest_version: activeRelease ? activeRelease.version : "v1.1.0"
             }
         });
@@ -879,12 +830,6 @@ async function handleAdmin(path, request, env, url) {
         return jsonResponse({ success: true, licenses: res.results || [] });
     }
 
-    // F. 标杆案例列表 (对齐 Gear: gear_cases)
-    if (path === "/admin/api/cases" && request.method === "GET") {
-        const res = await db.prepare("SELECT * FROM coil_cases ORDER BY case_id ASC").all();
-        return jsonResponse({ success: true, cases: res.results || [] });
-    }
-
     // G. 软件发布历史
     if (path === "/admin/api/releases" && request.method === "GET") {
         const res = await db.prepare("SELECT * FROM releases ORDER BY id DESC").all();
@@ -920,7 +865,6 @@ async function handleAdmin(path, request, env, url) {
     if (path === "/admin/api/export_db" && request.method === "GET") {
         const devices = (await db.prepare("SELECT * FROM devices").all()).results;
         const licenses = (await db.prepare("SELECT * FROM licenses").all()).results;
-        const cases = (await db.prepare("SELECT * FROM coil_cases").all()).results;
         const releases = (await db.prepare("SELECT * FROM releases").all()).results;
         const audit = (await db.prepare("SELECT * FROM audit_logs").all()).results;
         const config = (await db.prepare("SELECT * FROM app_config").all()).results;
@@ -928,7 +872,7 @@ async function handleAdmin(path, request, env, url) {
         const backup = {
             export_time: new Date().toISOString(),
             platform: "ANSV Coil-Architect Pro Edge DB",
-            tables: { devices, licenses, coil_cases: cases, releases, audit_logs: audit, app_config: config }
+            tables: { devices, licenses, releases, audit_logs: audit, app_config: config }
         };
 
         return new Response(JSON.stringify(backup, null, 2), {
@@ -1420,7 +1364,6 @@ function renderDashboardPage() {
     </div>
   </div>
   <div class="header-tools">
-    <button class="btn-header" style="background:#0284C7;color:#fff;" onclick="triggerDbSelfHealing()">⚡ 数据库自愈/重载</button>
     <button class="btn-header" onclick="exportDbBackup()">📥 导出全量备份 JSON</button>
     <button class="btn-header" onclick="doLogout()">🚪 退出管理</button>
   </div>
@@ -1447,8 +1390,8 @@ function renderDashboardPage() {
       <div class="stat-val" id="stat-expiring-soon" style="color: var(--warning);">-</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">📐 官方标杆案例数</div>
-      <div class="stat-val" id="stat-total-cases" style="color:#8B5CF6;">-</div>
+      <div class="stat-label">🚀 累计发布版本数</div>
+      <div class="stat-val" id="stat-total-releases" style="color:#8B5CF6;">-</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">🚀 当前主推版本</div>
@@ -1460,7 +1403,6 @@ function renderDashboardPage() {
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="switchTab('devices')">💻 现场工位机监控台账</button>
     <button class="nav-tab" onclick="switchTab('licenses')">🔑 历史签发授权记录</button>
-    <button class="nav-tab" onclick="switchTab('cases')">📐 官方标杆案例库</button>
     <button class="nav-tab" onclick="switchTab('releases')">🚀 软件发版与 OTA 管理</button>
   </div>
 
@@ -1524,32 +1466,6 @@ function renderDashboardPage() {
         </thead>
         <tbody id="license-table-body">
           <tr><td colspan="8" style="text-align:center; padding: 30px;">正在读取授权记录...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- TAB 3: 官方标杆案例库 (对齐 Gear 专家库) -->
-  <div id="tab-cases" class="card-main" style="display:none;">
-    <div class="toolbar">
-      <div><b>官方推荐线圈标杆仿真案例库 (Coil Benchmark Cases)</b></div>
-      <button class="btn-secondary" onclick="loadCases()">🔄 刷新案例</button>
-    </div>
-    <div style="overflow-x: auto;">
-      <table>
-        <thead>
-          <tr>
-            <th>案例编号</th>
-            <th>案例名称</th>
-            <th>拓扑类型</th>
-            <th>典型工业应用场景</th>
-            <th>版本</th>
-            <th>DFM 卡控标准</th>
-            <th>研制作者</th>
-          </tr>
-        </thead>
-        <tbody id="cases-table-body">
-          <tr><td colspan="7" style="text-align:center; padding: 30px;">正在读取标杆案例...</td></tr>
         </tbody>
       </table>
     </div>
@@ -1652,24 +1568,9 @@ function switchTab(tab) {
   event.target.classList.add('active');
   document.getElementById('tab-devices').style.display = tab === 'devices' ? 'block' : 'none';
   document.getElementById('tab-licenses').style.display = tab === 'licenses' ? 'block' : 'none';
-  document.getElementById('tab-cases').style.display = tab === 'cases' ? 'block' : 'none';
   document.getElementById('tab-releases').style.display = tab === 'releases' ? 'block' : 'none';
   if(tab === 'licenses') loadLicenses();
-  if(tab === 'cases') loadCases();
   if(tab === 'releases') loadReleases();
-}
-
-async function triggerDbSelfHealing() {
-  try {
-    const res = await fetch('/admin/api/init_db', { method: 'POST' });
-    const d = await res.json();
-    alert(d.message || '自愈完成');
-    loadStats();
-    loadDevices();
-  } catch(e) {
-    alert('自愈请求执行完成，正在刷新页面');
-    location.reload();
-  }
 }
 
 async function loadStats() {
@@ -1755,7 +1656,7 @@ async function loadDevices() {
       tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 30px; color:#94A3B8;">暂无符合条件的工位机记录</td></tr>';
     }
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 20px; color:red;">数据加载异常，请点击右上角【⚡ 数据库自愈】按钮</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 20px; color:red;">数据加载异常，请刷新页面重试</td></tr>';
   }
 }
 
@@ -1778,18 +1679,16 @@ async function showRemoteMenu(mid) {
     '1: 延长 30 天使用期',
     '2: 延长 1 年使用期',
     '3: 设为永久企业买断版',
-    '4: 远程通知强制刷新标杆案例库 (FORCE_SYNC_CASES)',
-    '5: 彻底拉黑封禁 (BAN)',
+    '4: 彻底拉黑封禁 (BAN)',
     '',
-    '请输入序号 (1-5):'
+    '请输入序号 (1-4):'
   ].join(String.fromCharCode(10));
   const act = prompt(promptMsg, '1');
   if (!act) return;
   if (act === '1') await deviceAction(mid, 'EXTEND_DAYS', 30);
   else if (act === '2') await deviceAction(mid, 'EXTEND_DAYS', 365);
   else if (act === '3') await deviceAction(mid, 'SET_PERMANENT');
-  else if (act === '4') await deviceAction(mid, 'REMOTE_COMMAND', 'FORCE_SYNC_CASES');
-  else if (act === '5') {
+  else if (act === '4') {
     if (confirm('确定要拉黑该机器码吗？')) await deviceAction(mid, 'BAN');
   }
 }
@@ -1844,27 +1743,6 @@ async function revokeLicenseToken(token) {
   } catch(e) {
     alert('操作失败: ' + e);
   }
-}
-
-async function loadCases() {
-  const tbody = document.getElementById('cases-table-body');
-  try {
-    const res = await fetch('/admin/api/cases');
-    const d = await res.json();
-    if(d.success && d.cases.length > 0) {
-      tbody.innerHTML = d.cases.map(c => {
-        return '<tr>' +
-          '<td><span class="mono">' + c.case_id + '</span></td>' +
-          '<td><b>' + c.case_name + '</b></td>' +
-          '<td><span class="badge badge-info">' + c.coil_type + '</span></td>' +
-          '<td>' + c.application_scenario + '</td>' +
-          '<td>v' + c.version + '</td>' +
-          '<td>' + c.dfm_summary + '</td>' +
-          '<td>' + c.created_by + '</td>' +
-        '</tr>';
-      }).join('');
-    }
-  } catch(e){}
 }
 
 async function loadReleases() {
