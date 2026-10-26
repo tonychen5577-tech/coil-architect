@@ -8,10 +8,10 @@
 
 <img src="docs/images/ansv_logo.png" alt="ANSV Official Logo" width="128" />
 
-# ⚡ ANSV Coil-Architect Pro 2027 | 微型线圈设计与电热仿真工作站
-### 针对微型执行器、潜望马达 (VCM)、触觉振动 (LRA) 与精密电磁阀的专用线圈设计与 DFM 制造验证软件 (2027 年度正式版)
+# ⚡ ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站
+### 针对微型执行器、潜望马达 (VCM)、触觉振动 (LRA) 与精密电磁阀的专用线圈设计与 DFM 制造验证软件 (v1.1.0)
 
-[![Release](https://img.shields.io/badge/Release-2027-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
+[![Release](https://img.shields.io/badge/Release-v1.1.0-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20(64--bit)-0284C7?style=flat-square&logo=windows)](https://github.com/tonychen5577-tech/coil-architect)
 [![License](https://img.shields.io/badge/License-Commercial%20%2F%20Free%20Evaluation-059669?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
 [![Core](https://img.shields.io/badge/Core-C%2B%2B%20%2F%20Cython%20Native-334155?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
@@ -181,7 +181,7 @@
    前往 GitHub Releases 官方发布页下载最新版本：
    👉 **[点击前往 Releases 下载页面](https://github.com/tonychen5577-tech/coil-architect/releases)**
 2. **解压运行**：
-   下载 `ANSV_Coil_Architect_Pro_2027_Full.zip` 并解压到常用目录（如 `D:\Coil_Architect_Pro` 或桌面）；
+   下载 `ANSV_Coil_Architect_Pro_v1.1.0_Full.zip` 并解压到常用目录（如 `D:\Coil_Architect_Pro` 或桌面）；
 3. **双击启动**：
    双击目录中的 `Coil-Architect-Pro.exe` 即可毫秒级启动工作站；
 4. **创建桌面快捷方式（推荐）**：
