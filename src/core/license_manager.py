@@ -546,15 +546,29 @@ class LicenseManager:
         if not ok:
             return False, msg
         try:
-            p = get_app_data_dir() / cls.LICENSE_FILE
-            _atomic_write_text(p, token.strip())
-            # 若存在历史吊销标记文件，彻底清理
-            revoked_p = p.with_suffix(".key.revoked")
-            try:
-                if revoked_p.exists():
-                    revoked_p.unlink(missing_ok=True)
-            except Exception:
-                pass
+            lic_paths = [
+                get_app_data_dir() / cls.LICENSE_FILE,
+                Path(os.path.dirname(os.path.abspath(__file__))) / ".." / ".." / cls.LICENSE_FILE
+            ]
+            for p in lic_paths:
+                revoked_p = p.with_suffix(".key.revoked")
+                try:
+                    if revoked_p.exists():
+                        revoked_p.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+            target_p = get_app_data_dir() / cls.LICENSE_FILE
+            _atomic_write_text(target_p, token.strip())
+
+            # 若本地同级也有 license.lic，同步更新
+            local_lic = Path(os.path.dirname(os.path.abspath(__file__))) / ".." / ".." / cls.LICENSE_FILE
+            if local_lic.exists():
+                try:
+                    _atomic_write_text(local_lic, token.strip())
+                except Exception:
+                    pass
+
             # 刷新内存缓存
             global _CACHED_AUTH_RESULT
             _CACHED_AUTH_RESULT = None
@@ -566,24 +580,28 @@ class LicenseManager:
     @classmethod
     def revoke_local_license(cls, reason: str = "当前工位机授权已被管理员在云端吊销") -> Tuple[bool, str]:
         """
-        远程或本地吊销授权凭证，安全移除本地许可文件并刷新状态
+        远程或本地吊销授权凭证，安全彻底销毁本地许可文件并设立墓碑
         (对标 Gear-NVH 远程锁机与吊销规范)
         """
-        lic_path = cls.get_license_path()
-        revoked_path = lic_path.with_suffix(".key.revoked")
+        lic_paths = [
+            get_app_data_dir() / cls.LICENSE_FILE,
+            Path(os.path.dirname(os.path.abspath(__file__))) / ".." / ".." / cls.LICENSE_FILE
+        ]
         try:
-            if lic_path.exists():
+            for p in lic_paths:
+                revoked_path = p.with_suffix(".key.revoked")
                 try:
-                    if revoked_path.exists():
-                        revoked_path.unlink(missing_ok=True)
-                    lic_path.replace(revoked_path)
+                    if p.exists():
+                        p.unlink(missing_ok=True)
+                    if not revoked_path.exists():
+                        revoked_path.write_text(f"REVOKED:{reason}:{datetime.now().isoformat()}", encoding="utf-8")
                 except Exception:
-                    lic_path.unlink(missing_ok=True)
+                    pass
 
             global _CACHED_AUTH_RESULT, _LAST_AUTH_CHECK_TS
             _CACHED_AUTH_RESULT = (False, reason, {})
             _LAST_AUTH_CHECK_TS = datetime.now().timestamp()
-            return True, "已安全吊销本地授权凭证"
+            return True, "已安全吊销本地授权凭证并销毁许可文件"
         except Exception as e:
             return False, f"吊销异常: {str(e)}"
 

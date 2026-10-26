@@ -926,18 +926,125 @@ async function handleAdmin(path, request, env, url) {
         });
     }
 
-    // D. 设备运维操作 (拉黑/解封/延期/下发指令)
-    if (path === "/admin/api/device/action" && request.method === "POST") {
+        // D. 设备运维与远程授权管控 (对齐 Gear-NVH: 支持一键下发新授权/调整方案、取消授权与删除证书、远程锁机)
+    if ((path === "/api/v1/station/command" || path === "/admin/api/station/command" || path === "/admin/api/device/action") && request.method === "POST") {
         let body = {};
         try { body = await request.json(); } catch(e){}
-        const mid = (body.machine_id || "").trim();
-        const action = body.action;
+        const mid = (body.machine_id || "").trim().toUpperCase();
+        const action = ((body.command || body.action || "").toUpperCase()).trim();
         const val = body.value;
         const ip = request.headers.get("CF-Connecting-IP") || "-";
 
-        if (!mid) return jsonResponse({ success: false, error: "Missing machine_id" }, 400);
+        if (!mid) return jsonResponse({ success: false, error: "Missing machine_id", message: "缺少工位机识别码" }, 400);
 
-        if (action === "REVOKE" || action === "LOCK_APP") {
+        if (action === "REVOKE" || action === "LOCK_APP" || action === "REVOKE_LICENSE") {
+            // 取消授权：彻底清空云端该机台原有的旧授权信息，绝不在网页端保留旧激活码，下发 LOCK_APP 锁机指令
+            await db.prepare(`
+                UPDATE devices SET 
+                    status = 'REVOKED', 
+                    license_status = 'REVOKED', 
+                    license_expire = '-',
+                    remaining_days = 0,
+                    remote_command = 'LOCK_APP',
+                    remote_command_payload = '',
+                    revoke_confirmed = 0,
+                    revoke_time = CURRENT_TIMESTAMP,
+                    notes = '管理员取消授权，已排队下发远程锁机指令并彻底销毁旧激活码'
+                WHERE machine_id = ?
+            `).bind(mid).run();
+            await db.prepare("UPDATE licenses SET status = 'REVOKED' WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('REVOKE_LICENSE', ?, '管理员在控制台取消授权，下发远程锁机指令并彻底销毁旧激活码', ?)").bind(mid, ip).run();
+            return jsonResponse({
+                status: "OK",
+                success: true, 
+                message: "已成功取消授权并下发远程锁机指令！工位机将在心跳连接时强制销毁本地凭证并锁定退出。" 
+            });
+        } else if (action === "UPDATE_LICENSE") {
+            // 重新下发新授权 / 调整方案 (如从1年变更为1个月，或从试用转为正式版，或指定任意到期日期)
+            const dev = await db.prepare("SELECT customer_name, line_station, operator_name, operator_id FROM devices WHERE machine_id = ?").bind(mid).first();
+            const cust = (body.customer_name || (dev ? dev.customer_name : "") || "内部核准商业客户").trim();
+            const stat = (body.line_station || (dev ? dev.line_station : "") || "WORKSTATION-01").trim();
+            const opName = (body.operator_name || (dev ? dev.operator_name : "") || "").trim();
+            const opId = (body.operator_id || (dev ? dev.operator_id : "") || "").trim();
+            const expireCode = (body.expire_code || "PERM").trim().toUpperCase();
+            const expireDesc = (body.expire_desc || (expireCode === "PERM" ? "永久有效授权" : `到期: ${expireCode}`)).trim();
+            const tier = (body.tier || (expireDesc.includes("试用") || expireDesc.includes("TRIAL") ? "TRIAL" : "PRO")).trim().toUpperCase();
+
+            // 计算到期日期格式 YYYY-MM-DD
+            let expDateStr = "PERMANENT";
+            let remDays = 99999;
+            if (expireCode !== "PERM" && /^\d{8}$/.test(expireCode)) {
+                const y = parseInt(expireCode.substring(0, 4), 10);
+                const m = parseInt(expireCode.substring(4, 6), 10) - 1;
+                const d = parseInt(expireCode.substring(6, 8), 10);
+                const expMs = new Date(y, m, d, 23, 59, 59).getTime();
+                remDays = Math.max(0, Math.ceil((expMs - Date.now()) / 86400000));
+                expDateStr = `${expireCode.substring(0, 4)}-${expireCode.substring(4, 6)}-${expireCode.substring(6, 8)}`;
+            }
+
+            // 方案类型定义
+            let planType = "SUB_ANNUAL_365";
+            if (tier === "TRIAL") planType = "TRIAL_7D";
+            else if (expireCode === "PERM") planType = "BUYOUT_PERPETUAL";
+            else if (remDays <= 31) planType = "SUB_MONTH_30";
+            else if (remDays <= 92) planType = "SUB_QUARTER_90";
+            else if (remDays <= 185) planType = "SUB_SEMI_180";
+            else planType = "SUB_ANNUAL_365";
+
+            const stationId = tier === "TRIAL" ? "TRIAL_EVAL" : stat;
+            const newToken = await generateCoilToken(mid, expDateStr, expDateStr, planType, cust, stationId);
+
+            const targetStatus = tier === "TRIAL" ? "TRIAL" : (expireCode === "PERM" ? "PERMANENT" : "ACTIVE");
+            const targetExpire = expireCode === "PERM" ? "永久有效" : expDateStr;
+
+            // 写入/更新 licenses 记录
+            await db.prepare("UPDATE licenses SET status = 'SUPERSEDED' WHERE machine_id = ? AND status = 'ACTIVE'").bind(mid).run();
+            await db.prepare(`
+                INSERT INTO licenses (token, machine_id, plan_type, expire_date, maint_expire, customer_name, station_id, operator_name, status, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+            `).bind(newToken, mid, planType, expDateStr, expDateStr, cust, stationId, opName, `管理员在线签发: ${expireDesc}`).run();
+
+            // 彻底覆写更新设备授权，同时重置 status 为 ACTIVE，清空之前的锁机标记
+            await db.prepare(`
+                UPDATE devices SET 
+                    status = 'ACTIVE',
+                    remote_command = 'UPDATE_LICENSE', 
+                    remote_command_payload = ?, 
+                    license_status = ?, 
+                    license_expire = ?, 
+                    remaining_days = ?,
+                    customer_name = ?,
+                    line_station = ?,
+                    operator_name = ?,
+                    operator_id = ?,
+                    revoke_confirmed = 0,
+                    notes = ?
+                WHERE machine_id = ?
+            `).bind(newToken, targetStatus, targetExpire, remDays, cust, stat, opName, opId, `方案调整: ${expireDesc}`, mid).run();
+
+            // 审计留痕
+            await db.prepare(`
+                INSERT INTO audit_logs (action_type, target_id, details, ip)
+                VALUES ('UPDATE_LICENSE', ?, ?, ?)
+            `).bind(mid, `方案调整: ${expireDesc} (${planType}) 给 [${cust} · ${stat}]`, ip).run();
+
+            return jsonResponse({
+                status: "OK",
+                success: true,
+                message: `授权已成功签发并下发至工位 [${mid}]`,
+                new_license_token: newToken,
+                tier: tier,
+                expire_code: expireCode,
+                expire_desc: expireDesc
+            });
+        } else if (action === "DELETE_DEVICE" || action === "DELETE") {
+            await db.prepare("DELETE FROM devices WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("DELETE FROM licenses WHERE machine_id = ?").bind(mid).run();
+            await db.prepare("INSERT INTO audit_logs (action_type, target_id, details, ip) VALUES ('DELETE_DEVICE', ?, '删除设备及关联授权记录', ?)").bind(mid, ip).run();
+            return jsonResponse({ status: "OK", success: true, message: "设备记录已成功移除" });
+        } else if (action === "FORCE_SYNC_DB") {
+            await db.prepare("UPDATE devices SET remote_command = 'FORCE_SYNC_DB', remote_command_payload = '' WHERE machine_id = ?").bind(mid).run();
+            return jsonResponse({ status: "OK", success: true, message: "已向设备排队下发强制拉取同步指令" });
             await db.prepare(`
                 UPDATE devices SET 
                     status = 'REVOKED', 
@@ -1850,6 +1957,78 @@ function renderDashboardPage() {
   </div>
 </div>
 
+
+<!-- 弹窗 2: 下发新授权 / 调整授权方案 (对齐 Gear-NVH 架构) -->
+<div id="renewModal" class="modal-overlay" onclick="closeRenewModal(event)">
+  <div class="modal-box" style="max-width: 540px;" onclick="event.stopPropagation()">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E2E8F0; padding-bottom: 12px; margin-bottom: 16px;">
+      <div>
+        <div class="modal-title" id="renewModalTitle" style="margin: 0; color: #0284C7; display: flex; align-items: center; gap: 6px;">
+          ⚡ 一键下发新授权 / 调整授权方案
+        </div>
+        <div id="renewModalMachineId" style="font-family: Consolas, monospace; font-size: 11px; color: #64748B; margin-top: 4px;"></div>
+      </div>
+      <button onclick="closeRenewModal()" style="background: none; border: none; font-size: 20px; color: #94A3B8; cursor: pointer; line-height: 1;">&times;</button>
+    </div>
+
+    <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px;">
+      <div style="font-weight: 700; color: #0369A1; font-size: 13px;" id="renewModalHost">工位机台</div>
+      <div id="renewModalNotice" style="color: #475569; font-size: 11px; margin-top: 4px; line-height: 1.5;">
+        可随时调整当前工位机的授权方案（例如从 1年 商业版变更为 1个月 短期版、7天试用版，或指定任意截止日期）。<br>
+        系统将基于您选择的最新方案实时计算全新密文激活码凭证，工位机在下次心跳时将<b>彻底覆写本地凭证</b>并立即生效。
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>选择授权期限方案 (支持随意升降级与调整)</label>
+      <select id="renewExpireSelect" onchange="onRenewExpireSelectChange()">
+        <option value="7D">🟢 7 天全功能体验试用版 (+7 天 / 门禁限制)</option>
+        <option value="1M" selected>1 个月短期商业版 (+30 天 - 商业正式版)</option>
+        <option value="3M">3 个月中期商业版 (+90 天)</option>
+        <option value="6M">半年商业版 (+180 天)</option>
+        <option value="1Y">1 年商业标准版 (+365 天)</option>
+        <option value="2Y">2 年商业长期版 (+730 天)</option>
+        <option value="PERM">⭐ 永久企业买断版 (PERMANENT 终身有效)</option>
+        <option value="CUSTOM_DATE">📅 指定具体截止日期...</option>
+      </select>
+    </div>
+
+    <div id="renewCustomDateBox" class="form-row" style="display: none;">
+      <label>指定到期日期 (截止当天 23:59:59 过期)</label>
+      <input type="date" id="renewCustomDate" />
+    </div>
+
+    <div style="display: flex; gap: 12px;" class="form-row">
+      <div style="flex: 1;">
+        <label>客户单位 / 租户名称</label>
+        <input type="text" id="renewCustomer" placeholder="例如: 某某电驱动科技股份有限公司" />
+      </div>
+      <div style="flex: 1;">
+        <label>产线工位编号</label>
+        <input type="text" id="renewStation" placeholder="例如: WORKSTATION-01" />
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px;" class="form-row">
+      <div style="flex: 1;">
+        <label>责任人姓名</label>
+        <input type="text" id="renewOpName" placeholder="例如: 张工" />
+      </div>
+      <div style="flex: 1;">
+        <label>工号 / 备注</label>
+        <input type="text" id="renewOpId" placeholder="例如: ENG-088" />
+      </div>
+    </div>
+
+    <div id="renewError" style="display: none; background: #FEF2F2; border: 1px solid #F87171; color: #DC2626; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 14px;"></div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; border-top: 1px solid #E2E8F0; padding-top: 14px;">
+      <button type="button" class="btn-secondary" onclick="closeRenewModal()" style="padding: 7px 16px;">取消</button>
+      <button type="button" id="btnSubmitRenew" class="btn-primary" onclick="submitRenewLicense()" style="padding: 7px 20px; font-weight: 700;">⚡ 确认签发并下发新凭证</button>
+    </div>
+  </div>
+</div>
+
 <!-- 弹窗 1: 生成激活码 -->
 <div id="modal-gen" class="modal-overlay">
   <div class="modal-box">
@@ -1993,16 +2172,16 @@ async function loadDevices() {
         let actionBtns = '';
         if (isRevoked || isBanned) {
           actionBtns = 
-            '<button class="btn-primary" style="padding:4px 10px;font-size:11px;background:#059669;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="undoRevokeDevice(this.dataset.mid)">↩️ 撤销取消授权 (恢复激活)</button>' +
+            '<button class="btn-primary" style="padding:4px 10px;font-size:11px;background:#059669;margin-right:4px;" data-mid="' + dev.machine_id + '" data-host="' + (dev.hostname || '') + '" data-cust="' + (dev.customer_name || '') + '" data-stat="' + (dev.line_station || '') + '" data-opname="' + (dev.operator_name || '') + '" data-opid="' + (dev.operator_id || '') + '" onclick="openRenewModal(this.dataset.mid, this.dataset.host, this.dataset.cust, this.dataset.stat, this.dataset.opname, this.dataset.opid, '-', true)" title="重新生成全新密文激活码并下发至工位机">⚡ 重新下发新激活码</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;background:#EFF6FF;color:#2563EB;border-color:#BFDBFE;margin-right:4px;" data-mid="' + dev.machine_id + '" data-confirmed="' + (dev.revoke_confirmed || 0) + '" data-ack="' + (dev.last_ack_cmd || '') + '" data-time="' + (dev.last_sync_bj || dev.last_sync_time || '-') + '" onclick="checkRevokeStatus(this.dataset.mid, this.dataset.confirmed, this.dataset.ack, this.dataset.time)">🔍 检测锁机状态</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;background:#F0FDF4;color:#059669;border-color:#A7F3D0;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="repushLatestLicense(this.dataset.mid)">🔄 重发已有授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" data-mid="' + dev.machine_id + '" data-host="' + (dev.hostname || '') + '" onclick="deleteDevice(this.dataset.mid, this.dataset.host)">🗑️ 移除</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" data-mid="' + dev.machine_id + '" onclick="showRemoteMenu(this.dataset.mid)">⚙️ 更多</button>';
         } else {
           actionBtns = 
-            '<button class="btn-primary" style="padding:4px 9px;font-size:11px;background:#2563EB;margin-right:4px;" data-mid="' + dev.machine_id + '" data-cust="' + (dev.customer_name || '') + '" onclick="autoAuthorizeDevice(this.dataset.mid, this.dataset.cust)">⚡ 一键下发新授权</button>' +
+            '<button class="btn-primary" style="padding:4px 10px;font-size:11px;background:#0284C7;margin-right:4px;" data-mid="' + dev.machine_id + '" data-host="' + (dev.hostname || '') + '" data-cust="' + (dev.customer_name || '') + '" data-stat="' + (dev.line_station || '') + '" data-opname="' + (dev.operator_name || '') + '" data-opid="' + (dev.operator_id || '') + '" data-exp="' + (dev.license_expire || '') + '" onclick="openRenewModal(this.dataset.mid, this.dataset.host, this.dataset.cust, this.dataset.stat, this.dataset.opname, this.dataset.opid, this.dataset.exp, false)" title="一键重签发新凭证，调整或更新工位有效期（如改1年为1个月、7天试用等）">⚡ 一键下发新授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" data-mid="' + dev.machine_id + '" data-host="' + (dev.hostname || '') + '" onclick="confirmRevokeLicense(this.dataset.mid, this.dataset.host)" title="彻底取消授权并销毁旧激活码，下发锁机指令">🚫 取消授权</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;background:#F0FDF4;color:#059669;border-color:#A7F3D0;font-weight:600;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="repushLatestLicense(this.dataset.mid)">🔄 重发已有授权</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;margin-right:4px;" data-mid="' + dev.machine_id + '" data-cust="' + (dev.customer_name || '') + '" onclick="quickGenForMid(this.dataset.mid, this.dataset.cust)">开通/续约</button>' +
-            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" data-mid="' + dev.machine_id + '" onclick="revokeDevice(this.dataset.mid)">🚫 取消授权</button>' +
+            '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;color:#EF4444;border-color:#FCA5A5;margin-right:4px;" data-mid="' + dev.machine_id + '" data-host="' + (dev.hostname || '') + '" onclick="deleteDevice(this.dataset.mid, this.dataset.host)">🗑️ 移除</button>' +
             '<button class="btn-secondary" style="padding:4px 9px;font-size:11px;" data-mid="' + dev.machine_id + '" onclick="showRemoteMenu(this.dataset.mid)">⚙️ 更多</button>';
         }
 
@@ -2026,6 +2205,225 @@ async function loadDevices() {
   }
 }
 
+
+
+let currentRenewMid = "";
+
+function openRenewModal(mid, host, cust, stat, opName, opId, curExp, isReAuth = false) {
+  currentRenewMid = mid;
+  document.getElementById("renewModalMachineId").textContent = "机器码 (MID): " + mid;
+  const titleEl = document.getElementById("renewModalTitle");
+  const noticeEl = document.getElementById("renewModalNotice");
+  const btnEl = document.getElementById("btnSubmitRenew");
+
+  if (isReAuth) {
+    if (titleEl) titleEl.textContent = "⚡ 重新下发新激活码 (Re-Authorize)";
+    document.getElementById("renewModalHost").innerHTML = "工位机台: <b>" + (host || '未知主机') + "</b> | 当前状态: <span style='color:#DC2626;font-weight:bold;'>🚫 授权已取消 (旧证书已销毁)</span>";
+    if (noticeEl) {
+      noticeEl.innerHTML = "该工位机当前处于<b>已取消授权</b>状态（旧激活码已从云端与本地彻底销毁）。<br>请在下方选择新的授权方案，云端将生成全新激活凭证下发，客户端收到后将恢复激活！";
+    }
+    if (btnEl) btnEl.textContent = "⚡ 签发并下发全新激活码";
+  } else {
+    if (titleEl) titleEl.textContent = "⚡ 一键下发新授权 / 调整授权方案";
+    document.getElementById("renewModalHost").innerHTML = "工位机台: <b>" + (host || '未知主机') + "</b> | 当前到期: <b>" + (curExp || '-') + "</b>";
+    if (noticeEl) {
+      noticeEl.innerHTML = "可随时调整当前工位机的授权方案（例如从 1年 商业版变更为 1个月 短期版、7天试用版，或指定任意截止日期）。<br>系统将生成全新密码学暗码凭证并下发，客户端在下次心跳时将<b>彻底覆写本地凭证</b>并立即生效。";
+    }
+    if (btnEl) btnEl.textContent = "⚡ 确认签发并下发新凭证";
+  }
+
+  document.getElementById("renewCustomer").value = (cust && cust !== '-' && cust !== '散户/未登记') ? cust : '内部核准商业客户';
+  document.getElementById("renewStation").value = (stat && stat !== '-') ? stat : 'WORKSTATION-01';
+  document.getElementById("renewOpName").value = (opName && opName !== '-') ? opName : '';
+  document.getElementById("renewOpId").value = (opId && opId !== '-') ? opId : '';
+  document.getElementById("renewExpireSelect").value = isReAuth ? "1M" : "1M";
+  document.getElementById("renewCustomDateBox").style.display = "none";
+  document.getElementById("renewError").style.display = "none";
+  document.getElementById("renewModal").style.display = "flex";
+}
+
+function closeRenewModal(e) {
+  if (e && e.target !== document.getElementById("renewModal")) return;
+  document.getElementById("renewModal").style.display = "none";
+  currentRenewMid = "";
+}
+
+function onRenewExpireSelectChange() {
+  const val = document.getElementById("renewExpireSelect").value;
+  const customBox = document.getElementById("renewCustomDateBox");
+  if (val === "CUSTOM_DATE") {
+    customBox.style.display = "block";
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    document.getElementById("renewCustomDate").value = d.toISOString().split("T")[0];
+  } else {
+    customBox.style.display = "none";
+  }
+}
+
+async function submitRenewLicense() {
+  if (!currentRenewMid) return;
+  const btn = document.getElementById("btnSubmitRenew");
+  const errEl = document.getElementById("renewError");
+  errEl.style.display = "none";
+
+  const sel = document.getElementById("renewExpireSelect").value;
+  let expireCode = "PERM";
+  let expireDesc = "永久有效授权";
+
+  const now = new Date();
+  let tier = "PRO";
+  if (sel === "7D") {
+    const exp = new Date(now.getTime() + 7 * 86400000);
+    expireCode = exp.toISOString().split("T")[0].replace(/-/g, "");
+    expireDesc = "7天全功能体验试用版 (至 " + exp.toISOString().split("T")[0] + " · 门禁限制)";
+    tier = "TRIAL";
+  } else if (sel === "1M") {
+    const exp = new Date(now.getTime() + 30 * 86400000);
+    expireCode = exp.toISOString().split("T")[0].replace(/-/g, "");
+    expireDesc = "1个月短期商业版 (至 " + exp.toISOString().split("T")[0] + ")";
+  } else if (sel === "3M") {
+    const exp = new Date(now.getTime() + 90 * 86400000);
+    expireCode = exp.toISOString().split("T")[0].replace(/-/g, "");
+    expireDesc = "3个月中期商业版 (至 " + exp.toISOString().split("T")[0] + ")";
+  } else if (sel === "6M") {
+    const exp = new Date(now.getTime() + 180 * 86400000);
+    expireCode = exp.toISOString().split("T")[0].replace(/-/g, "");
+    expireDesc = "半年商业版 (至 " + exp.toISOString().split("T")[0] + ")";
+  } else if (sel === "1Y") {
+    const exp = new Date(now.getTime() + 365 * 86400000);
+    expireCode = exp.toISOString().split("T")[0].replace(/-/g, "");
+    expireDesc = "1年商业标准版 (至 " + exp.toISOString().split("T")[0] + ")";
+  } else if (sel === "2Y") {
+    const exp = new Date(now.getTime() + 730 * 86400000);
+    expireCode = exp.toISOString().split("T")[0].replace(/-/g, "");
+    expireDesc = "2年商业长期版 (至 " + exp.toISOString().split("T")[0] + ")";
+  } else if (sel === "PERM") {
+    expireCode = "PERM";
+    expireDesc = "永久企业买断版 (PERMANENT)";
+  } else if (sel === "CUSTOM_DATE") {
+    const dt = document.getElementById("renewCustomDate").value;
+    if (!dt) {
+      errEl.textContent = "请选择指定截止日期！";
+      errEl.style.display = "block";
+      return;
+    }
+    expireCode = dt.replace(/-/g, "");
+    expireDesc = "指定日期 (至 " + dt + ")";
+  }
+
+  const cust = document.getElementById("renewCustomer").value.trim();
+  const stat = document.getElementById("renewStation").value.trim();
+  const opName = document.getElementById("renewOpName").value.trim();
+  const opId = document.getElementById("renewOpId").value.trim();
+
+  btn.disabled = true;
+  btn.textContent = "⏳ 正在计算密文凭证并下发...";
+
+  try {
+    const resp = await fetch("/api/v1/station/command", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        machine_id: currentRenewMid,
+        command: "UPDATE_LICENSE",
+        expire_code: expireCode,
+        expire_desc: expireDesc,
+        tier: tier,
+        customer_name: cust,
+        line_station: stat,
+        operator_name: opName,
+        operator_id: opId
+      })
+    });
+    const res = await resp.json();
+    if (resp.ok && (res.status === "OK" || res.success)) {
+      const LF = String.fromCharCode(10);
+      const tokenMsg = res.new_license_token ? (LF + LF + "全新生成的激活凭证 (如需手动发给现场人员):" + LF + res.new_license_token) : "";
+      const alertLines = [
+        "🎉 授权凭证已成功签发并下发！",
+        "",
+        "方案级别: " + (res.tier === 'TRIAL' ? '🟢 7 天试用版 (门禁限制)' : '⭐ 商业正式版'),
+        "有效期限: " + expireDesc,
+        "目标机台: " + currentRenewMid,
+        "",
+        "工位机在下一次心跳或重启时将自动接收并覆写激活！" + tokenMsg
+      ];
+      alert(alertLines.join(LF));
+      closeRenewModal();
+      loadDevices();
+      loadStats();
+    } else {
+      errEl.textContent = res.error || res.message || "下发失败";
+      errEl.style.display = "block";
+    }
+  } catch (e) {
+    errEl.textContent = "网络异常: " + e.message;
+    errEl.style.display = "block";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "⚡ 确认签发并下发新凭证";
+  }
+}
+
+async function confirmRevokeLicense(mid, hostname) {
+  const LF = String.fromCharCode(10);
+  const promptMsg = [
+    "⚠️ 危险操作警告：确定要取消工位机 [" + (hostname || '未知') + "] (" + mid + ") 的商业授权吗？",
+    "",
+    "【执行后果说明】：",
+    "1. 云端将立即彻底清空该机台已有的授权信息与到期日（旧激活码彻底销毁，绝不再保留）；",
+    "2. 云端将立即向工位机下发 LOCK_APP 锁机指令；",
+    "3. 客户端在下一次心跳周期（最长15~30秒，激活窗口打开时仅3秒）将彻底删除本地许可文件并安全退出，外人无法继续使用；",
+    "4. 后续若要重新使用，必须由管理员在后台点击【⚡ 重新下发新激活码】签发全新激活码！",
+    "",
+    "是否确认立即取消授权并销毁旧凭证？"
+  ].join(LF);
+
+  if (!confirm(promptMsg)) return;
+
+  try {
+    const resp = await fetch("/api/v1/station/command", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ machine_id: mid, command: "REVOKE_LICENSE" })
+    });
+    const res = await resp.json();
+    if (resp.ok && (res.status === "OK" || res.success)) {
+      alert("🚫 授权已成功取消！云端旧激活码已彻底销毁，远程锁机指令已排队下发至工位机。");
+      loadDevices();
+      loadStats();
+    } else {
+      alert("❌ 取消授权失败: " + (res.error || res.message));
+    }
+  } catch (e) {
+    alert("请求异常: " + e.message);
+  }
+}
+
+async function deleteDevice(mid, hostname) {
+  if (!confirm("确定要从后台彻底移除工位机 [" + (hostname || '-') + "] (" + mid + ") 的记录吗？")) return;
+  try {
+    const resp = await fetch("/api/v1/station/command", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ machine_id: mid, command: "DELETE_DEVICE" })
+    });
+    const res = await resp.json();
+    if (resp.ok && (res.status === "OK" || res.success)) {
+      alert("设备已移除！");
+      loadDevices();
+      loadStats();
+    } else {
+      alert("移除失败: " + (res.error || res.message));
+    }
+  } catch(e) {
+    alert("网络异常: " + e.message);
+  }
+}
 
 async function autoAuthorizeDevice(mid, customer) {
   const cust = prompt('请输入授权企业/客户名称 (将写入证书凭证):', customer && customer !== '散户/未登记' && customer !== '在线申请用户' ? customer : 'ANSV 商业VIP客户');
