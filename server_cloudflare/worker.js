@@ -312,17 +312,17 @@ export default {
             }
 
             // ------------------------------------------------------------------
-            // 2. 客户端静默 API 接口 (/api/v1/... 与兼容端点)
+            // 2. 管理员后台页面与操作接口 (/admin/... 与 /api/v1/station/command)
             // ------------------------------------------------------------------
-            if (path.startsWith("/api/") || path === "/version" || path === "/health") {
-                return await handleClientApi(path, request, env);
+            if (path.startsWith("/admin") || path === "/api/v1/station/command" || path === "/api/v1/keygen/issue") {
+                return await handleAdmin(path, request, env, url);
             }
 
             // ------------------------------------------------------------------
-            // 3. 管理员后台页面与操作接口 (/admin/...)
+            // 3. 客户端静默 API 接口 (/api/v1/... 与兼容端点)
             // ------------------------------------------------------------------
-            if (path.startsWith("/admin")) {
-                return await handleAdmin(path, request, env, url);
+            if (path.startsWith("/api/") || path === "/version" || path === "/health") {
+                return await handleClientApi(path, request, env);
             }
 
             // ------------------------------------------------------------------
@@ -2321,7 +2321,7 @@ async function submitRenewLicense() {
   btn.textContent = "⏳ 正在计算密文凭证并下发...";
 
   try {
-    const resp = await fetch("/api/v1/station/command", {
+    const resp = await fetch("/admin/api/device/action", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -2384,7 +2384,7 @@ async function confirmRevokeLicense(mid, hostname) {
   if (!confirm(promptMsg)) return;
 
   try {
-    const resp = await fetch("/api/v1/station/command", {
+    const resp = await fetch("/admin/api/device/action", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
@@ -2406,7 +2406,7 @@ async function confirmRevokeLicense(mid, hostname) {
 async function deleteDevice(mid, hostname) {
   if (!confirm("确定要从后台彻底移除工位机 [" + (hostname || '-') + "] (" + mid + ") 的记录吗？")) return;
   try {
-    const resp = await fetch("/api/v1/station/command", {
+    const resp = await fetch("/admin/api/device/action", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
