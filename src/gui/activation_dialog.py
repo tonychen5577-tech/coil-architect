@@ -11,7 +11,7 @@ Description: ANSV Coil-Architect Pro 商业软件授权激活与国际订购引�
 import sys
 import os
 from pathlib import Path
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import Qt, QUrl, QTimer
 from PyQt6.QtGui import QPixmap, QDesktopServices, QColor
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
@@ -55,6 +55,22 @@ class ActivationDialog(QDialog):
         self.machine_code = get_machine_code()
         self._init_ui()
         adapt_dialog_geometry(self, target_w=890, target_h=620, min_w=820, min_h=560)
+
+        # 告知云端守护线程当前向导已打开，启动 3 秒高敏探测对账
+        try:
+            from src.core.cloud_client import CloudClient
+            CloudClient.set_activation_dialog_open(True)
+        except Exception:
+            pass
+
+        # 1. 开窗即刻握手：弹窗打开后 150 毫秒立即向云端上报一次握手与状态核验
+        QTimer.singleShot(150, self._fast_handshake_on_open)
+
+        # 2. 弹窗在前台时的轮询：poll_timer 以 3 秒 / 次的高敏频率自动对账云端
+        self.poll_timer = QTimer(self)
+        self.poll_timer.setInterval(3000)
+        self.poll_timer.timeout.connect(self._poll_cloud_reconciliation)
+        self.poll_timer.start()
 
     def _init_ui(self):
         is_en = self.is_en
@@ -799,6 +815,61 @@ class ActivationDialog(QDialog):
                 QMessageBox.critical(self, "Read Failed", f"Failed to read license file:\n{str(e)}")
             else:
                 QMessageBox.critical(self, "读取失败", f"无法读取许可证文件: {str(e)}")
+
+    def _fast_handshake_on_open(self):
+        """开窗 150ms 极速云端握手：静默探测是否有最新已批准的授权凭证"""
+        try:
+            from src.core.cloud_client import CloudClient
+            # 静默核验一次
+            ok, msg, res = CloudClient.request_online_activation(customer_name="向导开窗对账")
+            if ok:
+                self.poll_timer.stop()
+                self.accept()
+                show_license_activated_dialog(self.parent(), res)
+        except Exception:
+            pass
+
+    def _poll_cloud_reconciliation(self):
+        """弹窗在前台时，每 3 秒自动静默轮询云端核查授权下发状态"""
+        # 若已激活则自动关闭向导
+        auth_ok, _, lic_data = LicenseManager.is_system_authorized()
+        if auth_ok and lic_data and not lic_data.get("is_trial", False):
+            # 已经是正式商业版
+            self.poll_timer.stop()
+            self.accept()
+            return
+
+        try:
+            from src.core.cloud_client import CloudClient
+            ok, msg, res = CloudClient.request_online_activation(customer_name="向导3秒对账")
+            if ok:
+                self.poll_timer.stop()
+                self.accept()
+                show_license_activated_dialog(self.parent(), res)
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        """窗口关闭时恢复常规心跳，注销高敏模式"""
+        try:
+            if hasattr(self, "poll_timer") and self.poll_timer:
+                self.poll_timer.stop()
+            from src.core.cloud_client import CloudClient
+            CloudClient.set_activation_dialog_open(False)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
+    def reject(self):
+        """用户点击关闭/Esc/取消时恢复常规心跳"""
+        try:
+            if hasattr(self, "poll_timer") and self.poll_timer:
+                self.poll_timer.stop()
+            from src.core.cloud_client import CloudClient
+            CloudClient.set_activation_dialog_open(False)
+        except Exception:
+            pass
+        super().reject()
 
     def _on_online_activate_clicked(self):
         is_en = self.is_en

@@ -1488,41 +1488,12 @@ class MainWindow(QMainWindow):
                 if msg_box.clickedButton() == btn_upgrade:
                     self.check_authorization_or_prompt("Commercial License Upgrade" if is_en else "商业授权升级", force_prompt=True)
             else:
-                lic_type = lic.get("type") or lic.get("plan") or "商业版"
-                raw_exp = lic.get("exp") or lic.get("exp_date") or "永久有效"
-                if raw_exp in ("2099-12-31", "PERMANENT", "永久有效"):
-                    exp_date = "永久有效"
-                else:
-                    exp_date = raw_exp
-                owner = lic.get("owner") or lic.get("customer") or lic.get("cust") or "正式商业用户"
-                if is_en:
-                    if lic_type == "商业版":
-                        lic_type = "Annual Commercial Workstation"
-                    if exp_date in ("永久有效", "PERMANENT"):
-                        exp_date = "Permanent"
-                    if owner in ("正式商业用户", "内部核准机构"):
-                        owner = "Authorized Commercial User"
-                    QMessageBox.information(
-                        self,
-                        "Commercial License Details",
-                        f"🛡️ Coil-Architect Pro Commercial License Certificate\n\n"
-                        f"• License Tier: {lic_type}\n"
-                        f"• Authorized To: {owner}\n"
-                        f"• Valid Until: {exp_date}\n"
-                        f"• Security Status: Hardware-bound digital signature verified\n\n"
-                        f"For license transfer or renewal, please contact official support at ansv.net."
-                    )
-                else:
-                    QMessageBox.information(
-                        self,
-                        "商业授权凭证详情",
-                        f"🛡️ Coil-Architect Pro 正式商业授权\n\n"
-                        f"• 授权类型: {lic_type}\n"
-                        f"• 授权主体: {owner}\n"
-                        f"• 有效期至: {exp_date}\n"
-                        f"• 运行状态: 一机一码硬件数字签名已通过校验\n\n"
-                        f"如需变更授权或续订，可联系 ansv.net 官方技术支持。"
-                    )
+                # 商业正式版：直接展示【商业授权凭证详情卡片】，免输激活码
+                try:
+                    from src.gui.activation_dialog import show_license_activated_dialog
+                    show_license_activated_dialog(self, lic)
+                except Exception as e:
+                    logger.error(f"弹出商业授权凭证卡片异常: {e}")
         else:
             self.check_authorization_or_prompt("Commercial License Activation" if is_en else "商业授权激活", force_prompt=True)
 

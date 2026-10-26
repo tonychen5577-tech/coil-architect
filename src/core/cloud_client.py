@@ -205,7 +205,16 @@ class CloudClient:
     _stop_event: Event = Event()
     _trigger_event: Event = Event()
     _is_running: bool = False
+    _is_dialog_open: bool = False
     _last_status: Tuple[bool, str, str] = (False, "未初始化", "")
+
+    @classmethod
+    def set_activation_dialog_open(cls, is_open: bool):
+        """通知守护线程当前前台激活向导窗口是否处于打开状态 (3秒高敏对账模式)"""
+        cls._is_dialog_open = is_open
+        if is_open:
+            # 立即触发唤醒，150ms 握手对账
+            cls.trigger_heartbeat_now()
 
     # 回调钩子
     _status_callback: Optional[Callable[[bool, str, str], None]] = None
@@ -675,17 +684,23 @@ class CloudClient:
             cls.send_heartbeat_sync(on_command_callback=cls._command_callback)
 
             while not cls._stop_event.is_set():
-                # 智能动态自适应心跳轮询：
-                # 1. 若当前未激活商业授权（试用或未授权），将心跳缩短至 15 秒，确保管理员在云端控制台点击【一键下发】后瞬时触达；
-                # 2. 一旦检测到正式商业授权有效激活，自动拉长至常规周期 (默认1800秒/30分钟)，极度节约网络流量
+                # 智能动态自适应分级对账与心跳轮询：
+                # 1. 激活向导在前台打开 (未激活或试用期): 3 秒高敏探测对账 (150ms 快速首发)
+                # 2. 未激活状态停留在主界面 (未开向导): 8 秒高敏守护侦听
+                # 3. 7天试用期 / 商业正式版日常测控 (未开向导): 30 秒低开销工业测控心跳
                 try:
                     auth_ok, _, lic_info = LicenseManager.is_system_authorized()
                     is_trial = lic_info.get("is_trial", False) if lic_info else True
-                    is_commercial = auth_ok and not is_trial
                 except Exception:
-                    is_commercial = False
+                    auth_ok = False
+                    is_trial = True
 
-                current_timeout = interval_seconds if is_commercial else 15
+                if cls._is_dialog_open:
+                    current_timeout = 3.0
+                elif not auth_ok:
+                    current_timeout = 8.0
+                else:
+                    current_timeout = 30.0
 
                 # 等待定时到期或主动触发信号
                 triggered = cls._trigger_event.wait(timeout=current_timeout)

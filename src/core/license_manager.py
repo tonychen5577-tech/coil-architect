@@ -480,31 +480,62 @@ class LicenseManager:
         if _CACHED_AUTH_RESULT is not None and (now_ts - _LAST_AUTH_CHECK_TS) < 5.0:
             return _CACHED_AUTH_RESULT
 
-        # 1. 单调递增时钟看门狗校验
+        # 1. 检查是否存在不可逆吊销墓碑文件 (Revocation Tombstone)
+        # 一旦工位机曾被云端取消授权，本地硬阻断，必须重新从官方后台获取正式/试用 License 覆盖方可解除
+        lic_path = cls.get_license_path()
+        revoked_path = lic_path.with_suffix(".key.revoked")
+        if revoked_path.exists() and not lic_path.exists():
+            _CACHED_AUTH_RESULT = (False, "当前工位机商业授权已被取消或终止，请联系管理员重新签发授权", {})
+            _LAST_AUTH_CHECK_TS = now_ts
+            return _CACHED_AUTH_RESULT
+
+        # 2. 单调递增时钟看门狗校验
         clock_ok, clock_err = TimeGuard.check_and_update()
         if not clock_ok:
             _CACHED_AUTH_RESULT = (False, clock_err, {})
             _LAST_AUTH_CHECK_TS = now_ts
             return _CACHED_AUTH_RESULT
 
-        # 2. 检查本地正式商业凭证文件 (若存在有效正式授权则优先享用)
-        lic_path = cls.get_license_path()
+        # 3. 检查本地 License 凭证文件 (无论是正式商业授权还是由官方后台签发的 7 天试用授权，均须持有有效凭证)
         if lic_path.exists():
             try:
                 token = lic_path.read_text(encoding="utf-8").strip()
                 res = cls.verify_token(token)
                 if res[0]:
                     payload = dict(res[2])
-                    payload["is_trial"] = False
+                    stat_str = str(payload.get("stat", "")).upper()
+                    plan_str = str(payload.get("plan", payload.get("plan_type", ""))).upper()
+                    cust_str = str(payload.get("cust", "")).upper()
+                    # 识别是否为试用规格 (例如 stat=TRIAL_7, 或 plan 包含 TRIAL, 或客户名含试用/TRIAL)
+                    is_trial = ("TRIAL" in stat_str) or ("TRIAL" in plan_str) or ("试用" in cust_str) or ("TRIAL" in cust_str)
+                    payload["is_trial"] = is_trial
+
+                    # 若为试用版，动态计算剩余天数
+                    if is_trial:
+                        exp_str = payload.get("exp", payload.get("exp_date", ""))
+                        try:
+                            exp_d = datetime.strptime(exp_str, "%Y-%m-%d").date()
+                            delta_days = (exp_d - date.today()).days
+                            payload["days_left"] = max(0, delta_days)
+                        except Exception:
+                            payload["days_left"] = 0
+
                     _CACHED_AUTH_RESULT = (True, res[1], payload)
                     _LAST_AUTH_CHECK_TS = now_ts
                     return _CACHED_AUTH_RESULT
-            except Exception:
-                pass
+                else:
+                    # 凭证已过期或签名无效
+                    payload = dict(res[2]) if len(res) > 2 and isinstance(res[2], dict) else {}
+                    _CACHED_AUTH_RESULT = (False, res[1], payload)
+                    _LAST_AUTH_CHECK_TS = now_ts
+                    return _CACHED_AUTH_RESULT
+            except Exception as e:
+                _CACHED_AUTH_RESULT = (False, f"授权凭证读取异常: {e}", {})
+                _LAST_AUTH_CHECK_TS = now_ts
+                return _CACHED_AUTH_RESULT
 
-        # 3. 首次运行或未激活状态：自动享受 7 天全功能免激活试用！
-        trial_ok, trial_msg, trial_payload = TrialGuard.get_or_create_trial()
-        _CACHED_AUTH_RESULT = (trial_ok, trial_msg, trial_payload)
+        # 4. 无任何有效凭证时：处于未激活状态（严禁无凭证自动放行试用，必须由云端审批或导入激活码）
+        _CACHED_AUTH_RESULT = (False, "未授权评估状态：请申请或输入商业授权码", {})
         _LAST_AUTH_CHECK_TS = now_ts
         return _CACHED_AUTH_RESULT
 
