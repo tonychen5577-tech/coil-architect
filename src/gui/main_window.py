@@ -885,77 +885,76 @@ class MainWindow(QMainWindow):
                 return
             self._remote_locked_flag = True
 
-            # 停止云端心跳
-            from src.core.cloud_client import CloudClient
-            CloudClient.stop_background_sync()
+            from src.core.license_manager import LicenseManager, get_machine_code
+            # 1. 彻底销毁本地凭证并刷新界面状态
+            LicenseManager.revoke_local_license(reason="当前工位机商业授权已被管理员在云端取消，已退回未激活评估状态")
+            self._refresh_license_status()
+
+            # 2. 状态栏警告提示
+            self.status_bar.showMessage(
+                "⚠️ Commercial license cancelled by admin. Reverted to unactivated evaluation mode."
+                if is_en else
+                "⚠️ 商业授权已被管理员在后台取消，软件已退回【未激活评估状态】（本地凭证已彻底销毁）。",
+                8000
+            )
 
             from src.version import OFFICIAL_EMAIL, WECHAT_CONTACT_ID, WECHAT_OFFICIAL_ACCOUNT, OFFICIAL_URL
-            from src.core.license_manager import get_machine_code
             mid = get_machine_code()
 
             msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Commercial License Revoked" if is_en else "商业授权取消 / 终止通知")
-            msg_box.setIcon(QMessageBox.Icon.Critical)
+            msg_box.setWindowTitle("License Revoked - Reverted to Unactivated" if is_en else "授权取消通知 · 软件已退回未激活状态")
+            msg_box.setIcon(QMessageBox.Icon.Warning)
 
             if is_en:
                 msg_text = (
-                    "<b>[Workstation Commercial License Revoked / Cancelled]</b><br><br>"
-                    "The application has been safely locked and local license credentials cleared.<br>"
-                    "To restore authorization, reissue a license, or for technical assistance, please contact ANSV Official Team:<br><br>"
+                    "<b>[Workstation Commercial License Cancelled by Administrator]</b><br><br>"
+                    "The workstation license has been cancelled and local license file (.lic) cleared.<br>"
+                    "The application has cleanly reverted to <b>Unactivated Evaluation Mode</b>.<br><br>"
+                    "To re-authorize or upgrade, please contact administrator or click below to enter activation wizard:<br><br>"
                     f"• <b>Support Email:</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7;'>{OFFICIAL_EMAIL}</a><br>"
-                    f"• <b>WeChat Support ID:</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
-                    f"• <b>Official Portal:</b> <a href='{OFFICIAL_URL}' style='color:#0284C7;'>{OFFICIAL_URL}</a><br>"
-                    f"• <b>Hardware Machine ID:</b> <code style='color:#475569;'>{mid}</code>"
+                    f"• <b>WeChat Support:</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
+                    f"• <b>Machine ID:</b> <code style='color:#475569;'>{mid}</code>"
                 )
             else:
                 msg_text = (
-                    "<b>【当前工位机商业授权已被管理员在云端控制台取消 / 终止】</b><br><br>"
-                    "软件已安全锁定并清除本地授权凭证。<br>"
-                    "如需恢复激活、重新开通或咨询技术支持，请通过以下方式联系 ANSV 官方团队：<br><br>"
-                    f"• <b>支持邮箱 (Email):</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7;'>{OFFICIAL_EMAIL}</a><br>"
-                    f"• <b>工程师微信 (WeChat):</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
-                    f"• <b>官方微信公众号:</b> {WECHAT_OFFICIAL_ACCOUNT}<br>"
+                    "<b>【工位机商业授权已被管理员在云端取消】</b><br><br>"
+                    "云端凭证已注销，本地许可凭证 (license.lic) 已彻底安全销毁。<br>"
+                    "当前软件已自动退回为 <b>【未激活评估状态】</b>。<br><br>"
+                    "如需重新开通或恢复激活，请联系管理员在后台下发新授权，或点击下方【输入/申请授权码】打开激活向导：<br><br>"
+                    f"• <b>技术支持邮箱:</b> <a href='mailto:{OFFICIAL_EMAIL}' style='color:#0284C7;'>{OFFICIAL_EMAIL}</a><br>"
+                    f"• <b>工程师微信:</b> <code style='color:#059669; font-weight:bold;'>{WECHAT_CONTACT_ID}</code><br>"
                     f"• <b>官方服务门户:</b> <a href='{OFFICIAL_URL}' style='color:#0284C7;'>{OFFICIAL_URL}</a><br>"
-                    f"• <b>本机机器识别码:</b> <code style='color:#475569;'>{mid}</code>"
+                    f"• <b>工位机器码:</b> <code style='color:#475569;'>{mid}</code>"
                 )
 
             msg_box.setText(msg_text)
-            btn_copy = msg_box.addButton("📋 Copy Contact Info" if is_en else "📋 复制联系方式", QMessageBox.ButtonRole.ActionRole)
-            btn_exit = msg_box.addButton("Exit Application" if is_en else "关闭退出", QMessageBox.ButtonRole.AcceptRole)
-            msg_box.setDefaultButton(btn_exit)
+            btn_wizard = msg_box.addButton("Enter Activation Wizard" if is_en else "🔑 输入/申请新授权码", QMessageBox.ButtonRole.ActionRole)
+            btn_copy = msg_box.addButton("📋 Copy Info" if is_en else "📋 复制机器码与联系方式", QMessageBox.ButtonRole.ActionRole)
+            btn_ok = msg_box.addButton("OK (Evaluation Mode)" if is_en else "以评估模式浏览", QMessageBox.ButtonRole.AcceptRole)
+            msg_box.setDefaultButton(btn_wizard)
 
             while True:
                 msg_box.exec()
                 if msg_box.clickedButton() == btn_copy:
                     from PyQt6.QtWidgets import QApplication
                     clipboard = QApplication.clipboard()
-                    if is_en:
-                        contact_copy = (
-                            f"[ANSV Coil-Architect Pro Commercial License Inquiry & Reissue]\n"
-                            f"Hardware Machine ID: {mid}\n"
-                            f"Support Email: {OFFICIAL_EMAIL}\n"
-                            f"WeChat Support ID: {WECHAT_CONTACT_ID}\n"
-                            f"Official Portal: {OFFICIAL_URL}"
-                        )
-                    else:
-                        contact_copy = (
-                            f"【ANSV Coil-Architect Pro 商业授权咨询与恢复】\n"
-                            f"机器码 (Machine ID): {mid}\n"
-                            f"支持邮箱 (Email): {OFFICIAL_EMAIL}\n"
-                            f"工程师微信 (WeChat): {WECHAT_CONTACT_ID}\n"
-                            f"官方微信公众号: {WECHAT_OFFICIAL_ACCOUNT}\n"
-                            f"官方服务门户: {OFFICIAL_URL}"
-                        )
+                    contact_copy = (
+                        f"【ANSV Coil-Architect Pro 授权恢复申请】\n"
+                        f"机器码 (Machine ID): {mid}\n"
+                        f"支持邮箱: {OFFICIAL_EMAIL}\n"
+                        f"微信支持: {WECHAT_CONTACT_ID}\n"
+                        f"服务门户: {OFFICIAL_URL}"
+                    )
                     clipboard.setText(contact_copy)
-                    btn_copy.setText("✅ Copied to Clipboard!" if is_en else "✅ 已复制联系方式")
+                    btn_copy.setText("✅ 已复制到剪贴板")
                     continue
-                break
-
-            self.close()
-            from PyQt6.QtWidgets import QApplication
-            app = QApplication.instance()
-            if app:
-                app.quit()
+                elif msg_box.clickedButton() == btn_wizard:
+                    self._remote_locked_flag = False
+                    self._open_activation_dialog()
+                    break
+                else:
+                    self._remote_locked_flag = False
+                    break
 
         elif cmd_upper == "UPDATE_LICENSE":
             logger.info("MainWindow 捕获云端远程授权下发指令: UPDATE_LICENSE，刷新状态与界面...")

@@ -938,18 +938,18 @@ async function handleAdmin(path, request, env, url) {
         if (!mid) return jsonResponse({ success: false, error: "Missing machine_id", message: "缺少工位机识别码" }, 400);
 
         if (action === "REVOKE" || action === "LOCK_APP" || action === "REVOKE_LICENSE") {
-            // 取消授权：彻底清空云端该机台原有的旧授权信息，绝不在网页端保留旧激活码，下发 LOCK_APP 锁机指令
+            // 取消授权：彻底清空云端旧授权并恢复未激活状态，下发 LOCK_APP 清理本地凭证
             await db.prepare(`
                 UPDATE devices SET 
                     status = 'REVOKED', 
-                    license_status = 'REVOKED', 
+                    license_status = 'UNACTIVATED', 
                     license_expire = '-',
                     remaining_days = 0,
                     remote_command = 'LOCK_APP',
                     remote_command_payload = '',
                     revoke_confirmed = 0,
                     revoke_time = CURRENT_TIMESTAMP,
-                    notes = '管理员取消授权，已排队下发远程锁机指令并彻底销毁旧激活码'
+                    notes = '管理员取消授权，已注销凭证并恢复未激活状态'
                 WHERE machine_id = ?
             `).bind(mid).run();
             await db.prepare("UPDATE licenses SET status = 'REVOKED' WHERE machine_id = ?").bind(mid).run();
@@ -2146,7 +2146,7 @@ async function loadDevices() {
           '</div><br><span style="color:#94A3B8;font-size:10px;margin-top:2px;display:inline-block;">' + timeText + '</span>';
         }
 
-        const isRevoked = (dev.status === 'REVOKED' || dev.license_status === 'REVOKED');
+        const isRevoked = (dev.status === 'REVOKED' || dev.license_status === 'REVOKED' || dev.license_status === 'UNACTIVATED');
         const isBanned = (dev.status === 'BANNED' || dev.license_status === 'BANNED');
 
         let statusBadge = '<span class="badge badge-success">正常授权</span>';
@@ -2154,9 +2154,9 @@ async function loadDevices() {
           statusBadge = '<span class="badge badge-danger">已拉黑封禁</span>';
         } else if (isRevoked) {
           if (dev.revoke_confirmed == 1) {
-            statusBadge = '<span class="badge badge-danger" style="background:#DC2626;">🚫 已取消授权 (已锁机)</span><br><span style="color:#059669;font-size:10px;font-weight:600;">✓ 工位机已回执锁机</span>';
+            statusBadge = '<span class="badge badge-danger" style="background:#DC2626;">🚫 授权已取消 (恢复未激活)</span><br><span style="color:#059669;font-size:10px;font-weight:600;">✓ 本地许可已销毁，已退回未激活</span>';
           } else {
-            statusBadge = '<span class="badge badge-warning" style="background:#D97706;">⏳ 取消授权中 (待锁机)</span><br><span style="color:#B45309;font-size:10px;">• 锁机指令排队中</span>';
+            statusBadge = '<span class="badge badge-danger" style="background:#DC2626;">🚫 授权已取消 (恢复未激活)</span><br><span style="color:#64748B;font-size:10px;">• 云端凭证已注销，排队清除本地</span>';
           }
         } else if (dev.license_status === 'EXPIRED') {
           statusBadge = '<span class="badge badge-danger">已过期</span>';
@@ -2164,7 +2164,7 @@ async function loadDevices() {
           statusBadge = '<span class="badge badge-warning">免密试用</span>';
         }
 
-        let remainText = dev.license_expire === 'PERMANENT' ? '永久有效' : (dev.remaining_days > 0 ? dev.remaining_days + ' 天' : '<span style="color:red;">已逾期</span>');
+        let remainText = isRevoked ? '<span style="color:#EF4444;font-weight:bold;">未激活 (无有效凭证)</span>' : (dev.license_expire === 'PERMANENT' ? '永久有效' : (dev.remaining_days > 0 ? dev.remaining_days + ' 天' : '<span style="color:red;">已逾期</span>'));
         let vmText = dev.is_virtual_machine ? '<span style="color:#B45309;">⚠️虚拟机</span>' : '物理真机';
         let clockText = dev.clock_tampered ? '<span style="color:#B91C1C;font-weight:bold;">🚨倒拨时钟</span>' : '时钟正常';
         let diskText = dev.disk_free_gb > 0 ? (dev.disk_free_gb + ' GB') : '-';
@@ -2462,30 +2462,29 @@ async function autoAuthorizeDevice(mid, customer) {
 function checkRevokeStatus(mid, confirmed, ack, time) {
   if (confirmed == '1' || ack.indexOf('LOCK_APP') !== -1) {
     const msg = [
-      '✅【取消授权与锁机验证成功 · 已彻底生效】',
+      '✅【取消授权成功 · 已恢复未激活状态】',
       '',
       '工位机识别码: ' + mid,
-      '工位机锁机回执: ' + (ack || 'LOCK_APP:EXECUTED (已确认)'),
+      '工位机确认回执: ' + (ack || 'LOCK_APP:EXECUTED (已回执)'),
       '最近心跳/回执时间: ' + (time || '-'),
       '',
-      '【安全审计报告】：',
-      '1. 工位机已成功接收云端下发的 LOCK_APP 远程锁机指令；',
-      '2. 本地商业许可文件 (.key) 已彻底清除并归档，软件已被安全锁定强制退出；',
-      '3. 云端已永久锁定为 REVOKED 状态，任何客户端心跳绝不会自动恢复，外人无法使用！',
-      '4. 状态将永久保持，直到管理员在控制台手工点击【↩️ 撤销取消授权 (恢复激活)】。'
+      '【当前授权状态报告】：',
+      '1. 云端商业凭证已彻底销毁并注销，当前工位已恢复为【未激活评估状态】；',
+      '2. 工位机本地商业许可文件 (license.lic) 已彻底清除并设立安全墓碑；',
+      '3. 如需重新开通，请直接点击表格操作列的【⚡ 重新下发新激活码】即可恢复。'
     ].join(String.fromCharCode(10));
     alert(msg);
   } else {
     const msg = [
-      '⏳【取消授权指令已就绪 · 等待工位机心跳接收】',
+      'ℹ️【取消授权已生效 · 云端已恢复未激活】',
       '',
       '工位机识别码: ' + mid,
-      '当前状态: 云端已永久锁定为 REVOKED，LOCK_APP 锁机指令在待发队列中',
+      '当前状态: 云端已注销并恢复为【未激活状态】，旧激活码已彻底销毁',
       '最近心跳时间: ' + (time || '-'),
       '',
-      '【执行机制说明】：',
-      '• 客户端软件在下一次心跳周期 (最长15~30秒) 或用户下次打开软件时，将瞬间强制执行锁机并销毁凭证退出；',
-      '• 工位机确认执行后，此处状态将自动更新为“✓ 工位机已回执锁机”。您可随时再次点击本按钮检测核验！'
+      '【执行说明】：',
+      '• 云端已撤回该工位机的全部商业授权，工位机在下次心跳时将自动彻底删除本地许可文件并退回未激活状态；',
+      '• 您可随时点击【⚡ 重新下发新激活码】随时为该机台调整方案或重新下发授权！'
     ].join(String.fromCharCode(10));
     alert(msg);
   }
