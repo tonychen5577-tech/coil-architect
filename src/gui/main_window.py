@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType, WireShape, WireCatalogType, EnamelGrade, WindingDirection
-from ..core.wire_catalog import get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
+from ..core.wire_catalog import WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
 from ..core.physics_engine import CoilPhysicsEngine
 from .styles import LIGHT_INDUSTRIAL_QSS
 from .widgets.slider_spin_box import FloatSliderBox, IntSliderBox
@@ -408,13 +408,25 @@ class MainWindow(QMainWindow):
         if hasattr(self, "lbl_rho"):
             self.lbl_rho.setText(t("lbl_copper_grade", "铜材电导等级:"))
         if hasattr(self, "combo_copper_grade"):
-            cu_grades = [
-                (t("grade_ofhc", "高导电率无氧铜 OFHC"), 0.016959),
-                (t("grade_mfr", "厂家出厂典型实测"), 0.016920),
-                (t("grade_spec", "国内厂家规格书基准"), 0.017100),
-                (t("grade_iacs", "国际标准退火纯铜 IACS"), 0.017241),
-                (t("grade_custom", "自定义实测电阻率"), -1.0),
-            ]
+            is_en = i18n.is_english()
+            if is_en:
+                cu_grades = [
+                    ("Pure Copper (Huaye Measured: 1/58.5)", (0.01709402, 8.90)),
+                    ("Pure Copper (IACS 100%: 1/58)", (0.01724138, 8.90)),
+                    ("Oxygen-Free Copper (OFC Annealed: 1/59)", (0.01694915, 8.90)),
+                    ("15% Copper-Clad Aluminum (CCAW)", (0.02525000, 3.63)),
+                    ("Electrical Aluminum (EC-1350)", (0.02826000, 2.70)),
+                    ("Custom Measured Resistivity...", (-1.0, 8.90)),
+                ]
+            else:
+                cu_grades = [
+                    ("纯铜 (华冶实测经验值)", (0.01709402, 8.90)),
+                    ("纯铜 (国标 100% IACS)", (0.01724138, 8.90)),
+                    ("无氧纯铜 (高纯退火态)", (0.01694915, 8.90)),
+                    ("15% 铜包铝 (CCAW 经验值)", (0.02525000, 3.63)),
+                    ("电工纯铝 (EC-1350)", (0.02826000, 2.70)),
+                    ("自定义实测电阻率...", (-1.0, 8.90)),
+                ]
             self._update_combo_items(self.combo_copper_grade, cu_grades)
         if hasattr(self, "sb_copper_rho"):
             self.sb_copper_rho.setTitle(t("lbl_copper_rho", "20℃铜电阻率"))
@@ -1757,23 +1769,41 @@ class MainWindow(QMainWindow):
         self.combo_wire_shape.currentIndexChanged.connect(self._on_wire_shape_changed)
         layout_wire.addWidget(self.combo_wire_shape)
 
-        # 2. 线材规格库选择 (通用自定义 / 华冶纯铜 69档 / 华冶铜包铝 79档)
-        self.lbl_wire_catalog = QLabel("线材规格标准库:")
+        # 2. 华冶线材出厂标准库选型 (专业弹窗形式，取代过长下拉菜单)
+        self.lbl_wire_catalog = QLabel("线材出厂规格库选型:")
         self.lbl_wire_catalog.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
         layout_wire.addWidget(self.lbl_wire_catalog)
 
-        self.combo_wire_catalog = QComboBox()
-        self.combo_wire_catalog.addItem("通用自定义线规", WireCatalogType.CUSTOM)
-        self.combo_wire_catalog.addItem("华冶线材 · 纯铜出厂系列 (69档)", WireCatalogType.HUAYE_COPPER)
-        self.combo_wire_catalog.addItem("华冶线材 · 15%铜包铝系列 (79档)", WireCatalogType.HUAYE_CCAW)
-        self.combo_wire_catalog.currentIndexChanged.connect(self._on_wire_catalog_type_changed)
-        layout_wire.addWidget(self.combo_wire_catalog)
+        wire_btn_layout = QHBoxLayout()
+        wire_btn_layout.setSpacing(6)
 
-        # 华冶线规快速下拉选单 (默认隐藏)
-        self.combo_huaye_wire = QComboBox()
-        self.combo_huaye_wire.setVisible(False)
-        self.combo_huaye_wire.currentIndexChanged.connect(self._on_huaye_wire_selected)
-        layout_wire.addWidget(self.combo_huaye_wire)
+        self.btn_open_catalog = QPushButton("📖 浏览华冶线规库...")
+        self.btn_open_catalog.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open_catalog.setStyleSheet("""
+            QPushButton {
+                background-color: #F0F9FF;
+                border: 1px solid #0284C7;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: 700;
+                color: #0284C7;
+            }
+            QPushButton:hover {
+                background-color: #E0F2FE;
+                border-color: #0369A1;
+                color: #0369A1;
+            }
+        """)
+        self.btn_open_catalog.clicked.connect(self._open_wire_catalog_dialog)
+
+        self.lbl_catalog_selected = QLabel("已选: 自定义线规")
+        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
+        self.lbl_catalog_selected.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+        wire_btn_layout.addWidget(self.btn_open_catalog)
+        wire_btn_layout.addWidget(self.lbl_catalog_selected, 1)
+        layout_wire.addLayout(wire_btn_layout)
 
         # 3. 圆线专属参数容器
         self.container_round_wire = QWidget()
@@ -1849,12 +1879,12 @@ class MainWindow(QMainWindow):
         layout_wire.addWidget(lbl_rho)
 
         self.combo_copper_grade = QComboBox()
-        self.combo_copper_grade.addItem("纯铜 (华冶实测经验 1/58.5: 0.017094)", 0.017094)
-        self.combo_copper_grade.addItem("高导电率无氧铜 OFHC (0.016959)", 0.016959)
-        self.combo_copper_grade.addItem("厂家出厂典型实测 (0.016920)", 0.016920)
-        self.combo_copper_grade.addItem("国际标准退火纯铜 IACS (0.017241)", 0.017241)
-        self.combo_copper_grade.addItem("15% 铜包铝经验值 CCAW (0.025250)", 0.025250)
-        self.combo_copper_grade.addItem("自定义实测电阻率", -1.0)
+        self.combo_copper_grade.addItem("纯铜 (华冶实测经验值)", (0.01709402, 8.90))
+        self.combo_copper_grade.addItem("纯铜 (国标 100% IACS)", (0.01724138, 8.90))
+        self.combo_copper_grade.addItem("无氧纯铜 (高纯退火态)", (0.01694915, 8.90))
+        self.combo_copper_grade.addItem("15% 铜包铝 (CCAW 经验值)", (0.02525000, 3.63))
+        self.combo_copper_grade.addItem("电工纯铝 (EC-1350)", (0.02826000, 2.70))
+        self.combo_copper_grade.addItem("自定义实测电阻率...", (-1.0, 8.90))
         self.combo_copper_grade.currentIndexChanged.connect(self._on_copper_grade_changed)
         layout_wire.addWidget(self.combo_copper_grade)
 
@@ -2290,55 +2320,51 @@ class MainWindow(QMainWindow):
         self._on_flat_dim_changed()
         self.run_simulation()
 
-    def _on_wire_catalog_type_changed(self, idx: int):
-        """响应线规库切换 (自定义 / 华冶纯铜 / 华冶铜包铝)"""
-        cat_type = self.combo_wire_catalog.currentData()
-        self.combo_huaye_wire.blockSignals(True)
-        self.combo_huaye_wire.clear()
+    def _open_wire_catalog_dialog(self):
+        """弹出华冶线材出厂标准数据库选型窗口"""
+        from .wire_catalog_dialog import WireCatalogDialog
+        curr_d = self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.080
+        is_ccaw = getattr(self, "_is_current_wire_ccaw", False)
 
-        if cat_type == WireCatalogType.CUSTOM:
-            self.combo_huaye_wire.setVisible(False)
+        dlg = WireCatalogDialog(current_diameter=curr_d, is_ccaw=is_ccaw, parent=self)
+        if dlg.exec():
+            selected = dlg.selected_item
+            if selected is not None:
+                self._apply_catalog_wire(selected)
+
+    def _apply_catalog_wire(self, item: WireCatalogItem):
+        """将选中的华冶线材出厂规格直接调入仿真引擎"""
+        self._current_catalog_item = item
+        self._catalog_km_kg = item.km_per_kg
+        self._current_wire_density = item.density
+        is_ccaw = ("铜包铝" in item.material_name)
+        self._is_current_wire_ccaw = is_ccaw
+
+        # 自动填充裸径、外径与材料电阻率
+        self.sb_bare_dia.setValue(item.diameter)
+        self.sb_max_od.setValue(item.max_outer_dia)
+        self.sb_copper_rho.setValue(item.resistivity)
+
+        # 联动材料等级下拉框
+        self.combo_copper_grade.blockSignals(True)
+        if is_ccaw:
+            self.combo_copper_grade.setCurrentIndex(3) # 15% 铜包铝
         else:
-            self.combo_huaye_wire.setVisible(True)
-            wires = get_huaye_copper_wires() if cat_type == WireCatalogType.HUAYE_COPPER else get_huaye_ccaw_wires()
-            for w in wires:
-                self.combo_huaye_wire.addItem(w.display_label, w)
+            self.combo_copper_grade.setCurrentIndex(0) # 纯铜 (华冶实测经验值)
+        self.combo_copper_grade.blockSignals(False)
 
-            # 自动选择最接近当前裸径的规格
-            curr_d = self.sb_bare_dia.value()
-            matched = find_wire_by_diameter(curr_d, 1 if cat_type == WireCatalogType.HUAYE_COPPER else 2)
-            if matched:
-                for i in range(self.combo_huaye_wire.count()):
-                    item = self.combo_huaye_wire.itemData(i)
-                    if abs(item.diameter - matched.diameter) < 1e-4:
-                        self.combo_huaye_wire.setCurrentIndex(i)
-                        break
-
-            # 联动材料电阻率与密度
-            if cat_type == WireCatalogType.HUAYE_COPPER:
-                self.sb_copper_rho.setValue(0.017094)
-                self.combo_copper_grade.setCurrentIndex(0)
-            else:
-                self.sb_copper_rho.setValue(0.025250)
-                self.combo_copper_grade.setCurrentIndex(4)
-
-        self.combo_huaye_wire.blockSignals(False)
-        self._on_huaye_wire_selected(self.combo_huaye_wire.currentIndex())
-
-    def _on_huaye_wire_selected(self, idx: int):
-        """选中华冶线材具体规格条目"""
-        if not self.combo_huaye_wire.isVisible() or idx < 0:
-            return
-        item = self.combo_huaye_wire.itemData(idx)
-        if item is not None:
-            self.sb_bare_dia.setValue(item.diameter)
-            self.sb_max_od.setValue(item.max_outer_dia)
-            self.sb_copper_rho.setValue(item.resistivity)
-            self.status_bar.showMessage(
-                f"已调入华冶出厂线材: {item.material_name} | 裸径={item.diameter:.3f}mm | 最大外径={item.max_outer_dia:.3f}mm | {item.km_resistance_ohm:.1f}Ω/km",
-                3500
-            )
-            self.run_simulation()
+        mat_short = "CCAW" if is_ccaw else "纯铜"
+        info_text = f"已选: 【{mat_short}】 {item.diameter:.3f}mm (外径 {item.max_outer_dia:.3f}mm | {item.km_resistance_ohm:.1f}Ω/km | {item.km_per_kg:.2f}km/kg)"
+        self.lbl_catalog_selected.setText(info_text)
+        self.lbl_catalog_selected.setToolTip(
+            f"【华冶线材出厂规格】\n材质: {item.material_name}\n公称裸径: {item.diameter:.3f} mm\n最大外径: {item.max_outer_dia:.3f} mm\n"
+            f"KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n线密度 KM/KG: {item.km_per_kg:.3f} km/kg (已调入仿真计算线重)"
+        )
+        self.status_bar.showMessage(
+            f"已载入华冶线材: {item.diameter:.3f}mm | 最大外径={item.max_outer_dia:.3f}mm | 线密度={item.km_per_kg:.3f}km/kg",
+            3500
+        )
+        self.run_simulation()
 
     def _on_enamel_grade_changed(self, idx: int):
         """漆膜等级变动联动外径增量预估"""
@@ -2377,27 +2403,44 @@ class MainWindow(QMainWindow):
         self.run_simulation()
 
     def _on_copper_grade_changed(self, idx: int):
-        """响应铜材电导等级切换"""
-        rho_val = self.combo_copper_grade.currentData()
-        if rho_val is not None and rho_val > 0:
-            self.sb_copper_rho.setValue(rho_val)
+        """响应导体电导率与材料等级切换 (严格华冶 5 档预设)"""
+        data = self.combo_copper_grade.currentData()
+        if data is not None:
+            if isinstance(data, tuple):
+                rho_val, density_val = data
+            elif isinstance(data, (int, float)):
+                rho_val, density_val = float(data), 8.90
+            else:
+                rho_val, density_val = -1.0, 8.90
+
+            if rho_val > 0:
+                self.sb_copper_rho.setValue(rho_val)
+                self._current_wire_density = density_val
         self.run_simulation()
 
     def _on_copper_rho_slider_changed(self):
         """响应用户手动滑动/输入实测电阻率"""
         curr_val = round(self.sb_copper_rho.value(), 6)
         self.combo_copper_grade.blockSignals(True)
-        if abs(curr_val - 0.016959) < 1e-5:
+        if abs(curr_val - 0.017094) < 1e-5:
             self.combo_copper_grade.setCurrentIndex(0)
-        elif abs(curr_val - 0.016920) < 1e-5:
-            self.combo_copper_grade.setCurrentIndex(1)
-        elif abs(curr_val - 0.017100) < 1e-5:
-            self.combo_copper_grade.setCurrentIndex(2)
+            self._current_wire_density = 8.90
         elif abs(curr_val - 0.017241) < 1e-5:
+            self.combo_copper_grade.setCurrentIndex(1)
+            self._current_wire_density = 8.90
+        elif abs(curr_val - 0.016949) < 1e-5:
+            self.combo_copper_grade.setCurrentIndex(2)
+            self._current_wire_density = 8.90
+        elif abs(curr_val - 0.025250) < 1e-5:
             self.combo_copper_grade.setCurrentIndex(3)
+            self._current_wire_density = 3.63
+        elif abs(curr_val - 0.028260) < 1e-5:
+            self.combo_copper_grade.setCurrentIndex(4)
+            self._current_wire_density = 2.70
         else:
-            self.combo_copper_grade.setCurrentIndex(4) # 自定义
+            self.combo_copper_grade.setCurrentIndex(5) # 自定义实测
         self.combo_copper_grade.blockSignals(False)
+        self.run_simulation()
         self.run_simulation()
 
     def _on_thermal_env_changed(self, idx: int):
@@ -2473,10 +2516,11 @@ class MainWindow(QMainWindow):
             arbitrary_outer_len=self.sb_perim_outer_len.value() if hasattr(self, "sb_perim_outer_len") else 7.0,
             arbitrary_outer_wid=self.sb_perim_outer_wid.value() if hasattr(self, "sb_perim_outer_wid") else 5.0,
             wire_shape=self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND,
-            wire_catalog_type=self.combo_wire_catalog.currentData() if hasattr(self, "combo_wire_catalog") else WireCatalogType.CUSTOM,
+            wire_catalog_type=WireCatalogType.HUAYE_CCAW if getattr(self, "_is_current_wire_ccaw", False) else (WireCatalogType.HUAYE_COPPER if getattr(self, "_catalog_km_kg", 0.0) > 0 else WireCatalogType.CUSTOM),
             enamel_grade=self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else EnamelGrade.GRADE_2,
             has_self_bonding=self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else False,
-            wire_density=3.63 if (hasattr(self, "combo_wire_catalog") and self.combo_wire_catalog.currentData() == WireCatalogType.HUAYE_CCAW) else 8.90,
+            wire_density=getattr(self, "_current_wire_density", 8.90),
+            catalog_km_kg=getattr(self, "_catalog_km_kg", 0.0),
             bare_dia=self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.075,
             max_od=self.sb_max_od.value() if hasattr(self, "sb_max_od") else 0.085,
             tension_factor=self.sb_tension.value() if hasattr(self, "sb_tension") else 0.99,

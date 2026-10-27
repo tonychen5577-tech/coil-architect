@@ -87,6 +87,7 @@ class CoilInputs:
     wire_catalog_type: WireCatalogType = WireCatalogType.CUSTOM
     enamel_grade: EnamelGrade = EnamelGrade.GRADE_2
     has_self_bonding: bool = False
+    catalog_km_kg: float = 0.0    # 华冶线材出厂线密度 (km/kg, >0时直接用于称重)
     wire_density: float = 8.90    # 导体密度 (纯铜 8.90, CCAW 3.63, 纯铝 2.70 g/cm³)
     insulation_density: float = 1.25 # 绝缘漆膜固化密度 (g/cm³)
 

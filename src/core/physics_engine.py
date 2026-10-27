@@ -428,12 +428,18 @@ class CoilPhysicsEngine:
         out.v_wire = v_wire
 
         # 称重双基准：纯铜净重 + 漆膜净重 = 理论公称总重
-        weight_cu = (v_cu * rho_cond) / 1000.0
-        weight_ins = (v_ins * rho_ins) / 1000.0
-        weight_theoretical = weight_cu + weight_ins
-
-        # 车间实测预测重量 (考虑铜丝拔细负公差 -1.5% 与绕线张力拉伸伸长率)
-        weight_actual_expected = weight_cu * (eta ** 2) * 0.985 + weight_ins * 0.980
+        # 若用户选用了华冶出厂标准线规且具有出厂 KM/KG 线密度，则直接调用华冶出厂重量参数：
+        # 总重量 (g) = 总线长 (m) / 出厂 KM/KG
+        if inputs.catalog_km_kg > 0:
+            weight_theoretical = out.total_wire_len_m / inputs.catalog_km_kg
+            weight_cu = (v_cu * rho_cond) / 1000.0
+            weight_ins = max(0.0, weight_theoretical - weight_cu)
+            weight_actual_expected = weight_theoretical * (eta ** 2) * 0.985
+        else:
+            weight_cu = (v_cu * rho_cond) / 1000.0
+            weight_ins = (v_ins * rho_ins) / 1000.0
+            weight_theoretical = weight_cu + weight_ins
+            weight_actual_expected = weight_cu * (eta ** 2) * 0.985 + weight_ins * 0.980
 
         out.weight_cu_g = weight_cu
         out.weight_ins_g = weight_ins

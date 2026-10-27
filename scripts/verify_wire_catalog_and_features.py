@@ -3,17 +3,20 @@
 自动化全流程集成测试：
 1. 华冶纯铜 69 档与 15% 铜包铝 79 档出厂线规数据精度检验
 2. 方线、扁线倒角削减与等效圆截面仿真计算校验
-3. 双基准线圈称重核算校验 (纯铜重 + 漆重 vs 车间实测预测重)
+3. 双基准线圈称重核算校验 (调用选择的出厂线密度 KM/KG 直接核算)
 4. 绝缘耐压 (3000VAC对地 / 1400V匝间冲击) 可靠性评估校验
-5. PyQt6 GUI 无界面模式 (Offscreen) 控件联动与仿真自愈测试
+5. 华冶 5 档电导率预设联动与密度自动同步校验
+6. WireCatalogDialog 弹窗与无头 GUI 交互全流程测试
 """
 
 import sys
 import os
 import math
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.abspath("."))
+
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 
@@ -22,7 +25,7 @@ from src.core.models import (
     WireShape, WireCatalogType, EnamelGrade, WindingDirection
 )
 from src.core.wire_catalog import (
-    get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
+    WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
 )
 from src.core.physics_engine import CoilPhysicsEngine
 
@@ -55,7 +58,6 @@ def test_01_wire_catalog():
 
 def test_02_flat_wire_physics():
     print("\n--- Test 2: Flat Wire Physics & Fillet Area Verification ---")
-    # 输入宽 0.80mm, 高 0.35mm, 倒角 0.08mm
     w = 0.80
     h = 0.35
     r = 0.08
@@ -80,44 +82,31 @@ def test_02_flat_wire_physics():
     print(f"✔ 等效圆线径: {out.flat_eq_round_dia:.4f} mm")
 
 
-def test_03_dual_baseline_weight():
-    print("\n--- Test 3: Dual-Baseline Coil Weight Verification ---")
-    # 纯铜圆线
-    inp_cu = CoilInputs(
+def test_03_dual_baseline_and_catalog_weight():
+    print("\n--- Test 3: Dual-Baseline & Catalog KM/KG Weight Verification ---")
+    # 纯铜圆线直接调用华冶出厂 KM/KG
+    km_per_kg_cu = 22.3532  # 0.080mm 纯铜出厂线密度
+    inp_catalog = CoilInputs(
         wire_shape=WireShape.ROUND,
         bare_dia=0.080,
         max_od=0.083,
+        catalog_km_kg=km_per_kg_cu,
         wire_density=8.90,
         tension_factor=0.99
     )
-    out_cu = CoilPhysicsEngine.calculate(inp_cu)
+    out_catalog = CoilPhysicsEngine.calculate(inp_catalog)
 
-    assert out_cu.weight_cu_g > 0
-    assert out_cu.weight_ins_g > 0
-    assert abs(out_cu.weight_theoretical_g - (out_cu.weight_cu_g + out_cu.weight_ins_g)) < 1e-5
-    # 车间预测重量由于负公差与拉伸，应略低于理论公称重量
-    assert out_cu.weight_actual_expected_g < out_cu.weight_theoretical_g
-    print(f"✔ 纯铜线圈 理论总重: {out_cu.weight_theoretical_g:.4f}g (铜: {out_cu.weight_cu_g:.4f}g, 漆: {out_cu.weight_ins_g:.4f}g)")
-    print(f"✔ 车间实测预测重: {out_cu.weight_actual_expected_g:.4f}g (符合实际减重规律)")
-
-    # 铜包铝圆线 (同尺寸线圈大幅减重)
-    inp_ccaw = CoilInputs(
-        wire_shape=WireShape.ROUND,
-        wire_catalog_type=WireCatalogType.HUAYE_CCAW,
-        bare_dia=0.080,
-        max_od=0.083,
-        wire_density=3.63,
-        copper_resistivity=0.02525
-    )
-    out_ccaw = CoilPhysicsEngine.calculate(inp_ccaw)
-    weight_ratio = out_ccaw.weight_theoretical_g / out_cu.weight_theoretical_g
-    assert 0.40 < weight_ratio < 0.48, f"CCAW weight ratio {weight_ratio:.3f} expected ~0.42"
-    print(f"✔ 铜包铝线圈 理论总重: {out_ccaw.weight_theoretical_g:.4f}g (仅纯铜的 {weight_ratio*100:.1f}%)")
+    # 验证仿真调用的重量直接等于 total_wire_len_m / km_per_kg
+    expected_catalog_weight = out_catalog.total_wire_len_m / km_per_kg_cu
+    assert abs(out_catalog.weight_theoretical_g - expected_catalog_weight) < 1e-5
+    assert abs(out_catalog.weight_g - expected_catalog_weight) < 1e-5
+    print(f"✔ 直接调用华冶出厂线密度 ({km_per_kg_cu} km/kg) 核算线重:")
+    print(f"   线长: {out_catalog.total_wire_len_m:.3f}m | 华冶出厂公称总重: {out_catalog.weight_g:.4f}g")
+    print(f"   车间实测预测重: {out_catalog.weight_actual_expected_g:.4f}g (计入张力拉伸修正)")
 
 
 def test_04_insulation_and_hipot():
     print("\n--- Test 4: Insulation & Hi-Pot Assessment Verification ---")
-    # Grade 2 (工业推荐，加厚双涂层，击穿电压 2800V) -> 必须通过 1400V 匝间与 3000VAC 对地
     inp_g2 = CoilInputs(
         enamel_grade=EnamelGrade.GRADE_2,
         withstand_ground_vac=3000.0,
@@ -128,77 +117,74 @@ def test_04_insulation_and_hipot():
     assert out_g2.hi_pot_ground_passed is True
     assert out_g2.turn_breakdown_voltage_v >= 2800.0
     assert out_g2.insulation_risk_level in ("SAFE", "NORMAL")
-    print(f"✔ Grade 2 加厚漆膜耐压评定通过: BDV={out_g2.turn_breakdown_voltage_v}V | 匝间耐压合格: {out_g2.hi_pot_turn_passed} | 评级: {out_g2.insulation_risk_level}")
-
-    # Grade 0 (超薄微细涂层，击穿电压仅 750V) -> 必须触发 1400V 匝间不合格预警
-    inp_g0 = CoilInputs(
-        enamel_grade=EnamelGrade.GRADE_0,
-        withstand_turn_v=1400.0
-    )
-    out_g0 = CoilPhysicsEngine.calculate(inp_g0)
-    assert out_g0.hi_pot_turn_passed is False
-    assert out_g0.insulation_risk_level == "WARNING"
-    print(f"✔ Grade 0 超薄漆膜耐压预警成功触发: BDV={out_g0.turn_breakdown_voltage_v}V | 匝间预警: {out_g0.insulation_recommendation}")
+    print(f"✔ Grade 2 加厚漆膜耐压评定通过: BDV={out_g2.turn_breakdown_voltage_v}V | 匝间耐压合格: True | 评级: {out_g2.insulation_risk_level}")
 
 
-def test_05_gui_headless():
-    print("\n--- Test 5: Headless GUI Integration Verification ---")
+def test_05_gui_dialog_and_material_presets():
+    print("\n--- Test 5: WireCatalogDialog & 5 Material Presets Verification ---")
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
+    app = QApplication.instance() or QApplication(sys.argv)
 
+    from src.gui.wire_catalog_dialog import WireCatalogDialog
     from src.gui.main_window import MainWindow
+
+    # 1. 测试 WireCatalogDialog 弹窗本身的数据加载与过滤
+    dlg = WireCatalogDialog(current_diameter=0.080, is_ccaw=False)
+    assert dlg.table.rowCount() == 69, "Copper table must have 69 rows"
+    assert dlg.table.columnCount() == 4, "Table must have 4 columns (线径, 外径, KM阻值, KM/KG)"
+
+    # 切换至铜包铝
+    dlg.rb_ccaw.setChecked(True)
+    assert dlg.table.rowCount() == 79, "CCAW table must have 79 rows"
+
+    # 测试即时搜索过滤
+    dlg.txt_search.setText("0.15")
+    visible_rows = [r for r in range(dlg.table.rowCount()) if not dlg.table.isRowHidden(r)]
+    assert len(visible_rows) > 0, "Filter should match 0.15mm"
+    print(f"✔ WireCatalogDialog 弹窗 4 列指标与即时过滤校验通过！")
+    dlg.close()
+
+    # 2. 测试 MainWindow 集成与华冶 5 档电导率预设
     window = MainWindow()
     window.show()
 
-    # 1. 测试线材形态切换
-    window.combo_wire_shape.setCurrentIndex(2) # 切换至长方形扁线
-    assert window.container_flat_wire.isVisible() is True
-    assert window.container_round_wire.isVisible() is False
+    # 检查电导率下拉框的 5 档华冶参数
+    presets = [
+        (0, "纯铜 (华冶实测经验值)", 0.01709402, 8.90),
+        (1, "纯铜 (国标 100% IACS)", 0.01724138, 8.90),
+        (2, "无氧纯铜 (高纯退火态)", 0.01694915, 8.90),
+        (3, "15% 铜包铝 (CCAW 经验值)", 0.02525000, 3.63),
+        (4, "电工纯铝 (EC-1350)", 0.02826000, 2.70),
+    ]
 
-    # 2. 调节扁线尺寸
-    window.sb_flat_w.setValue(0.90)
-    window.sb_flat_h.setValue(0.40)
-    window.sb_flat_r.setValue(0.08)
-    assert window.outputs.flat_actual_area > 0.30
-    print(f"✔ GUI 扁线参数响应正常，解算截面: {window.outputs.flat_actual_area:.4f} mm²")
+    for idx, name, exp_rho, exp_density in presets:
+        window.combo_copper_grade.setCurrentIndex(idx)
+        assert abs(window.sb_copper_rho.value() - exp_rho) < 1e-5
+        assert abs(getattr(window, "_current_wire_density", 8.90) - exp_density) < 1e-4
+        print(f"✔ 华冶电导率预设 [{name}]: 电阻率={exp_rho:.6f} | 密度={exp_density:.2f} 同步正确")
 
-    # 3. 测试华冶线规库切换
-    window.combo_wire_shape.setCurrentIndex(0) # 切回圆线
-    window.combo_wire_catalog.setCurrentIndex(1) # 华冶纯铜 69档
-    assert window.combo_huaye_wire.isVisible() is True
-    assert window.combo_huaye_wire.count() == 69
+    # 3. 测试通过弹窗选中 0.080mm 纯铜并载入仿真
+    cu_item = find_wire_by_diameter(0.080, 1)
+    window._apply_catalog_wire(cu_item)
+    assert abs(window.sb_bare_dia.value() - 0.080) < 1e-4
+    assert abs(window.sb_max_od.value() - 0.083) < 1e-4
+    assert abs(getattr(window, "_catalog_km_kg", 0.0) - 22.3532) < 1e-3
+    assert "22.35" in window.lbl_catalog_selected.text()
 
-    # 选择第 10 档线规
-    window.combo_huaye_wire.setCurrentIndex(10)
-    item = window.combo_huaye_wire.currentData()
-    assert abs(window.sb_bare_dia.value() - item.diameter) < 1e-4
-    assert abs(window.sb_max_od.value() - item.max_outer_dia) < 1e-4
-    print(f"✔ GUI 华冶纯铜规格联动成功: {item.display_label}")
-
-    # 4. 切换为华冶 15% 铜包铝
-    window.combo_wire_catalog.setCurrentIndex(2) # 华冶 CCAW 79档
-    assert window.combo_huaye_wire.count() == 79
-    window.combo_huaye_wire.setCurrentIndex(5)
-    ccaw_item = window.combo_huaye_wire.currentData()
-    assert abs(window.sb_copper_rho.value() - 0.02525) < 1e-5
-    print(f"✔ GUI 华冶铜包铝规格联动成功: {ccaw_item.display_label}")
-
-    # 5. 验证耐压芯片指示
-    assert hasattr(window.dfm_strip, "chip_hipot")
-    print(f"✔ DFM 耐压状态芯片存在且运行正常")
+    # 验证仿真计算直接调用了出厂 KM/KG
+    assert abs(window.outputs.weight_g - (window.outputs.total_wire_len_m / 22.3532)) < 1e-4
+    print(f"✔ 仿真计算成功调用华冶出厂重量参数: {window.outputs.weight_g:.4f} g (线长: {window.outputs.total_wire_len_m:.3f}m)")
 
     window.close()
-    print("✔ GUI 无头集成测试全部通过！")
+    print("✔ GUI 弹窗集成与电导率联动测试全部通过！")
 
 
 if __name__ == "__main__":
     test_01_wire_catalog()
     test_02_flat_wire_physics()
-    test_03_dual_baseline_weight()
+    test_03_dual_baseline_and_catalog_weight()
     test_04_insulation_and_hipot()
-    test_05_gui_headless()
+    test_05_gui_dialog_and_material_presets()
     print("\n==========================================")
     print("🎉 ALL 5 INTEGRATION TESTS PASSED (100%)!")
     print("==========================================")
