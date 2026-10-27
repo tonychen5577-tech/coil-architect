@@ -1642,7 +1642,7 @@ class MainWindow(QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(440)
+        scroll.setMinimumWidth(380)
 
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -1876,15 +1876,30 @@ class MainWindow(QMainWindow):
         """)
         self.btn_reset_wire.clicked.connect(self._clear_catalog_wire)
 
-        self.lbl_catalog_selected = QLabel("已选: 自定义线规")
-        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
-        self.lbl_catalog_selected.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-
         wire_btn_layout.addWidget(self.btn_open_catalog)
         wire_btn_layout.addWidget(self.btn_incoming_wire)
         wire_btn_layout.addWidget(self.btn_reset_wire)
-        wire_btn_layout.addWidget(self.lbl_catalog_selected, 1)
+        wire_btn_layout.addStretch()
         layout_wire.addLayout(wire_btn_layout)
+
+        # 选定线规状态标签 (单独一行显示，防止挤压左侧输入框；鼠标悬停展示完整出厂/来料参数)
+        self.lbl_catalog_selected = QLabel("已选: 自定义线规")
+        self.lbl_catalog_selected.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: 600;
+                color: #475569;
+                padding: 4px 8px;
+                background-color: #F8FAFC;
+                border: 1px dashed #CBD5E1;
+                border-radius: 4px;
+                margin-top: 3px;
+                margin-bottom: 2px;
+            }
+        """)
+        self.lbl_catalog_selected.setWordWrap(True)
+        self.lbl_catalog_selected.setToolTip("当前处于自定义线规模式（所有参数已解锁）。可通过【华冶线材库】或【⚡ 来料参数】快速导入标准数据。")
+        layout_wire.addWidget(self.lbl_catalog_selected)
 
         # 3. 圆线专属参数容器
         self.container_round_wire = QWidget()
@@ -2531,7 +2546,19 @@ class MainWindow(QMainWindow):
         self.lbl_catalog_selected.setText(
             f"已锁定: 【来料实测】{params.meter_resistance_ohm:.3f}Ω/m | {params.km_per_kg:.2f}km/kg | 外径 {params.max_outer_dia:.3f}mm"
         )
-        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 700; color: #16A34A;")
+        self.lbl_catalog_selected.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: 700;
+                color: #15803D;
+                padding: 4px 8px;
+                background-color: #F0FDF4;
+                border: 1px solid #BBF7D0;
+                border-radius: 4px;
+                margin-top: 3px;
+                margin-bottom: 2px;
+            }
+        """)
         self.lbl_catalog_selected.setToolTip(
             f"【线材进料实测指标直接闭环】\n"
             f"实测米阻: {params.meter_resistance_ohm:.4f} Ω/m ({params.km_resistance_ohm:.1f} Ω/km)\n"
@@ -2613,7 +2640,19 @@ class MainWindow(QMainWindow):
         sb_tag = " 1UEW-SB" if is_sb else " 1UEW"
         info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
         self.lbl_catalog_selected.setText(info_text)
-        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 700; color: #0284C7;")
+        self.lbl_catalog_selected.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: 700;
+                color: #0369A1;
+                padding: 4px 8px;
+                background-color: #F0F9FF;
+                border: 1px solid #BAE6FD;
+                border-radius: 4px;
+                margin-top: 3px;
+                margin-bottom: 2px;
+            }
+        """)
         self.lbl_catalog_selected.setToolTip(
             f"【华冶线材出厂规格 · 已全面锁定物理参数】\n"
             f"材质: {item.material_name}\n"
@@ -2621,9 +2660,9 @@ class MainWindow(QMainWindow):
             f"基准外径: {item.max_outer_dia:.3f} mm (1UEW 标准)\n"
             f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
             f"出厂KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
-            f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg\n"
-            f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
-            f"提示: 华冶出厂KM/KG仅为裸导体米重。仿真已自动按实测固化密度严格累加漆膜与胶层重量！"
+            f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg (裸导体米重: {1000.0/item.km_per_kg:.5f} g/m)\n"
+            f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG直接核算) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
+            f"提示: 鼠标悬停可查看全部详细参数；点击【✕ 自定义】可随时一键解锁恢复。"
         )
         self.status_bar.showMessage(
             f"已载入华冶线材: {item.diameter:.3f}mm{sb_tag} | 阻值={item.km_resistance_ohm:.1f}Ω/km | 裸铜={item.km_per_kg:.3f}km/kg (已严谨计入漆胶重量)",
@@ -2667,8 +2706,20 @@ class MainWindow(QMainWindow):
             self.btn_reset_wire.setVisible(False)
 
         self.lbl_catalog_selected.setText("已选: 自定义线规")
-        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
-        self.lbl_catalog_selected.setToolTip("")
+        self.lbl_catalog_selected.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: 600;
+                color: #475569;
+                padding: 4px 8px;
+                background-color: #F8FAFC;
+                border: 1px dashed #CBD5E1;
+                border-radius: 4px;
+                margin-top: 3px;
+                margin-bottom: 2px;
+            }
+        """)
+        self.lbl_catalog_selected.setToolTip("当前处于自定义线规模式（所有参数已解锁）。可通过【华冶线材库】或【⚡ 来料参数】快速导入标准数据。")
         self.status_bar.showMessage("已恢复自由自定义线规设计模式（所有参数已解锁）", 3000)
         self.run_simulation()
 
@@ -2686,6 +2737,19 @@ class MainWindow(QMainWindow):
             sb_tag = " 1UEW-SB" if checked else " 1UEW"
             info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
             self.lbl_catalog_selected.setText(info_text)
+            self.lbl_catalog_selected.setStyleSheet("""
+                QLabel {
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #0369A1;
+                    padding: 4px 8px;
+                    background-color: #F0F9FF;
+                    border: 1px solid #BAE6FD;
+                    border-radius: 4px;
+                    margin-top: 3px;
+                    margin-bottom: 2px;
+                }
+            """)
             self.lbl_catalog_selected.setToolTip(
                 f"【华冶线材出厂规格 · 已全面锁定物理参数】\n"
                 f"材质: {item.material_name}\n"
@@ -2693,9 +2757,9 @@ class MainWindow(QMainWindow):
                 f"基准外径: {item.max_outer_dia:.3f} mm (1UEW 标准)\n"
                 f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
                 f"出厂KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
-                f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg\n"
-                f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
-                f"提示: 华冶出厂KM/KG仅为裸导体米重。仿真已自动按实测固化密度严格累加漆膜与胶层重量！"
+                f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg (裸导体米重: {1000.0/item.km_per_kg:.5f} g/m)\n"
+                f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG直接核算) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
+                f"提示: 鼠标悬停可查看全部详细参数；点击【✕ 自定义】可随时一键解锁恢复。"
             )
         else:
             # 自定义模式：绝不篡改用户手动输入设定的漆包外径！
@@ -2805,13 +2869,27 @@ class MainWindow(QMainWindow):
                     km_res = (1000.0 * rho_val) / a_cu if a_cu > 0 else 0.0
                     info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {km_res:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
                     self.lbl_catalog_selected.setText(info_text)
+                    self.lbl_catalog_selected.setStyleSheet("""
+                        QLabel {
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: #0369A1;
+                            padding: 4px 8px;
+                            background-color: #F0F9FF;
+                            border: 1px solid #BAE6FD;
+                            border-radius: 4px;
+                            margin-top: 3px;
+                            margin-bottom: 2px;
+                        }
+                    """)
                     self.lbl_catalog_selected.setToolTip(
                         f"【华冶线材出厂规格 · {mat_short}】\n"
                         f"公称裸径: {item.diameter:.3f} mm\n"
                         f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
-                        f"当前KM阻值: {km_res:.1f} Ω/km (ρ={rho_val:.8f})\n"
-                        f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg\n"
-                        f"提示: 华冶模具与外径完全一致，已自动更新线圈 DCR 与温升计算！"
+                        f"当前KM阻值: {km_res:.1f} Ω/km (基准ρ={rho_val:.8f})\n"
+                        f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg (裸导体米重: {1000.0/item.km_per_kg:.5f} g/m)\n"
+                        f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG直接核算) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
+                        f"提示: 鼠标悬停可查看全部详细参数；点击【✕ 自定义】可随时一键解锁恢复。"
                     )
                     self.run_simulation()
                 return
