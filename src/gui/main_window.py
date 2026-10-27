@@ -411,8 +411,8 @@ class MainWindow(QMainWindow):
                     ("Std Self-Bonding (Enamel+Bond +0.010mm · Standard)", EnamelGrade.SB_010),
                     ("Thin Self-Bonding (Enamel+Bond +0.008mm)", EnamelGrade.SB_008),
                     ("Heavy Self-Bonding (Enamel+Bond +0.014mm · 2UEW-SB)", EnamelGrade.SB_014),
-                    ("Grade 1 Single Coat (Non-SB 1UEW, OD+0.008mm)", EnamelGrade.GRADE_1),
                     ("Grade 0 Ultra-Thin (Non-SB 1UEW, OD+0.003mm)", EnamelGrade.GRADE_0),
+                    ("Grade 1 Single Coat (Non-SB 1UEW, OD+0.008mm)", EnamelGrade.GRADE_1),
                     ("Grade 2 Heavy Dual Coat (Non-SB 2UEW, OD+0.014mm)", EnamelGrade.GRADE_2),
                     ("Grade 3 Triple Coat (Non-SB 3UEW, OD+0.022mm)", EnamelGrade.GRADE_3),
                     ("Custom Outer Dia (Keep Manual Input)", EnamelGrade.CUSTOM),
@@ -422,8 +422,8 @@ class MainWindow(QMainWindow):
                     ("常规标准自粘 (漆膜+胶厚 +0.010mm · +0.01 标配)", EnamelGrade.SB_010),
                     ("薄胶复合自粘 (漆膜+胶厚 +0.008mm)", EnamelGrade.SB_008),
                     ("加厚复合自粘 (漆膜+胶厚 +0.014mm · 2UEW-SB)", EnamelGrade.SB_014),
-                    ("1 级单涂层 (非自粘 1UEW, 外径+0.008mm)", EnamelGrade.GRADE_1),
                     ("0 级超薄漆膜 (非自粘 1UEW, 外径+0.003mm)", EnamelGrade.GRADE_0),
+                    ("1 级单涂层 (非自粘 1UEW, 外径+0.008mm)", EnamelGrade.GRADE_1),
                     ("2 级加厚双涂层 (非自粘 2UEW, 外径+0.014mm)", EnamelGrade.GRADE_2),
                     ("3 级特厚涂层 (非自粘 3UEW, 外径+0.022mm)", EnamelGrade.GRADE_3),
                     ("自定义外径 (保持手动输入设定)", EnamelGrade.CUSTOM),
@@ -461,6 +461,8 @@ class MainWindow(QMainWindow):
             self.sb_copper_rho.setTitle(t("lbl_copper_rho", "20℃铜电阻率"))
         if hasattr(self, "btn_open_catalog"):
             self.btn_open_catalog.setText(t("btn_huaye_catalog", "华冶线材库"))
+        if hasattr(self, "btn_incoming_wire"):
+            self.btn_incoming_wire.setText(t("btn_incoming_wire", "⚡ 来料参数"))
         if hasattr(self, "btn_reset_wire"):
             self.btn_reset_wire.setText(t("btn_reset_wire", "✕ 自定义"))
 
@@ -1818,7 +1820,7 @@ class MainWindow(QMainWindow):
                 background-color: #F0F9FF;
                 border: 1px solid #0284C7;
                 border-radius: 6px;
-                padding: 6px 12px;
+                padding: 6px 10px;
                 font-size: 11px;
                 font-weight: 700;
                 color: #0284C7;
@@ -1830,6 +1832,27 @@ class MainWindow(QMainWindow):
             }
         """)
         self.btn_open_catalog.clicked.connect(self._open_wire_catalog_dialog)
+
+        self.btn_incoming_wire = QPushButton("⚡ 来料参数")
+        self.btn_incoming_wire.setToolTip("直接输入线材供应商出厂检验或进料实测参数：实测米阻 (Ω/m) 与 一公斤多少米 (km/kg)")
+        self.btn_incoming_wire.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_incoming_wire.setStyleSheet("""
+            QPushButton {
+                background-color: #F0FDF4;
+                border: 1px solid #16A34A;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 11px;
+                font-weight: 700;
+                color: #16A34A;
+            }
+            QPushButton:hover {
+                background-color: #DCFCE7;
+                border-color: #15803D;
+                color: #15803D;
+            }
+        """)
+        self.btn_incoming_wire.clicked.connect(self._open_incoming_wire_dialog)
 
         self.btn_reset_wire = QPushButton("✕ 自定义")
         self.btn_reset_wire.setToolTip("解除华冶出厂库锁定，恢复自由调整线径、外径与材质电导率")
@@ -1858,6 +1881,7 @@ class MainWindow(QMainWindow):
         self.lbl_catalog_selected.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         wire_btn_layout.addWidget(self.btn_open_catalog)
+        wire_btn_layout.addWidget(self.btn_incoming_wire)
         wire_btn_layout.addWidget(self.btn_reset_wire)
         wire_btn_layout.addWidget(self.lbl_catalog_selected, 1)
         layout_wire.addLayout(wire_btn_layout)
@@ -1915,8 +1939,8 @@ class MainWindow(QMainWindow):
         self.combo_enamel_grade.addItem("常规标准自粘 (漆膜+胶厚 +0.010mm · +0.01 标配)", EnamelGrade.SB_010)
         self.combo_enamel_grade.addItem("薄胶复合自粘 (漆膜+胶厚 +0.008mm)", EnamelGrade.SB_008)
         self.combo_enamel_grade.addItem("加厚复合自粘 (漆膜+胶厚 +0.014mm · 2UEW-SB)", EnamelGrade.SB_014)
-        self.combo_enamel_grade.addItem("1 级单涂层 (非自粘 1UEW, 外径+0.008mm)", EnamelGrade.GRADE_1)
         self.combo_enamel_grade.addItem("0 级超薄漆膜 (非自粘 1UEW, 外径+0.003mm)", EnamelGrade.GRADE_0)
+        self.combo_enamel_grade.addItem("1 级单涂层 (非自粘 1UEW, 外径+0.008mm)", EnamelGrade.GRADE_1)
         self.combo_enamel_grade.addItem("2 级加厚双涂层 (非自粘 2UEW, 外径+0.014mm)", EnamelGrade.GRADE_2)
         self.combo_enamel_grade.addItem("3 级特厚涂层 (非自粘 3UEW, 外径+0.022mm)", EnamelGrade.GRADE_3)
         self.combo_enamel_grade.addItem("自定义外径 (保持手动输入设定)", EnamelGrade.CUSTOM)
@@ -2437,14 +2461,87 @@ class MainWindow(QMainWindow):
         from .wire_catalog_dialog import WireCatalogDialog
         curr_d = self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.080
         is_ccaw = getattr(self, "_is_current_wire_ccaw", False)
-        is_ofc = getattr(self, "_is_current_wire_ofc", False)
-        mat_type = 2 if is_ccaw else (3 if is_ofc else 1)
+        mat_type = 2 if is_ccaw else 1
 
         dlg = WireCatalogDialog(current_diameter=curr_d, is_ccaw=is_ccaw, material_type=mat_type, parent=self)
         if dlg.exec():
             selected = dlg.selected_item
             if selected is not None:
                 self._apply_catalog_wire(selected)
+
+    def _open_incoming_wire_dialog(self):
+        """打开线材来料实测参数输入弹窗"""
+        from .incoming_wire_dialog import IncomingWireDialog
+        d = self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.045
+        od = self.sb_max_od.value() if hasattr(self, "sb_max_od") else 0.055
+        rm = getattr(self, "_incoming_meter_res", 0.0)
+        km_kg = getattr(self, "_catalog_km_kg", 0.0)
+        has_sb = self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else True
+        grade = self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else EnamelGrade.SB_010
+
+        dlg = IncomingWireDialog(
+            current_bare_dia=d,
+            current_max_od=od,
+            current_rm=rm if rm > 0 else 10.747,
+            current_km_kg=km_kg if km_kg > 0 else 70.620,
+            has_self_bonding=has_sb,
+            enamel_grade=grade,
+            parent=self
+        )
+        dlg.params_applied.connect(self._apply_incoming_wire)
+        dlg.exec()
+
+    def _apply_incoming_wire(self, params):
+        """应用来料实测参数到仿真"""
+        self._current_catalog_item = None
+        self._incoming_wire_params = params
+        self._catalog_km_kg = params.km_per_kg
+        self._incoming_meter_res = params.meter_resistance_ohm
+        self._current_wire_density = params.density
+        self._is_current_wire_ccaw = (params.density < 4.0)
+        self._is_current_wire_ofc = ("无氧" in params.material_name)
+
+        if hasattr(self, "sb_bare_dia"):
+            self.sb_bare_dia.setValue(params.bare_dia)
+            self.sb_bare_dia.setEnabled(False)
+            self.sb_bare_dia.setToolTip(f"已锁定来料裸径: {params.bare_dia:.3f} mm")
+        if hasattr(self, "sb_max_od"):
+            self.sb_max_od.setValue(params.max_outer_dia)
+            self.sb_max_od.setEnabled(False)
+            self.sb_max_od.setToolTip(f"已锁定来料成品外径: {params.max_outer_dia:.3f} mm")
+        if hasattr(self, "sb_copper_rho"):
+            self.sb_copper_rho.setValue(params.resistivity)
+            self.sb_copper_rho.setEnabled(False)
+        if hasattr(self, "chk_self_bonding"):
+            self.chk_self_bonding.blockSignals(True)
+            self.chk_self_bonding.setChecked(params.has_self_bonding)
+            self.chk_self_bonding.blockSignals(False)
+        if hasattr(self, "combo_enamel_grade"):
+            self.combo_enamel_grade.blockSignals(True)
+            for i in range(self.combo_enamel_grade.count()):
+                if self.combo_enamel_grade.itemData(i) == params.enamel_grade:
+                    self.combo_enamel_grade.setCurrentIndex(i)
+                    break
+            self.combo_enamel_grade.setEnabled(False)
+            self.combo_enamel_grade.blockSignals(False)
+
+        if hasattr(self, "btn_reset_wire"):
+            self.btn_reset_wire.setVisible(True)
+
+        self.lbl_catalog_selected.setText(
+            f"已锁定: 【来料实测】{params.meter_resistance_ohm:.3f}Ω/m | {params.km_per_kg:.2f}km/kg | 外径 {params.max_outer_dia:.3f}mm"
+        )
+        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 700; color: #16A34A;")
+        self.lbl_catalog_selected.setToolTip(
+            f"【线材进料实测指标直接闭环】\n"
+            f"实测米阻: {params.meter_resistance_ohm:.4f} Ω/m ({params.km_resistance_ohm:.1f} Ω/km)\n"
+            f"线密度: {params.km_per_kg:.3f} km/kg (裸导体米重: {1000.0/params.km_per_kg:.5f} g/m)\n"
+            f"公称裸径: {params.bare_dia:.3f} mm | 成品外径: {params.max_outer_dia:.3f} mm\n"
+            f"材质: {params.material_name} (基准ρ={params.resistivity:.6f})\n"
+            f"计算模型: 阻抗直接采用 L × {params.meter_resistance_ohm:.4f}Ω/m，导体重直接采用 L / {params.km_per_kg:.3f}km/kg"
+        )
+        self.status_bar.showMessage(f"已成功载入来料实测参数: {params.meter_resistance_ohm:.3f} Ω/m, {params.km_per_kg:.2f} km/kg", 3000)
+        self.run_simulation()
 
     def _apply_catalog_wire(self, item: WireCatalogItem):
         """将选中的华冶线材出厂规格直接调入仿真引擎，并全面锁定冲突参数"""
@@ -2537,6 +2634,8 @@ class MainWindow(QMainWindow):
     def _clear_catalog_wire(self):
         """解除华冶出厂库锁定，恢复自由自定义线规设计模式"""
         self._current_catalog_item = None
+        self._incoming_wire_params = None
+        self._incoming_meter_res = 0.0
         self._catalog_km_kg = 0.0
         self._is_current_wire_ccaw = False
         self._is_current_wire_ofc = False
@@ -2838,11 +2937,16 @@ class MainWindow(QMainWindow):
             arbitrary_outer_len=self.sb_perim_outer_len.value() if hasattr(self, "sb_perim_outer_len") else 7.0,
             arbitrary_outer_wid=self.sb_perim_outer_wid.value() if hasattr(self, "sb_perim_outer_wid") else 5.0,
             wire_shape=self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND,
-            wire_catalog_type=WireCatalogType.HUAYE_CCAW if getattr(self, "_is_current_wire_ccaw", False) else (WireCatalogType.HUAYE_COPPER if getattr(self, "_catalog_km_kg", 0.0) > 0 else WireCatalogType.CUSTOM),
+            wire_catalog_type=WireCatalogType.INCOMING_MEASURED if getattr(self, "_incoming_wire_params", None) is not None else (
+                WireCatalogType.HUAYE_CCAW if getattr(self, "_is_current_wire_ccaw", False) else (
+                    WireCatalogType.HUAYE_COPPER if getattr(self, "_catalog_km_kg", 0.0) > 0 else WireCatalogType.CUSTOM
+                )
+            ),
             enamel_grade=self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else EnamelGrade.GRADE_2,
             has_self_bonding=self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else False,
             wire_density=getattr(self, "_current_wire_density", 8.90),
             catalog_km_kg=getattr(self, "_catalog_km_kg", 0.0),
+            measured_rm=getattr(self, "_incoming_meter_res", 0.0),
             bare_dia=self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.075,
             max_od=self.sb_max_od.value() if hasattr(self, "sb_max_od") else 0.085,
             tension_factor=self.sb_tension.value() if hasattr(self, "sb_tension") else 0.99,

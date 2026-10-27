@@ -478,11 +478,16 @@ class CoilPhysicsEngine:
         out.a_cu = a_cu
 
         # 20℃ 基准冷态直流电阻 R20
-        rho = inputs.copper_resistivity if inputs.copper_resistivity > 0 else 0.017094
-        out.copper_resistivity = rho
-        out.rho_per_meter = (rho / a_cu) if a_cu > 1e-12 else 0.0
-
-        r20 = ((out.total_wire_len_m * rho) / a_cu) if a_cu > 1e-12 else 0.0
+        # 若为来料实测模式 (inputs.measured_rm > 0)，直接采用供应商实测米阻核算 R20 = L * Rm
+        if inputs.measured_rm > 0:
+            out.rho_per_meter = inputs.measured_rm
+            out.copper_resistivity = inputs.measured_rm * a_cu
+            r20 = out.total_wire_len_m * inputs.measured_rm
+        else:
+            rho = inputs.copper_resistivity if inputs.copper_resistivity > 0 else 0.017094
+            out.copper_resistivity = rho
+            out.rho_per_meter = (rho / a_cu) if a_cu > 1e-12 else 0.0
+            r20 = ((out.total_wire_len_m * rho) / a_cu) if a_cu > 1e-12 else 0.0
         out.r20 = r20
 
         # 初始环境温度 Ta 下的冷态电阻 R_init
