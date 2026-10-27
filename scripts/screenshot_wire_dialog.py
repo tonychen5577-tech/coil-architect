@@ -15,9 +15,9 @@ def main():
     
     i18n.set_language("zh")
     
-    # 1. Capture WireCatalogDialog
+    # 1. Capture Widened WireCatalogDialog
     dlg = WireCatalogDialog(current_diameter=0.170, is_ccaw=False)
-    dlg.resize(760, 540)
+    dlg.resize(920, 580)
     dlg.show()
     app.processEvents()
     

@@ -15,7 +15,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
-    QRadioButton, QButtonGroup, QFrame, QAbstractItemView
+    QRadioButton, QButtonGroup, QFrame, QAbstractItemView,
+    QSizePolicy
 )
 
 from ..core.wire_catalog import (
@@ -32,8 +33,8 @@ class WireCatalogDialog(QDialog):
     def __init__(self, current_diameter: float = 0.080, is_ccaw: bool = False, parent=None):
         super().__init__(parent)
         self.setWindowTitle("华冶线材出厂标准数据库 · 规格选型" if not i18n.is_english() else "Huaye Wire Specification Catalog")
-        self.resize(760, 540)
-        self.setMinimumSize(640, 440)
+        self.resize(920, 580)
+        self.setMinimumSize(850, 480)
         
         self.selected_item: Optional[WireCatalogItem] = None
         self._initial_diameter = current_diameter
@@ -142,6 +143,13 @@ class WireCatalogDialog(QDialog):
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
 
+        # 滚轮平滑滚动与滚动条常驻
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.table.verticalScrollBar().setSingleStep(30)
+
         self.table.setStyleSheet("""
             QTableWidget {
                 background-color: #FFFFFF;
@@ -152,7 +160,7 @@ class WireCatalogDialog(QDialog):
                 color: #1E293B;
             }
             QTableWidget::item {
-                padding: 4px 8px;
+                padding: 5px 8px;
             }
             QTableWidget::item:selected {
                 background-color: #E0F2FE;
@@ -166,7 +174,30 @@ class WireCatalogDialog(QDialog):
                 font-weight: 700;
                 border: none;
                 border-bottom: 2px solid #CBD5E1;
-                padding: 6px 8px;
+                padding: 7px 8px;
+            }
+            QScrollBar:vertical {
+                background-color: #F8FAFC;
+                width: 12px;
+                border-left: 1px solid #E2E8F0;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #CBD5E1;
+                min-height: 30px;
+                border-radius: 5px;
+                margin: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #94A3B8;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+                border: none;
+                background: none;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
             }
         """)
 
@@ -178,11 +209,12 @@ class WireCatalogDialog(QDialog):
         bottom_frame = QFrame()
         bottom_layout = QHBoxLayout(bottom_frame)
         bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(10)
 
         self.lbl_selected_info = QLabel("请在表格中选择线材规格...")
         self.lbl_selected_info.setStyleSheet("font-size: 12px; font-weight: 600; color: #0284C7;")
-        bottom_layout.addWidget(self.lbl_selected_info)
-        bottom_layout.addStretch()
+        self.lbl_selected_info.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        bottom_layout.addWidget(self.lbl_selected_info, 1)
 
         self.btn_cancel = QPushButton("取消")
         self.btn_cancel.setFixedWidth(80)
@@ -319,3 +351,16 @@ class WireCatalogDialog(QDialog):
         if self.selected_item is not None:
             self.wire_selected.emit(self.selected_item)
             self.accept()
+
+    def wheelEvent(self, event):
+        """支持在弹窗任意区域滑动鼠标滚轮时均可流畅滚动表格"""
+        if hasattr(self, "table") and self.table.verticalScrollBar().isVisible():
+            delta = event.angleDelta().y()
+            if delta != 0:
+                current_val = self.table.verticalScrollBar().value()
+                # 滚轮每次滚动约 2~3 行高度 (60px)
+                step = 60 if delta < 0 else -60
+                self.table.verticalScrollBar().setValue(current_val + step)
+                event.accept()
+                return
+        super().wheelEvent(event)

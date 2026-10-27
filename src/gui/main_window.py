@@ -430,6 +430,10 @@ class MainWindow(QMainWindow):
             self._update_combo_items(self.combo_copper_grade, cu_grades)
         if hasattr(self, "sb_copper_rho"):
             self.sb_copper_rho.setTitle(t("lbl_copper_rho", "20℃铜电阻率"))
+        if hasattr(self, "btn_open_catalog"):
+            self.btn_open_catalog.setText(t("btn_huaye_catalog", "华冶线材库"))
+        if hasattr(self, "btn_reset_wire"):
+            self.btn_reset_wire.setText(t("btn_reset_wire", "✕ 自定义"))
 
         # 左侧参数面板 - 卡片3: 工作环境与散热条件
         if hasattr(self, "lbl_thermal"):
@@ -1777,7 +1781,8 @@ class MainWindow(QMainWindow):
         wire_btn_layout = QHBoxLayout()
         wire_btn_layout.setSpacing(6)
 
-        self.btn_open_catalog = QPushButton("📖 浏览华冶线规库...")
+        self.btn_open_catalog = QPushButton("华冶线材库")
+        self.btn_open_catalog.setToolTip("打开华冶漆包线出厂标准数据库，直接导入出厂线径、外径、阻值与线密度")
         self.btn_open_catalog.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_open_catalog.setStyleSheet("""
             QPushButton {
@@ -1797,11 +1802,34 @@ class MainWindow(QMainWindow):
         """)
         self.btn_open_catalog.clicked.connect(self._open_wire_catalog_dialog)
 
+        self.btn_reset_wire = QPushButton("✕ 自定义")
+        self.btn_reset_wire.setToolTip("解除华冶出厂库锁定，恢复自由调整线径、外径与材质电导率")
+        self.btn_reset_wire.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reset_wire.setVisible(False)
+        self.btn_reset_wire.setStyleSheet("""
+            QPushButton {
+                background-color: #FEF2F2;
+                border: 1px solid #FECACA;
+                border-radius: 6px;
+                padding: 6px 8px;
+                font-size: 11px;
+                font-weight: 600;
+                color: #DC2626;
+            }
+            QPushButton:hover {
+                background-color: #FEE2E2;
+                border-color: #F87171;
+                color: #B91C1C;
+            }
+        """)
+        self.btn_reset_wire.clicked.connect(self._clear_catalog_wire)
+
         self.lbl_catalog_selected = QLabel("已选: 自定义线规")
         self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
         self.lbl_catalog_selected.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         wire_btn_layout.addWidget(self.btn_open_catalog)
+        wire_btn_layout.addWidget(self.btn_reset_wire)
         wire_btn_layout.addWidget(self.lbl_catalog_selected, 1)
         layout_wire.addLayout(wire_btn_layout)
 
@@ -2333,43 +2361,124 @@ class MainWindow(QMainWindow):
                 self._apply_catalog_wire(selected)
 
     def _apply_catalog_wire(self, item: WireCatalogItem):
-        """将选中的华冶线材出厂规格直接调入仿真引擎"""
+        """将选中的华冶线材出厂规格直接调入仿真引擎，并全面锁定冲突参数"""
         self._current_catalog_item = item
         self._catalog_km_kg = item.km_per_kg
         self._current_wire_density = item.density
         is_ccaw = ("铜包铝" in item.material_name)
         self._is_current_wire_ccaw = is_ccaw
 
-        # 自动填充裸径、外径与材料电阻率
+        # 1. 确保导线形状为经典圆线并锁定
+        if hasattr(self, "combo_wire_shape"):
+            self.combo_wire_shape.blockSignals(True)
+            self.combo_wire_shape.setCurrentIndex(0) # 经典圆线
+            self.combo_wire_shape.setEnabled(False)
+            self.combo_wire_shape.setToolTip("华冶线规库为出厂圆线规格（如需方线/扁线请点击【✕ 自定义】）")
+            self.combo_wire_shape.blockSignals(False)
+
+        # 2. 自动填充裸径、外径与材料电阻率
         self.sb_bare_dia.setValue(item.diameter)
         self.sb_max_od.setValue(item.max_outer_dia)
         self.sb_copper_rho.setValue(item.resistivity)
 
-        # 联动材料等级下拉框
+        # 锁定裸径与外径，杜绝手动微调导致与出厂规格冲突
+        self.sb_bare_dia.setEnabled(False)
+        self.sb_bare_dia.setToolTip(f"已锁定华冶标准裸径 {item.diameter:.3f} mm")
+        self.sb_max_od.setEnabled(False)
+        self.sb_max_od.setToolTip(f"已锁定华冶标准最大外径 {item.max_outer_dia:.3f} mm")
+
+        # 3. 联动材料等级下拉框，坚决锁定电导率选择与滑块，彻底杜绝计算冲突
         self.combo_copper_grade.blockSignals(True)
         if is_ccaw:
             self.combo_copper_grade.setCurrentIndex(3) # 15% 铜包铝
         else:
             self.combo_copper_grade.setCurrentIndex(0) # 纯铜 (华冶实测经验值)
         self.combo_copper_grade.blockSignals(False)
+        self.combo_copper_grade.setEnabled(False)
+        self.combo_copper_grade.setToolTip("已绑定华冶出厂材质经验值（锁定禁止修改，避免材质与出厂阻值/线密度冲突）")
+        self.sb_copper_rho.setEnabled(False)
+        self.sb_copper_rho.setToolTip("已锁定华冶出厂材质电阻率")
+
+        # 4. 锁定漆膜绝缘等级与自粘层（出厂规格表基准为 1UEW 聚氨酯漆包圆线）
+        if hasattr(self, "combo_enamel_grade"):
+            self.combo_enamel_grade.blockSignals(True)
+            self.combo_enamel_grade.setCurrentIndex(1) # 1 级 (单涂层 1UEW)
+            self.combo_enamel_grade.setEnabled(False)
+            self.combo_enamel_grade.setToolTip("华冶出厂规格表基准为 1UEW 漆膜（如需自定义漆膜等级请点击【✕ 自定义】）")
+            self.combo_enamel_grade.blockSignals(False)
+        if hasattr(self, "chk_self_bonding"):
+            self.chk_self_bonding.blockSignals(True)
+            self.chk_self_bonding.setChecked(False)
+            self.chk_self_bonding.setEnabled(False)
+            self.chk_self_bonding.setToolTip("华冶出厂规格表为非自粘漆包圆线")
+            self.chk_self_bonding.blockSignals(False)
+
+        # 5. 显示恢复自定义按钮与锁定微标
+        if hasattr(self, "btn_reset_wire"):
+            self.btn_reset_wire.setVisible(True)
 
         mat_short = "CCAW" if is_ccaw else "纯铜"
-        info_text = f"已选: 【{mat_short}】 {item.diameter:.3f}mm (外径 {item.max_outer_dia:.3f}mm | {item.km_resistance_ohm:.1f}Ω/km | {item.km_per_kg:.2f}km/kg)"
+        info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {item.max_outer_dia:.3f}mm | {item.km_resistance_ohm:.1f}Ω/km | {item.km_per_kg:.2f}km/kg)"
         self.lbl_catalog_selected.setText(info_text)
+        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 700; color: #0284C7;")
         self.lbl_catalog_selected.setToolTip(
-            f"【华冶线材出厂规格】\n材质: {item.material_name}\n公称裸径: {item.diameter:.3f} mm\n最大外径: {item.max_outer_dia:.3f} mm\n"
-            f"KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n线密度 KM/KG: {item.km_per_kg:.3f} km/kg (已调入仿真计算线重)"
+            f"【华冶线材出厂规格 · 已全面锁定物理参数】\n"
+            f"材质: {item.material_name}\n"
+            f"公称裸径: {item.diameter:.3f} mm\n"
+            f"最大外径: {item.max_outer_dia:.3f} mm\n"
+            f"KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
+            f"线密度 KM/KG: {item.km_per_kg:.3f} km/kg (已调入仿真计算线重)\n"
+            f"提示: 为保证计算绝对严谨，已锁定材质电导率、漆膜等级与外径。点击右侧【✕ 自定义】可解除锁定。"
         )
         self.status_bar.showMessage(
-            f"已载入华冶线材: {item.diameter:.3f}mm | 最大外径={item.max_outer_dia:.3f}mm | 线密度={item.km_per_kg:.3f}km/kg",
+            f"已载入华冶线材: {item.diameter:.3f}mm | 阻值={item.km_resistance_ohm:.1f}Ω/km | 线密度={item.km_per_kg:.3f}km/kg (已锁定材质与几何参数)",
             3500
         )
         self.run_simulation()
 
+    def _clear_catalog_wire(self):
+        """解除华冶出厂库锁定，恢复自由自定义线规设计模式"""
+        self._current_catalog_item = None
+        self._catalog_km_kg = 0.0
+
+        # 解锁全部参数与控件
+        if hasattr(self, "combo_wire_shape"):
+            self.combo_wire_shape.setEnabled(True)
+            self.combo_wire_shape.setToolTip("")
+        if hasattr(self, "sb_bare_dia"):
+            self.sb_bare_dia.setEnabled(True)
+            self.sb_bare_dia.setToolTip("")
+        if hasattr(self, "sb_max_od"):
+            self.sb_max_od.setEnabled(True)
+            self.sb_max_od.setToolTip("")
+        if hasattr(self, "combo_copper_grade"):
+            self.combo_copper_grade.setEnabled(True)
+            self.combo_copper_grade.setToolTip("")
+        if hasattr(self, "sb_copper_rho"):
+            self.sb_copper_rho.setEnabled(True)
+            self.sb_copper_rho.setToolTip("")
+        if hasattr(self, "combo_enamel_grade"):
+            self.combo_enamel_grade.setEnabled(True)
+            self.combo_enamel_grade.setToolTip("")
+        if hasattr(self, "chk_self_bonding"):
+            self.chk_self_bonding.setEnabled(True)
+            self.chk_self_bonding.setToolTip("")
+
+        if hasattr(self, "btn_reset_wire"):
+            self.btn_reset_wire.setVisible(False)
+
+        self.lbl_catalog_selected.setText("已选: 自定义线规")
+        self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
+        self.lbl_catalog_selected.setToolTip("")
+        self.status_bar.showMessage("已恢复自由自定义线规设计模式（所有参数已解锁）", 3000)
+        self.run_simulation()
+
     def _on_enamel_grade_changed(self, idx: int):
         """漆膜等级变动联动外径增量预估"""
+        if getattr(self, "_current_catalog_item", None) is not None:
+            return # 已锁定华冶标准出厂外径，跳过估算
         grade = self.combo_enamel_grade.currentData()
-        if hasattr(self, "sb_bare_dia") and hasattr(self, "sb_max_od") and not self.combo_huaye_wire.isVisible():
+        if hasattr(self, "sb_bare_dia") and hasattr(self, "sb_max_od"):
             d = self.sb_bare_dia.value()
             inc_map = {
                 EnamelGrade.GRADE_0: 0.003,
@@ -2404,6 +2513,8 @@ class MainWindow(QMainWindow):
 
     def _on_copper_grade_changed(self, idx: int):
         """响应导体电导率与材料等级切换 (严格华冶 5 档预设)"""
+        if getattr(self, "_current_catalog_item", None) is not None:
+            return # 已锁定华冶出厂材质电导率，跳过自定义
         data = self.combo_copper_grade.currentData()
         if data is not None:
             if isinstance(data, tuple):
@@ -2420,6 +2531,8 @@ class MainWindow(QMainWindow):
 
     def _on_copper_rho_slider_changed(self):
         """响应用户手动滑动/输入实测电阻率"""
+        if getattr(self, "_current_catalog_item", None) is not None:
+            return # 已锁定华冶出厂材质电导率，跳过自定义
         curr_val = round(self.sb_copper_rho.value(), 6)
         self.combo_copper_grade.blockSignals(True)
         if abs(curr_val - 0.017094) < 1e-5:

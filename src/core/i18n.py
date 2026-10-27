@@ -222,6 +222,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "铜材电导等级:",
         "en": "Copper Conductor Grade:"
     },
+    "btn_huaye_catalog": {
+        "zh": "华冶线材库",
+        "en": "Huaye Wire Catalog"
+    },
+    "btn_reset_wire": {
+        "zh": "✕ 自定义",
+        "en": "✕ Custom"
+    },
     "grade_ofhc": {
         "zh": "高导无氧铜 OFHC",
         "en": "High Conductivity OFHC Copper"

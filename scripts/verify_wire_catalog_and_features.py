@@ -128,8 +128,9 @@ def test_05_gui_dialog_and_material_presets():
     from src.gui.wire_catalog_dialog import WireCatalogDialog
     from src.gui.main_window import MainWindow
 
-    # 1. 测试 WireCatalogDialog 弹窗本身的数据加载与过滤
+    # 1. 测试 WireCatalogDialog 弹窗本身的数据加载、尺寸与过滤
     dlg = WireCatalogDialog(current_diameter=0.080, is_ccaw=False)
+    assert dlg.width() >= 900, "Dialog width should be widened to >= 900px"
     assert dlg.table.rowCount() == 69, "Copper table must have 69 rows"
     assert dlg.table.columnCount() == 4, "Table must have 4 columns (线径, 外径, KM阻值, KM/KG)"
 
@@ -141,12 +142,16 @@ def test_05_gui_dialog_and_material_presets():
     dlg.txt_search.setText("0.15")
     visible_rows = [r for r in range(dlg.table.rowCount()) if not dlg.table.isRowHidden(r)]
     assert len(visible_rows) > 0, "Filter should match 0.15mm"
-    print(f"✔ WireCatalogDialog 弹窗 4 列指标与即时过滤校验通过！")
+    print(f"✔ WireCatalogDialog 弹窗尺寸({dlg.width()}x{dlg.height()})、4 列指标与即时过滤校验通过！")
     dlg.close()
 
     # 2. 测试 MainWindow 集成与华冶 5 档电导率预设
     window = MainWindow()
     window.show()
+
+    # 按钮名称简化为：华冶线材库
+    assert "华冶线材库" in window.btn_open_catalog.text()
+    print("✔ 主界面按钮名称简化校验通过: [华冶线材库]")
 
     # 检查电导率下拉框的 5 档华冶参数
     presets = [
@@ -171,12 +176,37 @@ def test_05_gui_dialog_and_material_presets():
     assert abs(getattr(window, "_catalog_km_kg", 0.0) - 22.3532) < 1e-3
     assert "22.35" in window.lbl_catalog_selected.text()
 
+    # 4. 严格校验锁定机制：选定出厂线规后，必须锁定电导率等级及全部冲突几何/材质选项
+    assert not window.combo_copper_grade.isEnabled(), "combo_copper_grade 必须锁定禁用"
+    assert not window.sb_copper_rho.isEnabled(), "sb_copper_rho 必须锁定禁用"
+    assert not window.sb_bare_dia.isEnabled(), "sb_bare_dia 必须锁定禁用"
+    assert not window.sb_max_od.isEnabled(), "sb_max_od 必须锁定禁用"
+    assert not window.combo_enamel_grade.isEnabled(), "combo_enamel_grade 必须锁定禁用"
+    assert not window.chk_self_bonding.isEnabled(), "chk_self_bonding 必须锁定禁用"
+    assert not window.combo_wire_shape.isEnabled(), "combo_wire_shape 必须锁定禁用"
+    assert window.btn_reset_wire.isVisible(), "恢复自定义按钮必须显现"
+    print("✔ 华冶线规防冲突锁定校验通过: 电导率等级、电阻率滑块、线径、外径、漆膜等级、自粘层、导线形状全部严格锁定！")
+
     # 验证仿真计算直接调用了出厂 KM/KG
     assert abs(window.outputs.weight_g - (window.outputs.total_wire_len_m / 22.3532)) < 1e-4
     print(f"✔ 仿真计算成功调用华冶出厂重量参数: {window.outputs.weight_g:.4f} g (线长: {window.outputs.total_wire_len_m:.3f}m)")
 
+    # 5. 测试点击【恢复自定义】一键解除锁定
+    window._clear_catalog_wire()
+    assert window.combo_copper_grade.isEnabled(), "combo_copper_grade 必须恢复可用"
+    assert window.sb_copper_rho.isEnabled(), "sb_copper_rho 必须恢复可用"
+    assert window.sb_bare_dia.isEnabled(), "sb_bare_dia 必须恢复可用"
+    assert window.sb_max_od.isEnabled(), "sb_max_od 必须恢复可用"
+    assert window.combo_enamel_grade.isEnabled(), "combo_enamel_grade 必须恢复可用"
+    assert window.chk_self_bonding.isEnabled(), "chk_self_bonding 必须恢复可用"
+    assert window.combo_wire_shape.isEnabled(), "combo_wire_shape 必须恢复可用"
+    assert not window.btn_reset_wire.isVisible(), "恢复自定义按钮必须隐藏"
+    assert window._current_catalog_item is None, "_current_catalog_item 必须置空"
+    assert window._catalog_km_kg == 0.0, "_catalog_km_kg 必须清零"
+    print("✔ 一键【恢复自定义】校验通过: 所有被锁定的冲突参数 100% 恢复自由调参！")
+
     window.close()
-    print("✔ GUI 弹窗集成与电导率联动测试全部通过！")
+    print("✔ GUI 弹窗集成、电导率锁定与排查防冲突测试全部通过！")
 
 
 if __name__ == "__main__":
