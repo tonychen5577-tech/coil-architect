@@ -237,7 +237,7 @@
 <div align="center">
   <img src="docs/images/huaye_logo.png" alt="华冶 HUAYE Official Logo" width="160" />
   <br>
-  <b>特约线材技术合作企业：铜陵华冶特种微细漆包线有限公司（华冶 HUAYE®）</b>
+  <b>特约线材技术合作企业：湖北中科华冶新材料科技有限公司（华冶 HUAYE®）</b>
 </div>
 
 <br>

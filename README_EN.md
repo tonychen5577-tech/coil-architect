@@ -238,7 +238,7 @@ Coil-Architect Pro is engineered as a **completely standalone, green portable de
 <div align="center">
   <img src="docs/images/huaye_logo.png" alt="HUAYE Official Logo" width="160" />
   <br>
-  <b>Special Wire Technical Partner: Tongling Huaye Special Micro Enamelled Wire Co., Ltd. (HUAYE®)</b>
+  <b>Special Wire Technical Partner: Hubei Zhongke Huaye New Material Technology Co., Ltd. (HUAYE®)</b>
 </div>
 
 <br>
