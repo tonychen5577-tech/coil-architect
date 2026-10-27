@@ -57,24 +57,36 @@ def calculate_huaye_insulation_density(
     rho_base = HUAYE_COATING_DENSITIES.get(enamel_type.upper(), DENSITY_UEW)
     rho_sb = DENSITY_SB
 
-    is_sb = (has_sb or grade == EnamelGrade.SELF_BONDING)
+    is_sb = (has_sb or grade in (EnamelGrade.SELF_BONDING, EnamelGrade.SB_010, EnamelGrade.SB_008, EnamelGrade.SB_014))
     if not is_sb:
         return rho_base
 
+    delta_total = max(0.001, max_od - bare_dia)
+
     # 自粘线复合层分层厚度解算
     if grade == EnamelGrade.GRADE_0:
-        inc_base = 0.003
+        inc_base = min(0.003, delta_total * 0.5)
     elif grade == EnamelGrade.GRADE_1:
-        inc_base = 0.008 if bare_dia < 0.1 else 0.012
-    elif grade == EnamelGrade.GRADE_2 or grade == EnamelGrade.SELF_BONDING:
-        inc_base = 0.014 if bare_dia < 0.1 else 0.020
+        inc_base = min(0.008 if bare_dia < 0.1 else 0.012, delta_total * 0.7)
+    elif grade == EnamelGrade.GRADE_2:
+        inc_base = min(0.014 if bare_dia < 0.1 else 0.020, delta_total * 0.7)
     elif grade == EnamelGrade.GRADE_3:
-        inc_base = 0.022 if bare_dia < 0.1 else 0.030
+        inc_base = min(0.022 if bare_dia < 0.1 else 0.030, delta_total * 0.7)
+    elif grade == EnamelGrade.SB_008:
+        # 薄胶复合自粘: 底漆增量 0.005mm, 自粘胶增量 0.003mm (总增量 0.008mm)
+        inc_base = 0.005 if bare_dia < 0.1 else 0.007
+    elif grade in (EnamelGrade.SB_010, EnamelGrade.SELF_BONDING):
+        # 常规标准自粘: 底漆增量 0.006mm, 自粘胶增量 0.004mm (总增量 0.010mm)
+        inc_base = 0.006 if bare_dia < 0.1 else 0.009
+    elif grade == EnamelGrade.SB_014:
+        # 加厚复合自粘 (2UEW-SB): 底漆增量 0.009mm, 自粘胶增量 0.005mm (总增量 0.014mm)
+        inc_base = 0.009 if bare_dia < 0.1 else 0.013
     else:
-        inc_base = 0.010
+        # 自定义外径按底漆 60%、胶层 40% 分配
+        inc_base = delta_total * 0.60
 
-    d_base = bare_dia + inc_base
-    d_total = max(max_od, d_base + 0.006)
+    d_base = bare_dia + min(inc_base, delta_total * 0.85)
+    d_total = max(max_od, d_base + 0.0005)
 
     area_base = max(0.0, (math.pi / 4.0) * (d_base ** 2 - bare_dia ** 2))
     area_sb = max(0.0, (math.pi / 4.0) * (d_total ** 2 - d_base ** 2))
@@ -104,14 +116,20 @@ def get_enamel_thickness_and_bdv(grade: EnamelGrade, has_sb: bool = False, bare_
     elif grade == EnamelGrade.GRADE_3:
         t_ins = 0.0110 if bare_dia < 0.1 else 0.0150
         bdv = 4200.0
-    elif grade == EnamelGrade.SELF_BONDING:
-        t_ins = 0.0090 if bare_dia < 0.1 else 0.0130
-        bdv = 3200.0
-    else:
+    elif grade in (EnamelGrade.SELF_BONDING, EnamelGrade.SB_010):
+        t_ins = 0.0050 if bare_dia < 0.1 else 0.0075
+        bdv = 2200.0
+    elif grade == EnamelGrade.SB_008:
+        t_ins = 0.0040 if bare_dia < 0.1 else 0.0060
+        bdv = 1800.0
+    elif grade == EnamelGrade.SB_014:
+        t_ins = 0.0070 if bare_dia < 0.1 else 0.0100
+        bdv = 3000.0
+    else:  # CUSTOM
         t_ins = 0.0050
         bdv = 2000.0
 
-    if has_sb and grade != EnamelGrade.SELF_BONDING:
+    if has_sb and grade not in (EnamelGrade.SELF_BONDING, EnamelGrade.SB_010, EnamelGrade.SB_008, EnamelGrade.SB_014):
         t_ins += 0.0035
         bdv += 400.0
 

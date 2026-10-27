@@ -239,6 +239,48 @@ def test_05_gui_dialog_and_material_presets():
     assert window._catalog_km_kg == 0.0, "_catalog_km_kg 必须清零"
     print("✔ 一键【恢复自定义】校验通过: 所有被锁定的冲突参数 100% 恢复自由调参！")
 
+    # 6. 自定义模式下防外径被篡改与厂商标准 +0.010mm / +0.008mm 联动验证
+    items_data = [window.combo_enamel_grade.itemData(i) for i in range(window.combo_enamel_grade.count())]
+    assert EnamelGrade.SB_010 in items_data
+    assert EnamelGrade.SB_008 in items_data
+    assert EnamelGrade.CUSTOM in items_data
+
+    # 设定裸径 0.045, 外径 0.055
+    window.sb_bare_dia.setValue(0.045)
+    window.sb_max_od.setValue(0.055)
+    assert abs(window.sb_max_od.value() - 0.055) < 1e-4
+    assert window.combo_enamel_grade.currentData() == EnamelGrade.SB_010
+    assert window.chk_self_bonding.isChecked() is True
+
+    # 切换自粘勾选，绝不篡改 0.055 外径
+    window.chk_self_bonding.setChecked(False)
+    assert abs(window.sb_max_od.value() - 0.055) < 1e-4
+    window.chk_self_bonding.setChecked(True)
+    assert abs(window.sb_max_od.value() - 0.055) < 1e-4
+
+    # 选择自定义档位，绝不篡改 0.055 外径
+    for i in range(window.combo_enamel_grade.count()):
+        if window.combo_enamel_grade.itemData(i) == EnamelGrade.CUSTOM:
+            window.combo_enamel_grade.setCurrentIndex(i)
+            break
+    assert abs(window.sb_max_od.value() - 0.055) < 1e-4
+
+    # 主动选择薄胶自粘 (+0.008mm)
+    for i in range(window.combo_enamel_grade.count()):
+        if window.combo_enamel_grade.itemData(i) == EnamelGrade.SB_008:
+            window.combo_enamel_grade.setCurrentIndex(i)
+            break
+    assert abs(window.sb_max_od.value() - 0.053) < 1e-4
+
+    # 主动选择常规标准自粘 (+0.010mm)
+    for i in range(window.combo_enamel_grade.count()):
+        if window.combo_enamel_grade.itemData(i) == EnamelGrade.SB_010:
+            window.combo_enamel_grade.setCurrentIndex(i)
+            break
+    assert abs(window.sb_max_od.value() - 0.055) < 1e-4
+
+    print("✔ 自定义模式外径防篡改与常规厂商 +0.010mm/+0.008mm 标准联动测试全部通过！")
+
     window.close()
     print("✔ GUI 弹窗集成、电导率锁定与排查防冲突测试全部通过！")
 

@@ -402,6 +402,35 @@ class MainWindow(QMainWindow):
             self.sb_bare_dia.setTitle(t("lbl_bare_dia", "铜线裸径 (d)"))
         if hasattr(self, "sb_max_od"):
             self.sb_max_od.setTitle(t("lbl_outer_dia", "漆包外径 (D)"))
+        if hasattr(self, "lbl_enamel"):
+            self.lbl_enamel.setText(t("lbl_enamel_grade", "漆膜绝缘与自粘等级:"))
+        if hasattr(self, "combo_enamel_grade"):
+            is_en = i18n.is_english()
+            if is_en:
+                enamel_items = [
+                    ("Std Self-Bonding (Enamel+Bond +0.010mm · Standard)", EnamelGrade.SB_010),
+                    ("Thin Self-Bonding (Enamel+Bond +0.008mm)", EnamelGrade.SB_008),
+                    ("Heavy Self-Bonding (Enamel+Bond +0.014mm · 2UEW-SB)", EnamelGrade.SB_014),
+                    ("Grade 1 Single Coat (Non-SB 1UEW, OD+0.008mm)", EnamelGrade.GRADE_1),
+                    ("Grade 0 Ultra-Thin (Non-SB 1UEW, OD+0.003mm)", EnamelGrade.GRADE_0),
+                    ("Grade 2 Heavy Dual Coat (Non-SB 2UEW, OD+0.014mm)", EnamelGrade.GRADE_2),
+                    ("Grade 3 Triple Coat (Non-SB 3UEW, OD+0.022mm)", EnamelGrade.GRADE_3),
+                    ("Custom Outer Dia (Keep Manual Input)", EnamelGrade.CUSTOM),
+                ]
+            else:
+                enamel_items = [
+                    ("常规标准自粘 (漆膜+胶厚 +0.010mm · +0.01 标配)", EnamelGrade.SB_010),
+                    ("薄胶复合自粘 (漆膜+胶厚 +0.008mm)", EnamelGrade.SB_008),
+                    ("加厚复合自粘 (漆膜+胶厚 +0.014mm · 2UEW-SB)", EnamelGrade.SB_014),
+                    ("1 级单涂层 (非自粘 1UEW, 外径+0.008mm)", EnamelGrade.GRADE_1),
+                    ("0 级超薄漆膜 (非自粘 1UEW, 外径+0.003mm)", EnamelGrade.GRADE_0),
+                    ("2 级加厚双涂层 (非自粘 2UEW, 外径+0.014mm)", EnamelGrade.GRADE_2),
+                    ("3 级特厚涂层 (非自粘 3UEW, 外径+0.022mm)", EnamelGrade.GRADE_3),
+                    ("自定义外径 (保持手动输入设定)", EnamelGrade.CUSTOM),
+                ]
+            self._update_combo_items(self.combo_enamel_grade, enamel_items)
+        if hasattr(self, "chk_self_bonding"):
+            self.chk_self_bonding.setText(t("chk_self_bonding", "复合热风/酒精自粘胶层 (Self-Bonding · 标配)"))
         if hasattr(self, "sb_tension"):
             self.sb_tension.setTitle(t("lbl_tension_ratio", "张力拉伸系数"))
             self.sb_tension.setUnit(t("unit_ratio", "系数"))
@@ -1878,17 +1907,20 @@ class MainWindow(QMainWindow):
         layout_wire.addWidget(self.container_flat_wire)
 
         # 5. 漆膜等级细化与自粘胶层
-        self.lbl_enamel = QLabel("漆膜绝缘等级:")
+        self.lbl_enamel = QLabel("漆膜绝缘与自粘等级:")
         self.lbl_enamel.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
         layout_wire.addWidget(self.lbl_enamel)
 
         self.combo_enamel_grade = QComboBox()
-        self.combo_enamel_grade.addItem("0 级 (超薄微细漆膜, 外径+0.003mm)", EnamelGrade.GRADE_0)
-        self.combo_enamel_grade.addItem("1 级 (单涂层 1UEW/1PEW, 外径+0.008mm)", EnamelGrade.GRADE_1)
-        self.combo_enamel_grade.addItem("2 级 (加厚双涂层 2UEW/2PEW · 工业推荐)", EnamelGrade.GRADE_2)
-        self.combo_enamel_grade.addItem("3 级 (超厚特种涂层 3UEW, 外径+0.022mm)", EnamelGrade.GRADE_3)
-        self.combo_enamel_grade.addItem("自粘复合层 (Self-Bonding / SB)", EnamelGrade.SELF_BONDING)
-        self.combo_enamel_grade.setCurrentIndex(2) # 默认 Grade 2
+        self.combo_enamel_grade.addItem("常规标准自粘 (漆膜+胶厚 +0.010mm · +0.01 标配)", EnamelGrade.SB_010)
+        self.combo_enamel_grade.addItem("薄胶复合自粘 (漆膜+胶厚 +0.008mm)", EnamelGrade.SB_008)
+        self.combo_enamel_grade.addItem("加厚复合自粘 (漆膜+胶厚 +0.014mm · 2UEW-SB)", EnamelGrade.SB_014)
+        self.combo_enamel_grade.addItem("1 级单涂层 (非自粘 1UEW, 外径+0.008mm)", EnamelGrade.GRADE_1)
+        self.combo_enamel_grade.addItem("0 级超薄漆膜 (非自粘 1UEW, 外径+0.003mm)", EnamelGrade.GRADE_0)
+        self.combo_enamel_grade.addItem("2 级加厚双涂层 (非自粘 2UEW, 外径+0.014mm)", EnamelGrade.GRADE_2)
+        self.combo_enamel_grade.addItem("3 级特厚涂层 (非自粘 3UEW, 外径+0.022mm)", EnamelGrade.GRADE_3)
+        self.combo_enamel_grade.addItem("自定义外径 (保持手动输入设定)", EnamelGrade.CUSTOM)
+        self.combo_enamel_grade.setCurrentIndex(0) # 默认常规标准自粘 (+0.010mm)
         self.combo_enamel_grade.currentIndexChanged.connect(self._on_enamel_grade_changed)
         layout_wire.addWidget(self.combo_enamel_grade)
 
@@ -2158,11 +2190,60 @@ class MainWindow(QMainWindow):
         self.scroll_left.ensureWidgetVisible(self.grp_dfm)
         self.status_bar.showMessage("已定位至左侧 DFM 装配公差与安全限值配置区", 3000)
 
+    def _sync_grade_from_od(self):
+        """当用户在自定义模式下调整裸径或外径时，自动智能对齐下拉框与自粘勾选，绝不篡改用户的外径数值"""
+        if getattr(self, "_is_syncing_wire_grade", False):
+            return
+        if getattr(self, "_current_catalog_item", None) is not None:
+            return
+        if not hasattr(self, "sb_bare_dia") or not hasattr(self, "sb_max_od") or not hasattr(self, "combo_enamel_grade"):
+            return
+
+        bare = self.sb_bare_dia.value()
+        od = self.sb_max_od.value()
+        delta = round(od - bare, 4)
+        has_sb = self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else True
+
+        target_grade = EnamelGrade.CUSTOM
+        target_sb = has_sb
+
+        if abs(delta - 0.010) <= 0.0006:
+            target_grade = EnamelGrade.SB_010
+            target_sb = True
+        elif abs(delta - 0.008) <= 0.0006:
+            target_grade = EnamelGrade.SB_008 if has_sb else EnamelGrade.GRADE_1
+        elif abs(delta - 0.014) <= 0.0006:
+            target_grade = EnamelGrade.SB_014 if has_sb else EnamelGrade.GRADE_2
+        elif abs(delta - 0.003) <= 0.0006:
+            target_grade = EnamelGrade.GRADE_0
+            target_sb = False
+        elif abs(delta - 0.022) <= 0.0006:
+            target_grade = EnamelGrade.GRADE_3
+            target_sb = False
+        else:
+            target_grade = EnamelGrade.CUSTOM
+
+        self._is_syncing_wire_grade = True
+        try:
+            for i in range(self.combo_enamel_grade.count()):
+                if self.combo_enamel_grade.itemData(i) == target_grade:
+                    self.combo_enamel_grade.blockSignals(True)
+                    self.combo_enamel_grade.setCurrentIndex(i)
+                    self.combo_enamel_grade.blockSignals(False)
+                    break
+            if hasattr(self, "chk_self_bonding") and self.chk_self_bonding.isChecked() != target_sb:
+                self.chk_self_bonding.blockSignals(True)
+                self.chk_self_bonding.setChecked(target_sb)
+                self.chk_self_bonding.blockSignals(False)
+        finally:
+            self._is_syncing_wire_grade = False
+
     def _on_bare_dia_changed(self, bare_dia: float):
         """标称铜裸径变动响应"""
         curr_max_od = self.sb_max_od.value()
         if curr_max_od < bare_dia + 0.002:
             self.status_bar.showMessage(f"💡 提示: 标称外径 ({curr_max_od:.3f}mm) 应大于铜裸径 ({bare_dia:.3f}mm) 加漆膜厚度", 3000)
+        self._sync_grade_from_od()
         self.run_simulation()
 
     def _on_max_od_changed(self, max_od: float):
@@ -2170,6 +2251,7 @@ class MainWindow(QMainWindow):
         curr_bare = self.sb_bare_dia.value()
         if curr_bare > max_od - 0.002:
             self.status_bar.showMessage(f"💡 提示: 最大外径 ({max_od:.3f}mm) 需包含漆膜，求解器已进行物理安全自适应", 3000)
+        self._sync_grade_from_od()
         self.run_simulation()
 
     def _on_inner_len_changed(self, inner_len: float):
@@ -2492,7 +2574,7 @@ class MainWindow(QMainWindow):
         self.run_simulation()
 
     def _on_self_bonding_toggled(self, checked: bool):
-        """响应自粘层勾选状态变动 (无论是华冶库线材还是自定义线材，均自适应联动外径与复合固化密度)"""
+        """响应自粘层勾选状态变动 (华冶库线材联动出厂外径，自定义线材绝不篡改外径)"""
         if getattr(self, "_current_catalog_item", None) is not None:
             item = self._current_catalog_item
             eff_od = round(item.max_outer_dia + (0.006 if checked else 0.0), 4)
@@ -2517,27 +2599,74 @@ class MainWindow(QMainWindow):
                 f"提示: 华冶出厂KM/KG仅为裸导体米重。仿真已自动按实测固化密度严格累加漆膜与胶层重量！"
             )
         else:
-            self._on_enamel_grade_changed(0)
+            # 自定义模式：绝不篡改用户手动输入设定的漆包外径！
+            if getattr(self, "_is_syncing_wire_grade", False):
+                return
+            self._is_syncing_wire_grade = True
+            try:
+                curr_grade = self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else None
+                target_grade = curr_grade
+                if checked:
+                    if curr_grade == EnamelGrade.GRADE_1:
+                        target_grade = EnamelGrade.SB_008
+                    elif curr_grade == EnamelGrade.GRADE_2:
+                        target_grade = EnamelGrade.SB_014
+                else:
+                    if curr_grade in (EnamelGrade.SB_010, EnamelGrade.SELF_BONDING):
+                        target_grade = EnamelGrade.CUSTOM
+                    elif curr_grade == EnamelGrade.SB_008:
+                        target_grade = EnamelGrade.GRADE_1
+                    elif curr_grade == EnamelGrade.SB_014:
+                        target_grade = EnamelGrade.GRADE_2
+
+                if target_grade is not None and target_grade != curr_grade:
+                    for i in range(self.combo_enamel_grade.count()):
+                        if self.combo_enamel_grade.itemData(i) == target_grade:
+                            self.combo_enamel_grade.blockSignals(True)
+                            self.combo_enamel_grade.setCurrentIndex(i)
+                            self.combo_enamel_grade.blockSignals(False)
+                            break
+            finally:
+                self._is_syncing_wire_grade = False
+
         self.run_simulation()
 
     def _on_enamel_grade_changed(self, idx: int):
-        """漆膜等级变动联动外径增量预估"""
+        """漆膜等级变动联动外径预估 (仅在用户主动选择预设档位时按推荐值赋默认外径，选自定义外径则完全保留当前输入)"""
+        if getattr(self, "_is_syncing_wire_grade", False):
+            return
         if getattr(self, "_current_catalog_item", None) is not None:
-            return # 已锁定华冶标准出厂外径，跳过估算
+            return  # 已锁定华冶标准出厂外径，跳过估算
         grade = self.combo_enamel_grade.currentData()
+        if grade == EnamelGrade.CUSTOM:
+            # 用户选择自定义：完全保留手动输入设定的外径，不作任何覆盖
+            self.run_simulation()
+            return
+
         if hasattr(self, "sb_bare_dia") and hasattr(self, "sb_max_od"):
             d = self.sb_bare_dia.value()
             inc_map = {
+                EnamelGrade.SB_010: 0.010,
+                EnamelGrade.SELF_BONDING: 0.010,
+                EnamelGrade.SB_008: 0.008,
+                EnamelGrade.SB_014: 0.014,
                 EnamelGrade.GRADE_0: 0.003,
                 EnamelGrade.GRADE_1: 0.008,
                 EnamelGrade.GRADE_2: 0.014,
                 EnamelGrade.GRADE_3: 0.022,
-                EnamelGrade.SELF_BONDING: 0.018,
             }
-            inc = inc_map.get(grade, 0.014)
-            if hasattr(self, "chk_self_bonding") and self.chk_self_bonding.isChecked() and grade != EnamelGrade.SELF_BONDING:
-                inc += 0.006
-            self.sb_max_od.setValue(round(d + inc, 4))
+            inc = inc_map.get(grade, 0.010)
+            is_sb = grade in (EnamelGrade.SB_010, EnamelGrade.SELF_BONDING, EnamelGrade.SB_008, EnamelGrade.SB_014)
+
+            self._is_syncing_wire_grade = True
+            try:
+                self.sb_max_od.setValue(round(d + inc, 4))
+                if hasattr(self, "chk_self_bonding"):
+                    self.chk_self_bonding.blockSignals(True)
+                    self.chk_self_bonding.setChecked(is_sb)
+                    self.chk_self_bonding.blockSignals(False)
+            finally:
+                self._is_syncing_wire_grade = False
         self.run_simulation()
 
     def _on_flat_dim_changed(self):

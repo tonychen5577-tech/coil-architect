@@ -49,12 +49,16 @@ class WireCategory(str, Enum):
 
 
 class EnamelGrade(IntEnum):
-    """漆膜绝缘厚度等级体系"""
+    """漆膜绝缘厚度与自粘层等级体系"""
     GRADE_0 = 0           # 0 级 (超薄微细涂层 / Ultra-Thin, 外径增量约 +0.003mm)
-    GRADE_1 = 1           # 1 级 (单涂层 1UEW/1PEW, 外径增量约 +0.006~0.010mm)
-    GRADE_2 = 2           # 2 级 (加厚双涂层 2UEW/2PEW · 工业推荐, 外径增量约 +0.010~0.018mm)
-    GRADE_3 = 3           # 3 级 (超厚特种涂层 3UEW, 外径增量约 +0.018~0.028mm)
-    SELF_BONDING = 4      # 复合自粘层 (Self-Bonding / SB, 外径额外增加 +0.004~0.008mm)
+    GRADE_1 = 1           # 1 级 (单涂层 1UEW/1PEW, 外径增量约 +0.008mm)
+    GRADE_2 = 2           # 2 级 (加厚双涂层 2UEW/2PEW · 工业常规, 外径增量约 +0.014mm)
+    GRADE_3 = 3           # 3 级 (超厚特种涂层 3UEW, 外径增量约 +0.022mm)
+    SELF_BONDING = 4      # 复合自粘层 (常规标准自粘 +0.010mm 别名)
+    SB_010 = 4            # 常规标准自粘 (1UEW-SB / 2UEW-SB, 漆膜+自粘层外径增量 +0.010mm · +0.01 标配)
+    SB_008 = 5            # 薄胶复合自粘 (1UEW-SB 薄胶型, 漆膜+自粘层外径增量 +0.008mm)
+    SB_014 = 6            # 加厚复合自粘 (2UEW-SB 加厚型, 漆膜+自粘层外径增量 +0.014mm)
+    CUSTOM = 7            # 自定义外径 (保持手动输入设定)
 
 
 class WindingDirection(IntEnum):
@@ -95,7 +99,7 @@ class CoilInputs:
     wire_shape: WireShape = WireShape.ROUND
     wire_catalog_type: WireCatalogType = WireCatalogType.CUSTOM
     wire_category: WireCategory = WireCategory.SELF_BONDING # 默认设定为自粘线 (脱模空心线圈标配)
-    enamel_grade: EnamelGrade = EnamelGrade.GRADE_2
+    enamel_grade: EnamelGrade = EnamelGrade.SB_010
     has_self_bonding: bool = True # 默认启用复合自粘胶层
     enamel_type: str = "UEW"      # 默认底漆漆种 (华冶实测固化密度: UEW 1.27, PEW 1.38, EIW 1.39, AIW 1.42, PIW 1.43, SB 1.07)
     catalog_km_kg: float = 0.0    # 华冶线材出厂线密度 (km/kg, 严格对应出厂裸导体标称米重)
