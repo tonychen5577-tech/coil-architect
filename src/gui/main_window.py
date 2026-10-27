@@ -385,7 +385,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "lbl_wire_shape"):
             self.lbl_wire_shape.setText(t("lbl_wire_shape", "线材截面形态:"))
         if hasattr(self, "lbl_wire_catalog"):
-            self.lbl_wire_catalog.setText(t("lbl_wire_catalog", "线材规格标准库:"))
+            self.lbl_wire_catalog.setText(t("lbl_wire_catalog", "线材出厂规格库选型 (非库内尺寸需咨询华冶定制):"))
         if hasattr(self, "lbl_enamel"):
             self.lbl_enamel.setText(t("lbl_enamel", "漆膜绝缘等级:"))
         if hasattr(self, "lbl_flat_winding_dir"):
@@ -1774,7 +1774,7 @@ class MainWindow(QMainWindow):
         layout_wire.addWidget(self.combo_wire_shape)
 
         # 2. 华冶线材出厂标准库选型 (专业弹窗形式，取代过长下拉菜单)
-        self.lbl_wire_catalog = QLabel("线材出厂规格库选型:")
+        self.lbl_wire_catalog = QLabel("线材出厂规格库选型 (非库内尺寸需咨询华冶定制):")
         self.lbl_wire_catalog.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
         layout_wire.addWidget(self.lbl_wire_catalog)
 
@@ -1782,7 +1782,7 @@ class MainWindow(QMainWindow):
         wire_btn_layout.setSpacing(6)
 
         self.btn_open_catalog = QPushButton("华冶线材库")
-        self.btn_open_catalog.setToolTip("打开华冶漆包线出厂标准数据库，直接导入出厂线径、外径、阻值与线密度")
+        self.btn_open_catalog.setToolTip("打开华冶漆包线出厂标准数据库（注：其他非材料库尺寸，需咨询华冶定制）")
         self.btn_open_catalog.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_open_catalog.setStyleSheet("""
             QPushButton {

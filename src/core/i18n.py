@@ -171,8 +171,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "en": "Wire Cross-Section Shape:"
     },
     "lbl_wire_catalog": {
-        "zh": "线材规格标准库:",
-        "en": "Wire Specification Catalog:"
+        "zh": "线材出厂规格库选型 (非库内尺寸需咨询华冶定制):",
+        "en": "Wire Specification Catalog (Custom sizes via Huaye):"
     },
     "lbl_square_side": {
         "zh": "正方边长 (a)",

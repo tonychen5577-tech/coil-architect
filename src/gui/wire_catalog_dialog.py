@@ -55,7 +55,7 @@ class WireCatalogDialog(QDialog):
 
         self.lbl_title = QLabel("📖 华冶漆包线出厂技术规格库")
         self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1B365D;")
-        self.lbl_sub = QLabel("标准出厂参数直接导入 · 自动绑定线径、外径、千米电阻与线密度")
+        self.lbl_sub = QLabel("标准出厂参数直接导入 · 自动绑定线径、外径、千米电阻与线密度 · 其他非材料库尺寸需咨询华冶定制")
         self.lbl_sub.setStyleSheet("font-size: 11px; color: #64748B;")
         title_box.addWidget(self.lbl_title)
         title_box.addWidget(self.lbl_sub)
@@ -87,6 +87,30 @@ class WireCatalogDialog(QDialog):
         top_bar.addLayout(series_box)
 
         layout.addLayout(top_bar)
+
+        # 华冶定制说明提示条
+        tip_frame = QFrame()
+        tip_frame.setStyleSheet("""
+            QFrame {
+                background-color: #FFFBEB;
+                border: 1px solid #FDE68A;
+                border-radius: 6px;
+            }
+        """)
+        tip_layout = QHBoxLayout(tip_frame)
+        tip_layout.setContentsMargins(10, 6, 10, 6)
+        tip_layout.setSpacing(6)
+        
+        is_en = i18n.is_english()
+        notice_text = (
+            "💡 规格定制说明：本库收录华冶标准出厂规格。其他非材料库尺寸，需咨询华冶定制（支持特殊线径、定制漆膜与耐温等级）。"
+            if not is_en else
+            "💡 Custom Notice: This catalog contains Huaye standard stock specifications. Other non-catalog sizes require custom fabrication by Huaye."
+        )
+        self.lbl_tip_notice = QLabel(notice_text)
+        self.lbl_tip_notice.setStyleSheet("font-size: 11px; font-weight: 600; color: #B45309;")
+        tip_layout.addWidget(self.lbl_tip_notice)
+        layout.addWidget(tip_frame)
 
         # 2. 快捷搜索过滤条
         search_box = QHBoxLayout()
@@ -311,10 +335,12 @@ class WireCatalogDialog(QDialog):
         """按搜索输入即时过滤表格行"""
         query = self.txt_search.text().strip().lower()
         row_count = self.table.rowCount()
+        visible_count = 0
 
         for r in range(row_count):
             if not query:
                 self.table.setRowHidden(r, False)
+                visible_count += 1
                 continue
             item = self.table.item(r, 0)
             dia_str = item.text().lower() if item else ""
@@ -324,6 +350,18 @@ class WireCatalogDialog(QDialog):
             # 匹配线径、外径或电阻
             matched = (query in dia_str or query in od_str or query in res_str)
             self.table.setRowHidden(r, not matched)
+            if matched:
+                visible_count += 1
+
+        if query and visible_count == 0:
+            is_en = i18n.is_english()
+            msg = (
+                "💡 未在材料库中检索到该尺寸。其他非材料库尺寸，需咨询华冶定制。"
+                if not is_en else
+                "💡 Size not found in standard stock catalog. Other non-catalog sizes require custom fabrication by Huaye."
+            )
+            self.lbl_selected_info.setText(msg)
+            self.btn_confirm.setEnabled(False)
 
     def _on_table_selection_changed(self):
         selected_rows = self.table.selectionModel().selectedRows()
