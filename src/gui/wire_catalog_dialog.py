@@ -7,7 +7,7 @@ Coil-Architect Pro - 华冶线材出厂标准库弹窗选择器 (Wire Catalog Di
 2. 最大外径 (mm)
 3. KM阻值 (Ω/km)
 4. KM/KG (km/kg)
-支持纯铜系列 (69档) 与 15% 铜包铝系列 (79档) 一键切换及快速关键字过滤搜索。
+支持纯铜标准系列 (69档) 与 15% 铜包铝系列 (79档) 一键切换及快速关键字过滤搜索。
 """
 
 from typing import Optional, List
@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..core.wire_catalog import (
-    WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires, get_huaye_ofc_wires
+    WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires
 )
 from ..core.i18n import i18n, t
 
@@ -39,10 +39,7 @@ class WireCatalogDialog(QDialog):
         self.selected_item: Optional[WireCatalogItem] = None
         self._initial_diameter = current_diameter
         self._initial_is_ccaw = is_ccaw
-        if is_ccaw:
-            self._initial_material_type = 2
-        else:
-            self._initial_material_type = material_type
+        self._initial_material_type = 2 if is_ccaw else 1
 
         self._setup_ui()
         self._load_catalog_data()
@@ -68,37 +65,31 @@ class WireCatalogDialog(QDialog):
 
         # 系列切换单选按钮 (纯铜 vs 铜包铝)
         series_box = QHBoxLayout()
-        series_box.setSpacing(12)
+        series_box.setSpacing(16)
         
         self.rb_copper = QRadioButton("纯铜标准系列 (69档 · 1/58.5)")
-        self.rb_ofc = QRadioButton("无氧纯铜定制 (69档 · 1/59.0 OFC)")
         self.rb_ccaw = QRadioButton("15% 铜包铝轻量化 (79档 · 0.02525)")
         self.rb_copper.setStyleSheet("font-size: 12px; font-weight: 600; color: #1E293B;")
-        self.rb_ofc.setStyleSheet("font-size: 12px; font-weight: 600; color: #0284C7;")
         self.rb_ccaw.setStyleSheet("font-size: 12px; font-weight: 600; color: #1E293B;")
 
         self.btn_group = QButtonGroup(self)
         self.btn_group.addButton(self.rb_copper, 1)
         self.btn_group.addButton(self.rb_ccaw, 2)
-        self.btn_group.addButton(self.rb_ofc, 3)
         
-        if getattr(self, "_initial_material_type", 1) == 2 or self._initial_is_ccaw:
+        if self._initial_is_ccaw or getattr(self, "_initial_material_type", 1) == 2:
             self.rb_ccaw.setChecked(True)
-        elif getattr(self, "_initial_material_type", 1) == 3:
-            self.rb_ofc.setChecked(True)
         else:
             self.rb_copper.setChecked(True)
             
         self.btn_group.idToggled.connect(self._on_series_changed)
 
         series_box.addWidget(self.rb_copper)
-        series_box.addWidget(self.rb_ofc)
         series_box.addWidget(self.rb_ccaw)
         top_bar.addLayout(series_box)
 
         layout.addLayout(top_bar)
 
-        # 华冶定制说明提示条
+        # 华冶定制说明提示条 (明确说明无氧纯铜定制机制)
         tip_frame = QFrame()
         tip_frame.setStyleSheet("""
             QFrame {
@@ -108,17 +99,18 @@ class WireCatalogDialog(QDialog):
             }
         """)
         tip_layout = QHBoxLayout(tip_frame)
-        tip_layout.setContentsMargins(10, 6, 10, 6)
+        tip_layout.setContentsMargins(10, 8, 10, 8)
         tip_layout.setSpacing(6)
         
         is_en = i18n.is_english()
         notice_text = (
-            "💡 材质与定制说明：华冶标准线材采用实测经验纯铜 (ρ=0.017094 Ω·mm²/m)；微特电机若需极低直流阻抗 (DCR)，可直接切换【无氧纯铜定制 (OFC)】(基准电导率 59.0 MS/m, ρ=0.016949 Ω·mm²/m)，模具外径完全兼容，阻抗降低约 0.85%；其他非材料库尺寸需咨询华冶定制。"
+            "💡 材质与定制说明：华冶标准线材出厂采用实测经验纯铜 (ρ=0.017094 Ω·mm²/m，1/58.5)；微特电机若需极低直流阻抗 (DCR)，可向华冶定制高纯退火态无氧纯铜 (OFC，ρ=0.016949 Ω·mm²/m，1/59.0)，模具外径完全通用，线圈阻抗直接下浮约 0.85%（选定出厂规格后可在主界面【导体材质与电导基准】下拉框随时一键切换比对）；其他非库规格支持华冶非标定制。"
             if not is_en else
-            "💡 Material & Custom Notice: Standard copper uses rho=0.017094. For lower DCR, switch to OFC (rho=0.016949, 59.0 MS/m), which reduces resistance by ~0.85% with identical die outer diameters. Other sizes require custom fabrication by Huaye."
+            "💡 Material & Custom Notice: Huaye standard wires use measured pure copper (rho=0.017094, 1/58.5). For lower DCR, customers can customize high-purity annealed OFC copper (rho=0.016949, 1/59.0) with identical die outer diameters, reducing coil resistance by ~0.85% (can be seamlessly switched via the material dropdown on the main UI). Other non-catalog sizes are available via custom orders."
         )
         self.lbl_tip_notice = QLabel(notice_text)
         self.lbl_tip_notice.setStyleSheet("font-size: 11px; font-weight: 600; color: #B45309;")
+        self.lbl_tip_notice.setWordWrap(True)
         tip_layout.addWidget(self.lbl_tip_notice)
         layout.addWidget(tip_frame)
 
@@ -128,7 +120,7 @@ class WireCatalogDialog(QDialog):
         self.txt_search.setPlaceholderText("🔍 输入线径快速过滤 (例如: 0.080, 0.15, 0.35)...")
         self.txt_search.setStyleSheet("""
             QLineEdit {
-                background-color: #F8FAFC;
+                background-color: #FFFFFF;
                 border: 1px solid #CBD5E1;
                 border-radius: 6px;
                 padding: 6px 12px;
@@ -137,64 +129,42 @@ class WireCatalogDialog(QDialog):
             }
             QLineEdit:focus {
                 border-color: #0284C7;
-                background-color: #FFFFFF;
             }
         """)
-        self.txt_search.textChanged.connect(self._filter_table)
+        self.txt_search.textChanged.connect(self._on_search_text_changed)
         search_box.addWidget(self.txt_search)
-        
-        btn_clear = QPushButton("清空")
-        btn_clear.setFixedWidth(54)
-        btn_clear.setStyleSheet("""
-            QPushButton {
-                background-color: #F1F5F9;
-                border: 1px solid #CBD5E1;
-                border-radius: 6px;
-                padding: 6px;
-                font-size: 11px;
-                color: #475569;
-            }
-            QPushButton:hover {
-                background-color: #E2E8F0;
-            }
-        """)
-        btn_clear.clicked.connect(lambda: self.txt_search.setText(""))
-        search_box.addWidget(btn_clear)
+
+        self.lbl_count = QLabel("共 69 档规格")
+        self.lbl_count.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B; padding-left: 8px;")
+        search_box.addWidget(self.lbl_count)
 
         layout.addLayout(search_box)
 
-        # 3. 核心规格数据表格 (严格 4 列出厂指标)
+        # 3. 核心 4 列数据表格 (线径, 最大外径, KM阻值, KM/KG)
         self.table = QTableWidget()
         self.table.setColumnCount(4)
-        headers = ["线径 (mm)", "最大外径 (mm)", "KM阻值 (Ω/km)", "KM/KG (km/kg)"]
-        self.table.setHorizontalHeaderLabels(headers)
-        
+        self.table.setHorizontalHeaderLabels([
+            "公称裸线径 (mm)",
+            "出厂最大外径 (mm · 1UEW)",
+            "出厂 KM 阻值 (Ω/km · 20℃)",
+            "出厂 KM/KG (km/kg · 裸铜米重)"
+        ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-
-        # 滚轮平滑滚动与滚动条常驻
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self.table.verticalScrollBar().setSingleStep(30)
-
         self.table.setStyleSheet("""
             QTableWidget {
                 background-color: #FFFFFF;
-                alternate-background-color: #F8FAFC;
                 border: 1px solid #E2E8F0;
-                border-radius: 8px;
+                border-radius: 6px;
+                gridline-color: #F1F5F9;
                 font-size: 12px;
                 color: #1E293B;
             }
             QTableWidget::item {
-                padding: 5px 8px;
+                padding: 6px 12px;
             }
             QTableWidget::item:selected {
                 background-color: #E0F2FE;
@@ -202,63 +172,49 @@ class WireCatalogDialog(QDialog):
                 font-weight: 700;
             }
             QHeaderView::section {
-                background-color: #F1F5F9;
-                color: #1E293B;
-                font-size: 11px;
-                font-weight: 700;
-                border: none;
-                border-bottom: 2px solid #CBD5E1;
-                padding: 7px 8px;
-            }
-            QScrollBar:vertical {
                 background-color: #F8FAFC;
-                width: 12px;
-                border-left: 1px solid #E2E8F0;
-                margin: 0px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #CBD5E1;
-                min-height: 30px;
-                border-radius: 5px;
-                margin: 2px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #94A3B8;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
                 border: none;
-                background: none;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: none;
+                border-bottom: 2px solid #E2E8F0;
+                color: #475569;
+                font-weight: 700;
+                padding: 8px 10px;
+                font-size: 11px;
             }
         """)
 
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnWidth(0, 160)
+        self.table.setColumnWidth(1, 190)
+
         self.table.itemSelectionChanged.connect(self._on_table_selection_changed)
         self.table.itemDoubleClicked.connect(self._on_table_double_clicked)
-        layout.addWidget(self.table, 1)
+        layout.addWidget(self.table)
 
-        # 4. 底部状态摘要与确认按钮栏
+        # 4. 底部说明与操作栏
         bottom_frame = QFrame()
+        bottom_frame.setStyleSheet("background-color: #F8FAFC; border-top: 1px solid #E2E8F0; border-radius: 4px;")
         bottom_layout = QHBoxLayout(bottom_frame)
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-        bottom_layout.setSpacing(10)
+        bottom_layout.setContentsMargins(12, 10, 12, 10)
+        bottom_layout.setSpacing(12)
 
-        self.lbl_selected_info = QLabel("请在表格中选择线材规格...")
+        self.lbl_selected_info = QLabel("当前未选定线规 (点击行选择)")
         self.lbl_selected_info.setStyleSheet("font-size: 12px; font-weight: 600; color: #0284C7;")
-        self.lbl_selected_info.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         bottom_layout.addWidget(self.lbl_selected_info, 1)
 
         self.btn_cancel = QPushButton("取消")
-        self.btn_cancel.setFixedWidth(80)
+        self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cancel.setStyleSheet("""
             QPushButton {
                 background-color: #F1F5F9;
                 border: 1px solid #CBD5E1;
                 border-radius: 6px;
-                padding: 6px 14px;
+                padding: 6px 16px;
                 font-size: 12px;
+                font-weight: 600;
                 color: #475569;
             }
             QPushButton:hover {
@@ -268,14 +224,15 @@ class WireCatalogDialog(QDialog):
         self.btn_cancel.clicked.connect(self.reject)
         bottom_layout.addWidget(self.btn_cancel)
 
-        self.btn_confirm = QPushButton("✓ 确认选择并载入仿真")
+        self.btn_confirm = QPushButton("✔ 载入所选华冶规格")
+        self.btn_confirm.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_confirm.setEnabled(False)
         self.btn_confirm.setStyleSheet("""
             QPushButton {
                 background-color: #0284C7;
-                border: none;
+                border: 1px solid #0284C7;
                 border-radius: 6px;
-                padding: 6px 18px;
+                padding: 6px 20px;
                 font-size: 12px;
                 font-weight: 700;
                 color: #FFFFFF;
@@ -284,8 +241,9 @@ class WireCatalogDialog(QDialog):
                 background-color: #0369A1;
             }
             QPushButton:disabled {
-                background-color: #94A3B8;
-                color: #E2E8F0;
+                background-color: #CBD5E1;
+                border-color: #CBD5E1;
+                color: #94A3B8;
             }
         """)
         self.btn_confirm.clicked.connect(self._on_confirm_clicked)
@@ -301,8 +259,6 @@ class WireCatalogDialog(QDialog):
         """载入当前选中系列的数据到表格"""
         if self.rb_ccaw.isChecked():
             wires: List[WireCatalogItem] = get_huaye_ccaw_wires()
-        elif hasattr(self, "rb_ofc") and self.rb_ofc.isChecked():
-            wires: List[WireCatalogItem] = get_huaye_ofc_wires()
         else:
             wires: List[WireCatalogItem] = get_huaye_copper_wires()
 
@@ -332,87 +288,72 @@ class WireCatalogDialog(QDialog):
             self.table.setItem(row_idx, 2, c2)
             self.table.setItem(row_idx, 3, c3)
 
-            # 初始自动高亮匹配线径
-            if abs(item.diameter - self._initial_diameter) < 1e-4:
+            # 匹配初始线径
+            if matched_row < 0 and abs(item.diameter - self._initial_diameter) < 1e-4:
                 matched_row = row_idx
 
-        # 选中最匹配行
+        # 恢复或触发过滤
+        self._apply_filter(self.txt_search.text())
+
+        # 默认高亮行
         if matched_row >= 0:
             self.table.selectRow(matched_row)
             self.table.scrollToItem(self.table.item(matched_row, 0))
         elif len(wires) > 0:
             self.table.selectRow(0)
 
-        self._filter_table()
+        series_name = "15% 铜包铝轻量化系列" if self.rb_ccaw.isChecked() else "纯铜标准系列"
+        self.lbl_count.setText(f"{series_name}: 共 {len(wires)} 档规格")
 
-    def _filter_table(self):
-        """按搜索输入即时过滤表格行"""
-        query = self.txt_search.text().strip().lower()
-        row_count = self.table.rowCount()
+    def _on_search_text_changed(self, text: str):
+        self._apply_filter(text)
+
+    def _apply_filter(self, query: str):
+        q = query.strip()
         visible_count = 0
-
-        for r in range(row_count):
-            if not query:
+        for r in range(self.table.rowCount()):
+            item_d = self.table.item(r, 0)
+            if not item_d:
+                continue
+            dia_str = item_d.text()
+            if not q or q in dia_str:
                 self.table.setRowHidden(r, False)
                 visible_count += 1
-                continue
-            item = self.table.item(r, 0)
-            dia_str = item.text().lower() if item else ""
-            od_str = self.table.item(r, 1).text().lower() if self.table.item(r, 1) else ""
-            res_str = self.table.item(r, 2).text().lower() if self.table.item(r, 2) else ""
-            
-            # 匹配线径、外径或电阻
-            matched = (query in dia_str or query in od_str or query in res_str)
-            self.table.setRowHidden(r, not matched)
-            if matched:
-                visible_count += 1
+            else:
+                self.table.setRowHidden(r, True)
 
-        if query and visible_count == 0:
-            is_en = i18n.is_english()
-            msg = (
-                "💡 未在材料库中检索到该尺寸。其他非材料库尺寸，需咨询华冶定制。"
-                if not is_en else
-                "💡 Size not found in standard stock catalog. Other non-catalog sizes require custom fabrication by Huaye."
-            )
-            self.lbl_selected_info.setText(msg)
-            self.btn_confirm.setEnabled(False)
+        series_name = "15% 铜包铝系列" if self.rb_ccaw.isChecked() else "纯铜标准系列"
+        self.lbl_count.setText(f"{series_name}: 匹配 {visible_count} / {self.table.rowCount()} 档")
 
     def _on_table_selection_changed(self):
-        selected_rows = self.table.selectionModel().selectedRows()
-        if not selected_rows:
-            self.btn_confirm.setEnabled(False)
-            self.lbl_selected_info.setText("请在表格中选择线材规格...")
+        sel = self.table.selectedItems()
+        if not sel:
             self.selected_item = None
+            self.lbl_selected_info.setText("当前未选定线规 (点击行选择)")
+            self.btn_confirm.setEnabled(False)
             return
 
-        row = selected_rows[0].row()
-        item_obj = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
-        if isinstance(item_obj, WireCatalogItem):
-            self.selected_item = item_obj
-            self.btn_confirm.setEnabled(True)
-            mat = "15% 铜包铝" if "铜包铝" in item_obj.material_name else ("无氧纯铜 (OFC)" if "无氧" in item_obj.material_name else "纯铜")
-            self.lbl_selected_info.setText(
-                f"已选: 【{mat}】 线径 {item_obj.diameter:.3f} mm | 最大外径 {item_obj.max_outer_dia:.3f} mm | "
-                f"阻值 {item_obj.km_resistance_ohm:.1f} Ω/km | 密度比 {item_obj.km_per_kg:.3f} km/kg"
-            )
+        row = sel[0].row()
+        item0 = self.table.item(row, 0)
+        catalog_item: WireCatalogItem = item0.data(Qt.ItemDataRole.UserRole)
+        self.selected_item = catalog_item
 
-    def _on_table_double_clicked(self, item):
-        self._on_confirm_clicked()
+        mat_title = "15% 铜包铝" if catalog_item.density < 4.0 else "华冶纯铜"
+        info = (
+            f"已选定: 【{mat_title}】 线径 {catalog_item.diameter:.3f} mm  |  "
+            f"出厂基准外径 {catalog_item.max_outer_dia:.3f} mm  |  "
+            f"KM阻值 {catalog_item.km_resistance_ohm:.1f} Ω/km  |  "
+            f"裸铜 {catalog_item.km_per_kg:.3f} km/kg"
+        )
+        self.lbl_selected_info.setText(info)
+        self.btn_confirm.setEnabled(True)
+
+    def _on_table_double_clicked(self, item: QTableWidgetItem):
+        self._on_table_selection_changed()
+        if self.selected_item is not None:
+            self._on_confirm_clicked()
 
     def _on_confirm_clicked(self):
         if self.selected_item is not None:
             self.wire_selected.emit(self.selected_item)
             self.accept()
-
-    def wheelEvent(self, event):
-        """支持在弹窗任意区域滑动鼠标滚轮时均可流畅滚动表格"""
-        if hasattr(self, "table") and self.table.verticalScrollBar().isVisible():
-            delta = event.angleDelta().y()
-            if delta != 0:
-                current_val = self.table.verticalScrollBar().value()
-                # 滚轮每次滚动约 2~3 行高度 (60px)
-                step = 60 if delta < 0 else -60
-                self.table.verticalScrollBar().setValue(current_val + step)
-                event.accept()
-                return
-        super().wheelEvent(event)

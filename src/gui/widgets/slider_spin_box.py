@@ -3,7 +3,7 @@ Coil-Architect Pro - Linked Slider & SpinBox Widgets
 高精度浮点与整型滑块-数字框双向联动控件 (含滚轮防误触与范围约束)
 """
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, 
     QSlider, QDoubleSpinBox, QSpinBox, QScrollArea
@@ -27,15 +27,25 @@ class NoWheelSlider(QSlider):
 
 
 class ClickableDoubleSpinBox(QDoubleSpinBox):
-    """优化微调箭头交互手势与光标感知的高精度浮点数字框"""
+    """优化微调箭头交互手势与光标感知的高精度浮点数字框 (双击鼠标左键全选全部数值)"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.setMinimumHeight(26)
         # 禁用键盘逐字即时触发，防止在用户尚未完成输入时误发信号引发级联篡改与异常
         self.setKeyboardTracking(False)
-        if self.lineEdit():
-            self.lineEdit().setMouseTracking(True)
+        line_edit = self.lineEdit()
+        if line_edit:
+            line_edit.setMouseTracking(True)
+            line_edit.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if obj == self.lineEdit() and event.type() == QEvent.Type.MouseButtonDblClick:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.lineEdit().selectAll()
+                QTimer.singleShot(0, self.lineEdit().selectAll)
+                return True
+        return super().eventFilter(obj, event)
 
     def mouseMoveEvent(self, event):
         # 按钮位于右侧 24px 区域
@@ -64,15 +74,25 @@ class ClickableDoubleSpinBox(QDoubleSpinBox):
 
 
 class ClickableSpinBox(QSpinBox):
-    """优化微调箭头交互手势与光标感知的整型数字框"""
+    """优化微调箭头交互手势与光标感知的整型数字框 (双击鼠标左键全选全部数值)"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.setMinimumHeight(26)
         # 禁用键盘逐字即时触发
         self.setKeyboardTracking(False)
-        if self.lineEdit():
-            self.lineEdit().setMouseTracking(True)
+        line_edit = self.lineEdit()
+        if line_edit:
+            line_edit.setMouseTracking(True)
+            line_edit.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if obj == self.lineEdit() and event.type() == QEvent.Type.MouseButtonDblClick:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.lineEdit().selectAll()
+                QTimer.singleShot(0, self.lineEdit().selectAll)
+                return True
+        return super().eventFilter(obj, event)
 
     def mouseMoveEvent(self, event):
         if event.pos().x() >= self.width() - 25:
