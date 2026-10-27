@@ -1892,7 +1892,9 @@ class MainWindow(QMainWindow):
         self.combo_enamel_grade.currentIndexChanged.connect(self._on_enamel_grade_changed)
         layout_wire.addWidget(self.combo_enamel_grade)
 
-        self.chk_self_bonding = QCheckBox("复合热风/酒精自粘胶层 (Self-Bonding)")
+        self.chk_self_bonding = QCheckBox("复合热风/酒精自粘胶层 (Self-Bonding · 标配)")
+        self.chk_self_bonding.setChecked(True) # 默认设定为自粘线 (脱模空心微特线圈标配)
+        self.chk_self_bonding.setToolTip("【复合自粘线】采用华冶实测烘焙固化双层密度计算：内层 UEW (1.27 g/cm³) + 外层自粘胶 SB (1.07 g/cm³)")
         self.chk_self_bonding.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569; margin: 2px 0px;")
         self.chk_self_bonding.toggled.connect(self.run_simulation)
         layout_wire.addWidget(self.chk_self_bonding)
@@ -2752,7 +2754,8 @@ class MainWindow(QMainWindow):
                     f"【线圈称重双基准明细】\n"
                     f"理论公称总重: {self.outputs.weight_theoretical_g:.4f} g\n"
                     f"  - 导体净重: {self.outputs.weight_cu_g:.4f} g ({self.outputs.weight_cu_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%)\n"
-                    f"  - 漆膜净重: {self.outputs.weight_ins_g:.4f} g ({self.outputs.weight_ins_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%)\n"
+                    f"  - 绝缘/自粘胶净重: {self.outputs.weight_ins_g:.4f} g ({self.outputs.weight_ins_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%, 固化密度={self.outputs.insulation_density:.3f}g/cm³)\n"
+                    f"  - 成品线实际米数: {self.outputs.finished_km_per_kg:.1f} km/kg (含漆膜/自粘层)\n"
                     f"车间实测预测重: {self.outputs.weight_actual_expected_g:.4f} g (考虑拉细负公差与张力拉伸)"
                 )
             self.card_wire_fill.setValue(f"{self.outputs.wire_fill_factor:.2f}")

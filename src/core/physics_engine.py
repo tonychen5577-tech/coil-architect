@@ -18,8 +18,74 @@ from .models import (
 RHO_CU_20 = 0.017241          # 20℃ 纯铜电阻率 (Ω·mm²/m)
 T_ABS_CU_ZERO = 234.5         # 铜线绝对零度推算基准温标 (℃)
 T_REF_20 = 20.0               # 标称参考温度 (℃)
-DENSITY_CU = 8.93             # 纯铜密度 (g/cm³) -> 0.00893 g/mm³
-DENSITY_INS = 1.25            # 自粘绝缘漆皮固化密度 (g/cm³) -> 0.00125 g/mm³
+DENSITY_CU = 8.90             # 纯铜基准密度 (g/cm³) -> 0.00890 g/mm³
+DENSITY_INS = 1.25            # 基准绝缘固化密度 (g/cm³)
+
+# -------------------------------------------------------------------------
+# 华冶官方实测烘焙固化漆膜密度表 (Enameled Wire Coating Densities, g/cm³)
+# 来源: 华冶漆包线底层算法库 (tab6_calc) 工业实测固化烘焙经验值
+# -------------------------------------------------------------------------
+HUAYE_COATING_DENSITIES = {
+    "UEW": 1.27,  # UEW 聚氨酯 (行业微细自粘线最通用耐温底漆)
+    "PEW": 1.38,  # PEW 聚酯
+    "EIW": 1.39,  # EIW 聚酯亚胺
+    "AIW": 1.42,  # AIW 聚酰胺酰亚胺
+    "PIW": 1.43,  # PIW 聚酰亚胺 (耐高温220℃+)
+    "SB":  1.07,  # SB 自粘层 (热风/酒精固化改性聚酰胺胶层)
+}
+DENSITY_UEW = 1.27
+DENSITY_PEW = 1.38
+DENSITY_EIW = 1.39
+DENSITY_AIW = 1.42
+DENSITY_PIW = 1.43
+DENSITY_SB  = 1.07
+
+
+def calculate_huaye_insulation_density(
+    grade: EnamelGrade,
+    has_sb: bool = True,
+    bare_dia: float = 0.08,
+    max_od: float = 0.085,
+    enamel_type: str = "UEW"
+) -> float:
+    """
+    基于华冶底层解密算法计算烘焙固化漆膜有效密度 (g/cm³)。
+    若为自粘线 (Self-Bonding)，则自动分层微积分核算：
+    - 内层底漆 (UEW 1.27 / PEW 1.38 等)
+    - 外层自粘胶层 (SB 1.07)
+    若为普通单/双涂层漆包线，则直接精确采用所选漆种实测固化密度。
+    """
+    rho_base = HUAYE_COATING_DENSITIES.get(enamel_type.upper(), DENSITY_UEW)
+    rho_sb = DENSITY_SB
+
+    is_sb = (has_sb or grade == EnamelGrade.SELF_BONDING)
+    if not is_sb:
+        return rho_base
+
+    # 自粘线复合层分层厚度解算
+    if grade == EnamelGrade.GRADE_0:
+        inc_base = 0.003
+    elif grade == EnamelGrade.GRADE_1:
+        inc_base = 0.008 if bare_dia < 0.1 else 0.012
+    elif grade == EnamelGrade.GRADE_2 or grade == EnamelGrade.SELF_BONDING:
+        inc_base = 0.014 if bare_dia < 0.1 else 0.020
+    elif grade == EnamelGrade.GRADE_3:
+        inc_base = 0.022 if bare_dia < 0.1 else 0.030
+    else:
+        inc_base = 0.010
+
+    d_base = bare_dia + inc_base
+    d_total = max(max_od, d_base + 0.006)
+
+    area_base = max(0.0, (math.pi / 4.0) * (d_base ** 2 - bare_dia ** 2))
+    area_sb = max(0.0, (math.pi / 4.0) * (d_total ** 2 - d_base ** 2))
+    area_total = area_base + area_sb
+
+    if area_total <= 1e-12:
+        return rho_base
+
+    rho_eff = (area_base * rho_base + area_sb * rho_sb) / area_total
+    return round(rho_eff, 4)
 
 
 def get_enamel_thickness_and_bdv(grade: EnamelGrade, has_sb: bool = False, bare_dia: float = 0.08) -> Tuple[float, float]:
@@ -419,7 +485,19 @@ class CoilPhysicsEngine:
         # 6. 质量与槽满率工艺指标 (双基准称重算法)
         # ---------------------------------------------------------
         rho_cond = inputs.wire_density if inputs.wire_density > 0 else 8.90
-        rho_ins = inputs.insulation_density if inputs.insulation_density > 0 else 1.25
+        
+        # 华冶实测烘焙固化漆膜密度自动精确匹配 (UEW 1.27, PEW 1.38, EIW 1.39, AIW 1.42, PIW 1.43, SB 1.07)
+        if inputs.insulation_density > 0 and abs(inputs.insulation_density - 1.25) > 1e-3:
+            rho_ins = inputs.insulation_density
+        else:
+            rho_ins = calculate_huaye_insulation_density(
+                inputs.enamel_grade,
+                inputs.has_self_bonding,
+                inputs.bare_dia,
+                inputs.max_od,
+                getattr(inputs, "enamel_type", "UEW")
+            )
+        out.insulation_density = rho_ins
 
         v_cu = total_len_mm * a_cu
         v_wire = total_len_mm * a_wire
@@ -427,25 +505,23 @@ class CoilPhysicsEngine:
         out.v_cu = v_cu
         out.v_wire = v_wire
 
-        # 称重双基准：纯铜净重 + 漆膜净重 = 理论公称总重
-        # 若用户选用了华冶出厂标准线规且具有出厂 KM/KG 线密度，则直接调用华冶出厂重量参数：
-        # 总重量 (g) = 总线长 (m) / 出厂 KM/KG
+        # 称重双基准：导体净重 + 漆膜/自粘胶净重 = 理论公称总重
+        # 华冶出厂线密度 catalog_km_kg 严格对应出厂标称裸导体米重 (1 / (π/4 * d² * ρ_cond))
         if inputs.catalog_km_kg > 0:
-            weight_theoretical = out.total_wire_len_m / inputs.catalog_km_kg
-            weight_cu = (v_cu * rho_cond) / 1000.0
-            weight_ins = max(0.0, weight_theoretical - weight_cu)
-            weight_actual_expected = weight_theoretical * (eta ** 2) * 0.985
+            weight_cu = out.total_wire_len_m / inputs.catalog_km_kg
         else:
             weight_cu = (v_cu * rho_cond) / 1000.0
-            weight_ins = (v_ins * rho_ins) / 1000.0
-            weight_theoretical = weight_cu + weight_ins
-            weight_actual_expected = weight_cu * (eta ** 2) * 0.985 + weight_ins * 0.980
+
+        weight_ins = (v_ins * rho_ins) / 1000.0
+        weight_theoretical = weight_cu + weight_ins
+        weight_actual_expected = weight_cu * (eta ** 2) * 0.985 + weight_ins * 0.980
 
         out.weight_cu_g = weight_cu
         out.weight_ins_g = weight_ins
         out.weight_theoretical_g = weight_theoretical
         out.weight_actual_expected_g = weight_actual_expected
         out.weight_g = weight_theoretical
+        out.finished_km_per_kg = (out.total_wire_len_m / weight_theoretical) if weight_theoretical > 0 else 0.0
 
         v_wind_net = area_face * thickness_f
         out.v_wind_net = v_wind_net

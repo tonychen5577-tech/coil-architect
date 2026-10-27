@@ -85,7 +85,7 @@ def test_02_flat_wire_physics():
 def test_03_dual_baseline_and_catalog_weight():
     print("\n--- Test 3: Dual-Baseline & Catalog KM/KG Weight Verification ---")
     # 纯铜圆线直接调用华冶出厂 KM/KG
-    km_per_kg_cu = 22.3532  # 0.080mm 纯铜出厂线密度
+    km_per_kg_cu = 22.3532  # 0.080mm 纯铜出厂线密度 (严格对应出厂标称裸导体米重)
     inp_catalog = CoilInputs(
         wire_shape=WireShape.ROUND,
         bare_dia=0.080,
@@ -96,13 +96,15 @@ def test_03_dual_baseline_and_catalog_weight():
     )
     out_catalog = CoilPhysicsEngine.calculate(inp_catalog)
 
-    # 验证仿真调用的重量直接等于 total_wire_len_m / km_per_kg
-    expected_catalog_weight = out_catalog.total_wire_len_m / km_per_kg_cu
-    assert abs(out_catalog.weight_theoretical_g - expected_catalog_weight) < 1e-5
-    assert abs(out_catalog.weight_g - expected_catalog_weight) < 1e-5
-    print(f"✔ 直接调用华冶出厂线密度 ({km_per_kg_cu} km/kg) 核算线重:")
-    print(f"   线长: {out_catalog.total_wire_len_m:.3f}m | 华冶出厂公称总重: {out_catalog.weight_g:.4f}g")
-    print(f"   车间实测预测重: {out_catalog.weight_actual_expected_g:.4f}g (计入张力拉伸修正)")
+    # 验证导体净重严格等于 total_wire_len_m / km_per_kg
+    expected_cu_weight = out_catalog.total_wire_len_m / km_per_kg_cu
+    assert abs(out_catalog.weight_cu_g - expected_cu_weight) < 1e-5
+    # 验证公称总重 = 导体净重 + 漆膜净重 (基于华冶 UEW 1.27 固化密度)
+    assert abs(out_catalog.weight_theoretical_g - (out_catalog.weight_cu_g + out_catalog.weight_ins_g)) < 1e-5
+    assert abs(out_catalog.weight_g - out_catalog.weight_theoretical_g) < 1e-5
+    print(f"✔ 直接调用华冶出厂线密度 ({km_per_kg_cu} km/kg) 核算导体与漆膜重量:")
+    print(f"   线长: {out_catalog.total_wire_len_m:.3f}m | 导体净重: {out_catalog.weight_cu_g:.4f}g | 漆膜重: {out_catalog.weight_ins_g:.4f}g")
+    print(f"   公称总重: {out_catalog.weight_g:.4f}g | 车间实测预测重: {out_catalog.weight_actual_expected_g:.4f}g (计入张力拉伸修正)")
 
 
 def test_04_insulation_and_hipot():
@@ -187,9 +189,11 @@ def test_05_gui_dialog_and_material_presets():
     assert window.btn_reset_wire.isVisible(), "恢复自定义按钮必须显现"
     print("✔ 华冶线规防冲突锁定校验通过: 电导率等级、电阻率滑块、线径、外径、漆膜等级、自粘层、导线形状全部严格锁定！")
 
-    # 验证仿真计算直接调用了出厂 KM/KG
-    assert abs(window.outputs.weight_g - (window.outputs.total_wire_len_m / 22.3532)) < 1e-4
-    print(f"✔ 仿真计算成功调用华冶出厂重量参数: {window.outputs.weight_g:.4f} g (线长: {window.outputs.total_wire_len_m:.3f}m)")
+    # 验证仿真计算直接调用出厂 KM/KG 计算导体净重，并基于华冶漆膜密度计算绝缘重
+    assert abs(window.outputs.weight_cu_g - (window.outputs.total_wire_len_m / 22.3532)) < 1e-4
+    assert window.outputs.weight_ins_g > 0.0
+    assert abs(window.outputs.weight_g - (window.outputs.weight_cu_g + window.outputs.weight_ins_g)) < 1e-5
+    print(f"✔ 仿真计算成功调用华冶出厂重量参数: 导体净重={window.outputs.weight_cu_g:.4f}g | 漆膜重={window.outputs.weight_ins_g:.4f}g | 总重={window.outputs.weight_g:.4f}g")
 
     # 5. 测试点击【恢复自定义】一键解除锁定
     window._clear_catalog_wire()

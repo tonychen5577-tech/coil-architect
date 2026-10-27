@@ -7,7 +7,7 @@ Coil-Architect Pro - Data Models
 """
 
 from dataclasses import dataclass, field
-from enum import IntEnum
+from enum import IntEnum, Enum
 from typing import Optional
 
 
@@ -37,6 +37,15 @@ class WireCatalogType(IntEnum):
     CUSTOM = 0            # 通用自定义线规
     HUAYE_COPPER = 1      # 华冶线材 · 纯铜标准系列 (69档, 0.07~0.75mm, 1/58.5)
     HUAYE_CCAW = 2        # 华冶线材 · 15% 铜包铝系列 (79档, 0.07~0.85mm, 0.02525)
+
+
+class WireCategory(str, Enum):
+    """线材品类结构体系 (自粘线为默认，预留特种线材接口)"""
+    SELF_BONDING = "SELF_BONDING"               # 复合自粘漆包线 (脱模空心线圈标配 · 华冶实测 UEW+SB 体系)
+    STANDARD_ENAMELED = "STANDARD_ENAMELED"     # 普通单/双涂层漆包线 (骨架绕线 · 1UEW/2UEW/PEW)
+    TRIPLE_INSULATED = "TRIPLE_INSULATED"       # 三层绝缘线 (TIW · 高压安全隔离，预留扩展接口)
+    LITZ_WIRE = "LITZ_WIRE"                     # 高频多股绞合线 (利兹线/丝包线，预留扩展接口)
+    FLAT_WIRE = "FLAT_WIRE"                     # 长方形/正方形扁铜线 (高槽满率大功率)
 
 
 class EnamelGrade(IntEnum):
@@ -85,11 +94,13 @@ class CoilInputs:
     # 线材截面形态与规格库配置
     wire_shape: WireShape = WireShape.ROUND
     wire_catalog_type: WireCatalogType = WireCatalogType.CUSTOM
+    wire_category: WireCategory = WireCategory.SELF_BONDING # 默认设定为自粘线 (脱模空心线圈标配)
     enamel_grade: EnamelGrade = EnamelGrade.GRADE_2
-    has_self_bonding: bool = False
-    catalog_km_kg: float = 0.0    # 华冶线材出厂线密度 (km/kg, >0时直接用于称重)
+    has_self_bonding: bool = True # 默认启用复合自粘胶层
+    enamel_type: str = "UEW"      # 默认底漆漆种 (华冶实测固化密度: UEW 1.27, PEW 1.38, EIW 1.39, AIW 1.42, PIW 1.43, SB 1.07)
+    catalog_km_kg: float = 0.0    # 华冶线材出厂线密度 (km/kg, 严格对应出厂裸导体标称米重)
     wire_density: float = 8.90    # 导体密度 (纯铜 8.90, CCAW 3.63, 纯铝 2.70 g/cm³)
-    insulation_density: float = 1.25 # 绝缘漆膜固化密度 (g/cm³)
+    insulation_density: float = 0.0 # 绝缘漆膜固化密度 (g/cm³, <=0 时由华冶固化密度算法自动精确匹配)
 
     # 圆线工艺特性
     bare_dia: float = 0.075       # d_nom: 裸铜导体标称直径 (mm)
@@ -234,6 +245,8 @@ class CoilOutputs:
     weight_actual_expected_g: float = 0.0 # 车间实测预测重量 (g, 考虑拉细负公差与张力修正)
     wire_fill_factor: float = 0.0 # 绕线区漆包线占空比 (%)
     copper_fill_factor: float = 0.0# 微观纯铜空间填充率 (%)
+    insulation_density: float = 1.25 # 实际采用的漆膜固化密度 (g/cm³)
+    finished_km_per_kg: float = 0.0 # 成品线实际千米重量比 (km/kg, 含漆膜与自粘层)
     
     # 热学稳态
     delta_t: float = 0.0          # 温升 (℃)
