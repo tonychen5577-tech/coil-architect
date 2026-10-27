@@ -21,7 +21,7 @@
   <b>No heavy general-purpose FEA overhead — Dedicated strictly to micro coil physics: enter physical envelope constraints and target resistance to analytically solve optimal winding configurations in milliseconds.</b>
 </p>
 
-[📥 Download & Quick Start](#-download--quick-start) • [💡 Why Coil-Architect Pro?](#-why-coil-architect-pro-engineering-pain-points) • [📁 Proprietary .ansvcoil Project Format](#-proprietary-ansvcoil-project-files) • [⚡ Key Features](#-key-features) • [🌐 Bilingual Switcher](#-bilingual-switcher-chinese--english) • [🌀 Supported 4 Coil Topologies](#-supported-4-industrial-micro-coil-topologies) • [🔑 Licensing & Services](#-commercial-licensing--engineering-services) • [📬 Contact Us](#-technical-support--contact-channels)
+[📥 Download & Quick Start](#-download--quick-start) • [💡 Why Coil-Architect Pro?](#-why-coil-architect-pro-engineering-pain-points) • [📁 Proprietary .ansvcoil Project Format](#-proprietary-ansvcoil-project-files) • [⚡ Key Features](#-key-features) • [🤝 Industry Partner](#-industry-partner--acknowledgements) • [🌐 Bilingual Switcher](#-bilingual-switcher-chinese--english) • [🌀 Supported 4 Coil Topologies](#-supported-4-industrial-micro-coil-topologies) • [🔑 Licensing & Services](#-commercial-licensing--engineering-services) • [📬 Contact Us](#-technical-support--contact-channels)
 
 </div>
 
@@ -130,25 +130,16 @@ The solver kernel is built upon closed-form analytical geometric integration and
 To seamlessly bridge conceptual coil design with shop-floor manufacturing, Coil-Architect Pro integrates the comprehensive **Huaye Wire Catalog**, featuring a dedicated wide modal picker and synchronized parameter constraints:
 - **Comprehensive 4 Manufacturer Parameters**: Across the 920×580 modal dialog, engineers can inspect nominal bare diameter $d$ (mm), maximum finished outer diameter $D_{\max}$ (mm), 20°C DC resistance $R_{\text{km}}$ (Ω/km), and length-to-weight ratio $L_{\text{km/kg}}$ (km/kg), complete with global wheel scrolling and instant keyword filtering;
 - **3 Native Material Series**:
-  1. **Standard Pure Copper** (69 gauges · $1/58.5$ Huaye empirical baseline · $\rho = 0.01709402\ \Omega\cdot\text{mm}^2/\text{m}$);
-  2. **Custom Oxygen-Free Copper (OFC)** (69 gauges · $1/59.0$ High-purity annealed state · $\rho = 0.01694915\ \Omega\cdot\text{mm}^2/\text{m}$, tailored for ultra-low DCR micro actuators, reaching $101.7\%\text{ IACS}$ conductivity, reducing resistance by ~0.85% while fully preserving standard drawing dies and outer diameters);
-  3. **15% Copper-Clad Aluminum (CCAW)** (79 gauges · $\rho = 0.025250\ \Omega\cdot\text{mm}^2/\text{m}$, density $3.63\text{ g/cm}^3$, reducing moving mass by 59%);
+  1. **Standard Pure Copper** (69 gauges · Huaye empirical factory baseline for general electromagnetic applications);
+  2. **Custom Oxygen-Free Copper (OFC)** (69 gauges · High-purity annealed state, tailored for ultra-low DCR micro actuators, reaching $101.7\%\text{ IACS}$ conductivity, reducing resistance by ~0.85% while fully preserving standard drawing dies and outer diameters);
+  3. **15% Copper-Clad Aluminum (CCAW)** (79 gauges · Lightweight empirical specification, reducing moving mass by 59%);
 - **1-Click Seamless Copper Grade Comparison**: Once a Huaye copper wire is active, the conductor grade selector remains open, allowing engineers to toggle between Standard Copper and Custom OFC directly on the main window. This instantly updates coil DCR (e.g. from $7.073\ \Omega$ down to $7.013\ \Omega$) and Joule heating without tedious re-customization, backed by active guardrails against incompatible aluminum mold mixing.
 
-### 7. Decoupled Dual-Baseline Weight Model & 6 Cured Coating Densities
-In high-precision micro-actuators and audio voice coils, micro-gram enamel film mass dictates the resonant frequency $F_0$. Coil-Architect Pro eliminates coarse weight heuristics with a decoupled physics engine:
-- **Factory KM/KG Audit**: Manufacturer tables (KM/KG) denote **nominal bare conductor weight** ($1 / (\frac{\pi}{4} d^2 \cdot \rho_{\text{cond}})$), historically omitting insulation mass;
-- **Dual-Baseline Decoupled Weight Formula**:
-  $$W_{\text{conductor}} = \frac{L}{\text{KM/KG}_{\text{Huaye}}} \quad (\text{strictly bound to vendor electrical specifications})$$
-  $$W_{\text{insulation}} = (V_{\text{finished}} - V_{\text{conductor}}) \times \rho_{\text{cured, measured}}$$
-  $$W_{\text{total}} = W_{\text{conductor}} + W_{\text{insulation}}$$
-- **6 Solidified Huaye Cured Coating Densities**: Replacing legacy 1.25 approximations with empirical baked densities:
-  - **UEW (Polyurethane)**: $1.27\text{ g/cm}^3$
-  - **PEW (Polyester)**: $1.38\text{ g/cm}^3$
-  - **EIW (Polyesterimide)**: $1.39\text{ g/cm}^3$
-  - **AIW (Polyamideimide)**: $1.42\text{ g/cm}^3$
-  - **PIW (Polyimide)**: $1.43\text{ g/cm}^3$
-  - **SB (Self-Bonding Topcoat)**: $1.07\text{ g/cm}^3$
+### 7. Decoupled Dual-Baseline Weight Model & Huaye Empirical Cured Coating Densities
+In high-precision micro-actuators and audio voice coils, micro-gram enamel film mass dictates the resonant frequency $F_0$. Coil-Architect Pro eliminates coarse heuristics with a decoupled physics engine:
+- **Factory Metric Audit**: Manufacturer tables (KM/KG) denote **nominal bare conductor weight**, historically omitting insulation mass;
+- **Decoupled Weight Accounting Architecture**: The physics engine computes the bare conductor mass and the micro-scale insulation/bonding coating mass via two independent volumetric integrations, eliminating weight distortions from crude single-density approximations;
+- **Proprietary Multi-Coating Baked Density Engine**: The solver embeds Huaye's empirical baked physical parameters across diverse resin systems (including polyurethane UEW, polyester PEW, polyesterimide EIW, polyamideimide AIW, polyimide PIW, and specialized thermo-bondable adhesives SB). While safeguarding proprietary manufacturing formulations, the system dynamically couples the appropriate physical coefficients to guarantee the highest industry accuracy for moving mass estimation;
 - **Weight Metric Transparency**: Hovering over the Weight card reveals exact breakdowns: Conductor Net Mass, Enamel/Bonding Net Mass, percentage ratios, and true Finished Wire Ratio ($\text{Finished } KM/KG$).
 
 ### 8. 1UEW Standard vs. 1UEW-SB Self-Bonding Engineering Guide
@@ -156,10 +147,10 @@ The workstation defaults to Composite Self-Bonding (SB) while allowing flexible 
 
 | Parameter | 1UEW Standard (+0.003mm OD Build-up) | 1UEW-SB Composite (+0.009mm OD Build-up) |
 | :--- | :--- | :--- |
-| **Micro-Structure** | **Single cross-linked polyurethane enamel (UEW)**, 1.5μm single-side, smooth and non-sticky. | **Bi-layer concentric composite**: Inner 0.003mm UEW insulation + Outer 0.006mm SB thermo-bondable topcoat. |
+| **Micro-Structure** | **Single cross-linked polyurethane enamel (UEW)**, ~1.5μm single-side, smooth and non-sticky. | **Bi-layer concentric composite**: Inner 0.003mm UEW insulation + Outer 0.006mm SB thermo-bondable topcoat. |
 | **Winding Process** | **Requires plastic bobbin (Bobbin-wound)**; unspools if removed from core. | **Bobbinless air-core winding (Free-standing)**; heat-gun ($180\sim 220^\circ\text{C}$) or alcohol-activated bonding cures into a rigid self-supporting coil. |
-| **Air-Gap Envelope** | Compact cross-section (Φ0.080mm -> 0.083mm OD), maximum copper fill factor. | Finished OD reaches 0.089mm, increasing wire cross-sectional area by **+15.0%**; requires DFM air-gap clearance validation. |
-| **Mass Contribution** | Density $1.27\text{ g/cm}^3$; enamel accounts for only ~1.06% of total coil mass. | Insulation volume nearly triples; effective composite density ~1.18 g/cm³, lifting insulation mass to **3.0% ~ 5.0%** (over 10% on ultra-fine wire). |
+| **Air-Gap Envelope** | Compact cross-section (e.g. Φ0.080mm -> 0.083mm OD), maximum copper fill factor. | Finished OD reaches 0.089mm, increasing wire cross-sectional area by **+15.0%**; requires DFM air-gap clearance validation. |
+| **Mass Contribution** | Thinner coating; enamel accounts for approximately ~1.0% of total coil mass. | Insulation volume nearly triples; effective composite density lifts coating mass to **3.0% ~ 5.0%** (over 10% on ultra-fine wire). |
 | **Thermal Limit** | Determined by base resin class ($155^\circ\text{C} \sim 180^\circ\text{C}$). | Governed by outer bondcoat **Re-softening Temperature ($130\sim 170^\circ\text{C}$)** to avoid delamination under overload currents. |
 | **Applications** | Miniature relays, solenoid valves, bobbined step motors. | **VCM voice coils, haptic LRA actuators, camera OIS/AFM coils, coreless micro-motors.** |
 
@@ -239,6 +230,27 @@ Coil-Architect Pro is engineered as a **completely standalone, green portable de
 > - **Operating System**: Windows 10 / Windows 11 (64-bit)
 > - **Hardware**: Intel Core i3 or equivalent / 4GB RAM / 300MB available storage
 > - **Display**: Supports standard FHD ($1920 \times 1080$) and 2K/4K high-DPI displays (125%, 150%, 200% scaling adaptive with crisp vector assets)
+
+---
+
+## 🤝 Industry Partner & Acknowledgements
+
+<div align="center">
+  <img src="docs/images/huaye_logo.png" alt="HUAYE Official Logo" width="160" />
+  <br>
+  <b>Special Wire Technical Partner: Tongling Huaye Special Micro Enamelled Wire Co., Ltd. (HUAYE®)</b>
+</div>
+
+<br>
+
+We express our sincere gratitude to **HUAYE® (华冶)** for their dedicated technical collaboration and authoritative support in the development of ANSV Coil-Architect Pro!
+
+As China's leading benchmark manufacturer of ultra-fine magnet wire and specialty precision winding solutions, HUAYE provides this workstation with authoritative factory specifications, empirical verification datasets, and advanced micro-actuator magnet wire solutions (including high-purity oxygen-free copper and composite self-bonding wires).
+
+Together, we eliminate the data disconnect between electromagnetic simulation and volume production:
+- **Direct Factory Precision Injection**: Ensures every gauge, outer diameter, and kilometer resistance value evaluated in the workstation matches HUAYE shop-floor delivery quality with zero deviation;
+- **Advanced Engineering Synergy**: Jointly tackling micro-scale resin flow and ultra-low DCR optimization for space-constrained smartphone camera OIS/AFM voice coils and linear resonant actuators (LRA);
+- **Seamless Fast-Track Prototyping**: Engineering designs directly map to HUAYE stock standards or rapid-turnaround custom fabrication, eliminating prototype scrappage and accelerating commercialization.
 
 ---
 
