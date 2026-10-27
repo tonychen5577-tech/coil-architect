@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..core.wire_catalog import (
-    WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires
+    WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires, get_huaye_ofc_wires
 )
 from ..core.i18n import i18n, t
 
@@ -30,7 +30,7 @@ class WireCatalogDialog(QDialog):
 
     wire_selected = pyqtSignal(object)  # 发射选中的 WireCatalogItem
 
-    def __init__(self, current_diameter: float = 0.080, is_ccaw: bool = False, parent=None):
+    def __init__(self, current_diameter: float = 0.080, is_ccaw: bool = False, material_type: int = 1, parent=None):
         super().__init__(parent)
         self.setWindowTitle("华冶线材出厂标准数据库 · 规格选型" if not i18n.is_english() else "Huaye Wire Specification Catalog")
         self.resize(920, 580)
@@ -39,6 +39,10 @@ class WireCatalogDialog(QDialog):
         self.selected_item: Optional[WireCatalogItem] = None
         self._initial_diameter = current_diameter
         self._initial_is_ccaw = is_ccaw
+        if is_ccaw:
+            self._initial_material_type = 2
+        else:
+            self._initial_material_type = material_type
 
         self._setup_ui()
         self._load_catalog_data()
@@ -67,22 +71,28 @@ class WireCatalogDialog(QDialog):
         series_box.setSpacing(12)
         
         self.rb_copper = QRadioButton("纯铜标准系列 (69档 · 1/58.5)")
+        self.rb_ofc = QRadioButton("无氧纯铜定制 (69档 · 1/59.0 OFC)")
         self.rb_ccaw = QRadioButton("15% 铜包铝轻量化 (79档 · 0.02525)")
         self.rb_copper.setStyleSheet("font-size: 12px; font-weight: 600; color: #1E293B;")
+        self.rb_ofc.setStyleSheet("font-size: 12px; font-weight: 600; color: #0284C7;")
         self.rb_ccaw.setStyleSheet("font-size: 12px; font-weight: 600; color: #1E293B;")
 
         self.btn_group = QButtonGroup(self)
         self.btn_group.addButton(self.rb_copper, 1)
         self.btn_group.addButton(self.rb_ccaw, 2)
+        self.btn_group.addButton(self.rb_ofc, 3)
         
-        if self._initial_is_ccaw:
+        if getattr(self, "_initial_material_type", 1) == 2 or self._initial_is_ccaw:
             self.rb_ccaw.setChecked(True)
+        elif getattr(self, "_initial_material_type", 1) == 3:
+            self.rb_ofc.setChecked(True)
         else:
             self.rb_copper.setChecked(True)
             
         self.btn_group.idToggled.connect(self._on_series_changed)
 
         series_box.addWidget(self.rb_copper)
+        series_box.addWidget(self.rb_ofc)
         series_box.addWidget(self.rb_ccaw)
         top_bar.addLayout(series_box)
 
@@ -103,9 +113,9 @@ class WireCatalogDialog(QDialog):
         
         is_en = i18n.is_english()
         notice_text = (
-            "💡 规格定制说明：本库收录华冶标准出厂规格。其他非材料库尺寸，需咨询华冶定制（支持特殊线径、定制漆膜与耐温等级）。"
+            "💡 材质与定制说明：华冶标准线材采用实测经验纯铜 (ρ=0.017094 Ω·mm²/m)；微特电机若需极低直流阻抗 (DCR)，可直接切换【无氧纯铜定制 (OFC)】(基准电导率 59.0 MS/m, ρ=0.016949 Ω·mm²/m)，模具外径完全兼容，阻抗降低约 0.85%；其他非材料库尺寸需咨询华冶定制。"
             if not is_en else
-            "💡 Custom Notice: This catalog contains Huaye standard stock specifications. Other non-catalog sizes require custom fabrication by Huaye."
+            "💡 Material & Custom Notice: Standard copper uses rho=0.017094. For lower DCR, switch to OFC (rho=0.016949, 59.0 MS/m), which reduces resistance by ~0.85% with identical die outer diameters. Other sizes require custom fabrication by Huaye."
         )
         self.lbl_tip_notice = QLabel(notice_text)
         self.lbl_tip_notice.setStyleSheet("font-size: 11px; font-weight: 600; color: #B45309;")
@@ -289,8 +299,12 @@ class WireCatalogDialog(QDialog):
 
     def _load_catalog_data(self):
         """载入当前选中系列的数据到表格"""
-        is_ccaw = self.rb_ccaw.isChecked()
-        wires: List[WireCatalogItem] = get_huaye_ccaw_wires() if is_ccaw else get_huaye_copper_wires()
+        if self.rb_ccaw.isChecked():
+            wires: List[WireCatalogItem] = get_huaye_ccaw_wires()
+        elif hasattr(self, "rb_ofc") and self.rb_ofc.isChecked():
+            wires: List[WireCatalogItem] = get_huaye_ofc_wires()
+        else:
+            wires: List[WireCatalogItem] = get_huaye_copper_wires()
 
         self.table.setRowCount(len(wires))
         matched_row = -1
@@ -376,7 +390,7 @@ class WireCatalogDialog(QDialog):
         if isinstance(item_obj, WireCatalogItem):
             self.selected_item = item_obj
             self.btn_confirm.setEnabled(True)
-            mat = "15% 铜包铝" if "铜包铝" in item_obj.material_name else "纯铜"
+            mat = "15% 铜包铝" if "铜包铝" in item_obj.material_name else ("无氧纯铜 (OFC)" if "无氧" in item_obj.material_name else "纯铜")
             self.lbl_selected_info.setText(
                 f"已选: 【{mat}】 线径 {item_obj.diameter:.3f} mm | 最大外径 {item_obj.max_outer_dia:.3f} mm | "
                 f"阻值 {item_obj.km_resistance_ohm:.1f} Ω/km | 密度比 {item_obj.km_per_kg:.3f} km/kg"

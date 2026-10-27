@@ -202,6 +202,19 @@ HUAYE_COPPER_CATALOG: List[WireCatalogItem] = [
     for d, od, r, kg in _HUAYE_COPPER_RAW
 ]
 
+HUAYE_OFC_COPPER_CATALOG: List[WireCatalogItem] = [
+    WireCatalogItem(
+        diameter=d,
+        max_outer_dia=od,
+        km_resistance_ohm=round((0.01694915 / 0.01709402) * r, 4),
+        km_per_kg=kg,
+        material_name="无氧纯铜 (高纯退火态 1/59.0)",
+        resistivity=0.01694915,
+        density=8.90
+    )
+    for d, od, r, kg in _HUAYE_COPPER_RAW
+]
+
 HUAYE_CCAW_CATALOG: List[WireCatalogItem] = [
     WireCatalogItem(
         diameter=d,
@@ -217,21 +230,33 @@ HUAYE_CCAW_CATALOG: List[WireCatalogItem] = [
 
 
 def get_huaye_copper_wires() -> List[WireCatalogItem]:
-    """获取华冶纯铜规格列表 (0.07 ~ 0.75 mm)"""
+    """获取华冶纯铜规格列表 (0.07 ~ 0.75 mm · 1/58.5)"""
     return HUAYE_COPPER_CATALOG
 
 
+def get_huaye_ofc_wires() -> List[WireCatalogItem]:
+    """获取华冶定制高纯退火无氧纯铜规格列表 (0.07 ~ 0.75 mm · 1/59.0 OFC)"""
+    return HUAYE_OFC_COPPER_CATALOG
+
+
 def get_huaye_ccaw_wires() -> List[WireCatalogItem]:
-    """获取华冶铜包铝规格列表 (0.07 ~ 0.85 mm)"""
+    """获取华冶铜包铝规格列表 (0.07 ~ 0.85 mm · CCAW)"""
     return HUAYE_CCAW_CATALOG
 
 
 def find_wire_by_diameter(diameter: float, catalog_type: int = 1) -> Optional[WireCatalogItem]:
     """
     按线径查找最匹配的线材规格条目
-    catalog_type: 1 为纯铜, 2 为铜包铝
+    catalog_type: 1 为纯铜 (华冶实测经验 1/58.5), 2 为铜包铝 (15% CCAW), 3 为无氧纯铜 (高纯退火态 1/59.0 OFC)
     """
-    catalog = HUAYE_COPPER_CATALOG if catalog_type == 1 else HUAYE_CCAW_CATALOG
+    if catalog_type == 1:
+        catalog = HUAYE_COPPER_CATALOG
+    elif catalog_type == 2:
+        catalog = HUAYE_CCAW_CATALOG
+    elif catalog_type == 3:
+        catalog = HUAYE_OFC_COPPER_CATALOG
+    else:
+        catalog = HUAYE_COPPER_CATALOG
     # 优先精确匹配
     for item in catalog:
         if abs(item.diameter - diameter) < 1e-5:

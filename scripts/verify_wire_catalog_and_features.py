@@ -47,6 +47,15 @@ def test_01_wire_catalog():
     assert cu_008.density == 8.90
     print(f"✔ 纯铜 0.080mm 规格校验通过: {cu_008.display_label}")
 
+    # 验证 0.080mm 定制无氧纯铜规格 (华冶标准: 0.080mm, 外径 0.083mm, 3371.9263 Ω/km)
+    ofc_008 = find_wire_by_diameter(0.080, 3)
+    assert ofc_008 is not None
+    assert abs(ofc_008.diameter - 0.080) < 1e-4
+    assert abs(ofc_008.max_outer_dia - 0.083) < 1e-4
+    assert abs(ofc_008.resistivity - 0.01694915) < 1e-6
+    assert abs(ofc_008.km_resistance_ohm - 3371.9263) < 0.1
+    print(f"✔ 无氧纯铜 (OFC) 0.080mm 规格校验通过: {ofc_008.display_label}")
+
     # 验证 0.080mm 15% 铜包铝规格 (华冶标准: 0.080mm, 5023.3279 Ω/km, 密度 3.63)
     ccaw_008 = find_wire_by_diameter(0.080, 2)
     assert ccaw_008 is not None
@@ -185,8 +194,8 @@ def test_05_gui_dialog_and_material_presets():
     assert abs(window.sb_max_od.value() - 0.083) < 1e-4
     assert "1UEW" in window.lbl_catalog_selected.text()
 
-    # 4. 严格校验锁定机制：选定出厂线规后，必须锁定电导率等级及裸导体尺寸等冲突选项
-    assert not window.combo_copper_grade.isEnabled(), "combo_copper_grade 必须锁定禁用"
+    # 4. 校验材质联动机制：选定出厂铜线后，铜材质选择器保持可用（支持标准纯铜与无氧纯铜一秒无缝比对切换）
+    assert window.combo_copper_grade.isEnabled(), "combo_copper_grade 必须保持可用以支持标准纯铜与定制无氧铜比对"
     assert not window.sb_copper_rho.isEnabled(), "sb_copper_rho 必须锁定禁用"
     assert not window.sb_bare_dia.isEnabled(), "sb_bare_dia 必须锁定禁用"
     assert not window.sb_max_od.isEnabled(), "sb_max_od 必须锁定禁用"
@@ -194,7 +203,21 @@ def test_05_gui_dialog_and_material_presets():
     assert window.chk_self_bonding.isEnabled(), "chk_self_bonding 允许自由切换 1UEW 与 1UEW-SB"
     assert not window.combo_wire_shape.isEnabled(), "combo_wire_shape 必须锁定禁用"
     assert window.btn_reset_wire.isVisible(), "恢复自定义按钮必须显现"
-    print("✔ 华冶线规防冲突锁定校验通过: 材质、电阻率、裸径、外径、漆膜等级严格防冲突锁定，自粘线灵活支持！")
+
+    # 测试主界面一键切换为【无氧纯铜 (高纯退火态)】
+    r_before = window.outputs.r20
+    window.combo_copper_grade.setCurrentIndex(2) # 切换至无氧铜
+    assert abs(window.sb_copper_rho.value() - 0.016949) < 1e-5
+    assert "无氧纯铜" in window.lbl_catalog_selected.text()
+    assert window.outputs.r20 < r_before, "无氧纯铜电阻必须严格低于普通纯铜"
+    reduction_pct = (r_before - window.outputs.r20) / r_before * 100.0
+    assert abs(reduction_pct - 0.848) < 0.05, f"降阻比例应约为 0.85%，实际 {reduction_pct:.3f}%"
+    print(f"✔ 华冶铜线材质一键比对校验通过: 切换无氧纯铜(OFC)后电阻成功下降 {reduction_pct:.3f}% (R20: {r_before:.4f}Ω -> {window.outputs.r20:.4f}Ω)")
+
+    # 测试尝试切换为铝线：智能防冲突拦截并重置
+    window.combo_copper_grade.setCurrentIndex(4) # 纯铝
+    assert window.combo_copper_grade.currentIndex() in (0, 2), "铜线模具不可直接混切为铝线"
+    print("✔ 铜铝模具防冲突保护校验通过: 智能拦截非法铜铝混切！")
 
     # 验证仿真计算直接调用出厂 KM/KG 计算导体净重，并基于华冶漆膜密度计算绝缘重
     assert abs(window.outputs.weight_cu_g - (window.outputs.total_wire_len_m / 22.3532)) < 1e-4

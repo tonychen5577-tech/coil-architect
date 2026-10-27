@@ -2355,8 +2355,10 @@ class MainWindow(QMainWindow):
         from .wire_catalog_dialog import WireCatalogDialog
         curr_d = self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.080
         is_ccaw = getattr(self, "_is_current_wire_ccaw", False)
+        is_ofc = getattr(self, "_is_current_wire_ofc", False)
+        mat_type = 2 if is_ccaw else (3 if is_ofc else 1)
 
-        dlg = WireCatalogDialog(current_diameter=curr_d, is_ccaw=is_ccaw, parent=self)
+        dlg = WireCatalogDialog(current_diameter=curr_d, is_ccaw=is_ccaw, material_type=mat_type, parent=self)
         if dlg.exec():
             selected = dlg.selected_item
             if selected is not None:
@@ -2368,6 +2370,9 @@ class MainWindow(QMainWindow):
         self._catalog_km_kg = item.km_per_kg
         self._current_wire_density = item.density
         is_ccaw = ("铜包铝" in item.material_name)
+        is_ofc = ("无氧" in item.material_name) or (abs(item.resistivity - 0.01694915) < 1e-5)
+        self._is_current_wire_ccaw = is_ccaw
+        self._is_current_wire_ofc = is_ofc
         self._is_current_wire_ccaw = is_ccaw
 
         # 1. 确保导线形状为经典圆线并锁定
@@ -2392,17 +2397,23 @@ class MainWindow(QMainWindow):
         self.sb_max_od.setEnabled(False)
         self.sb_max_od.setToolTip(f"已锁定华冶外径 {'(1UEW-SB 含自粘胶)' if is_sb else '(1UEW 标准出厂)'} {eff_od:.3f} mm")
 
-        # 3. 联动材料等级下拉框，坚决锁定电导率选择与滑块，彻底杜绝计算冲突
+        # 3. 联动材料等级下拉框，智能防冲突联动 (铜线支持在纯铜与定制无氧铜之间自由比对)
         self.combo_copper_grade.blockSignals(True)
         if is_ccaw:
             self.combo_copper_grade.setCurrentIndex(3) # 15% 铜包铝
+            self.combo_copper_grade.setEnabled(False)
+            self.combo_copper_grade.setToolTip("已绑定华冶出厂 CCAW 材质（铝模具与铜模具不可混用）")
+        elif is_ofc:
+            self.combo_copper_grade.setCurrentIndex(2) # 无氧纯铜 (高纯退火态)
+            self.combo_copper_grade.setEnabled(True)
+            self.combo_copper_grade.setToolTip("当前为华冶定制无氧纯铜 (ρ=0.016949)；可在此快速切换比对普通纯铜 (ρ=0.017094)")
         else:
             self.combo_copper_grade.setCurrentIndex(0) # 纯铜 (华冶实测经验值)
+            self.combo_copper_grade.setEnabled(True)
+            self.combo_copper_grade.setToolTip("当前为华冶标准纯铜 (ρ=0.017094)；可在此快速切换比对定制无氧纯铜 (ρ=0.016949)")
         self.combo_copper_grade.blockSignals(False)
-        self.combo_copper_grade.setEnabled(False)
-        self.combo_copper_grade.setToolTip("已绑定华冶出厂材质经验值（锁定禁止修改，避免材质与出厂阻值/线密度冲突）")
         self.sb_copper_rho.setEnabled(False)
-        self.sb_copper_rho.setToolTip("已锁定华冶出厂材质电阻率")
+        self.sb_copper_rho.setToolTip("已锁定出厂材质基准电阻率")
 
         # 4. 锁定漆膜基准等级，但保持自粘层选项可选（微特音圈常基于华冶基线加工 1UEW-SB 自粘线）
         if hasattr(self, "combo_enamel_grade"):
@@ -2419,7 +2430,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "btn_reset_wire"):
             self.btn_reset_wire.setVisible(True)
 
-        mat_short = "CCAW" if is_ccaw else "纯铜"
+        mat_short = "CCAW" if is_ccaw else ("无氧纯铜" if is_ofc else "纯铜")
         sb_tag = " 1UEW-SB" if is_sb else " 1UEW"
         info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
         self.lbl_catalog_selected.setText(info_text)
@@ -2445,6 +2456,8 @@ class MainWindow(QMainWindow):
         """解除华冶出厂库锁定，恢复自由自定义线规设计模式"""
         self._current_catalog_item = None
         self._catalog_km_kg = 0.0
+        self._is_current_wire_ccaw = False
+        self._is_current_wire_ofc = False
 
         # 解锁全部参数与控件
         if hasattr(self, "combo_wire_shape"):
@@ -2487,7 +2500,8 @@ class MainWindow(QMainWindow):
             self.sb_max_od.setToolTip(f"已锁定华冶外径 {'(1UEW-SB 含自粘胶)' if checked else '(1UEW 标准出厂)'} {eff_od:.3f} mm")
 
             is_ccaw = getattr(self, "_is_current_wire_ccaw", False)
-            mat_short = "CCAW" if is_ccaw else "纯铜"
+            is_ofc = getattr(self, "_is_current_wire_ofc", False)
+            mat_short = "CCAW" if is_ccaw else ("无氧纯铜" if is_ofc else "纯铜")
             sb_tag = " 1UEW-SB" if checked else " 1UEW"
             info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
             self.lbl_catalog_selected.setText(info_text)
@@ -2547,7 +2561,40 @@ class MainWindow(QMainWindow):
     def _on_copper_grade_changed(self, idx: int):
         """响应导体电导率与材料等级切换 (严格华冶 5 档预设)"""
         if getattr(self, "_current_catalog_item", None) is not None:
-            return # 已锁定华冶出厂材质电导率，跳过自定义
+            # 若当前为华冶铜线，支持在纯铜(0)、国标纯铜(1)与定制无氧纯铜(2)之间自由无缝比对切换
+            if not getattr(self, "_is_current_wire_ccaw", False) and idx in (0, 1, 2):
+                data = self.combo_copper_grade.currentData()
+                if isinstance(data, tuple):
+                    rho_val, density_val = data
+                    self.sb_copper_rho.setValue(rho_val)
+                    self._is_current_wire_ofc = (idx == 2)
+                    item = self._current_catalog_item
+                    is_sb = self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else False
+                    eff_od = round(item.max_outer_dia + (0.006 if is_sb else 0.0), 4)
+                    sb_tag = " 1UEW-SB" if is_sb else " 1UEW"
+                    mat_short = "无氧纯铜" if idx == 2 else ("纯铜" if idx == 0 else "国标纯铜")
+                    a_cu = 3.141592653589793 * (item.diameter / 2.0)**2
+                    km_res = (1000.0 * rho_val) / a_cu if a_cu > 0 else 0.0
+                    info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {km_res:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
+                    self.lbl_catalog_selected.setText(info_text)
+                    self.lbl_catalog_selected.setToolTip(
+                        f"【华冶线材出厂规格 · {mat_short}】\n"
+                        f"公称裸径: {item.diameter:.3f} mm\n"
+                        f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
+                        f"当前KM阻值: {km_res:.1f} Ω/km (ρ={rho_val:.8f})\n"
+                        f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg\n"
+                        f"提示: 华冶模具与外径完全一致，已自动更新线圈 DCR 与温升计算！"
+                    )
+                    self.run_simulation()
+                return
+            elif getattr(self, "_is_current_wire_ccaw", False) and idx == 3:
+                return
+            else:
+                self.combo_copper_grade.blockSignals(True)
+                self.combo_copper_grade.setCurrentIndex(2 if getattr(self, "_is_current_wire_ofc", False) else (3 if getattr(self, "_is_current_wire_ccaw", False) else 0))
+                self.combo_copper_grade.blockSignals(False)
+                self.status_bar.showMessage("华冶出厂模具系列受限：铜线与铝线/铜包铝不可直接混切，如需更换请点击【华冶线材库】重新选型。", 3500)
+                return
         data = self.combo_copper_grade.currentData()
         if data is not None:
             if isinstance(data, tuple):
