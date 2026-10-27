@@ -10,8 +10,10 @@ Coil-Architect Pro - 华冶线材出厂标准库弹窗选择器 (Wire Catalog Di
 支持纯铜标准系列 (69档) 与 15% 铜包铝系列 (79档) 一键切换及快速关键字过滤搜索。
 """
 
+import os
 from typing import Optional, List
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
@@ -35,6 +37,13 @@ class WireCatalogDialog(QDialog):
         self.setWindowTitle("华冶线材出厂标准数据库 · 规格选型" if not i18n.is_english() else "Huaye Wire Specification Catalog")
         self.resize(920, 580)
         self.setMinimumSize(850, 480)
+
+        # 窗口左上角图标
+        logo_path = os.path.join(os.path.dirname(__file__), "resources", "huaye_logo.png")
+        if not os.path.exists(logo_path):
+            logo_path = os.path.abspath("docs/images/huaye_logo.png")
+        if os.path.exists(logo_path):
+            self.setWindowIcon(QIcon(logo_path))
         
         self.selected_item: Optional[WireCatalogItem] = None
         self._initial_diameter = current_diameter
@@ -51,10 +60,24 @@ class WireCatalogDialog(QDialog):
 
         # 1. 顶部标题栏
         top_bar = QHBoxLayout()
+        top_bar.setSpacing(10)
+
+        # 左上角华冶官方企业 LOGO
+        self.lbl_logo = QLabel()
+        logo_path = os.path.join(os.path.dirname(__file__), "resources", "huaye_logo.png")
+        if not os.path.exists(logo_path):
+            logo_path = os.path.abspath("docs/images/huaye_logo.png")
+        if os.path.exists(logo_path):
+            pix = QPixmap(logo_path)
+            if not pix.isNull():
+                self.lbl_logo.setPixmap(pix.scaledToHeight(36, Qt.TransformationMode.SmoothTransformation))
+                self.lbl_logo.setStyleSheet("padding-right: 4px;")
+        top_bar.addWidget(self.lbl_logo)
+
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
 
-        self.lbl_title = QLabel("📖 华冶漆包线出厂技术规格库")
+        self.lbl_title = QLabel("湖北中科华冶 · 漆包线出厂技术规格库")
         self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1B365D;")
         self.lbl_sub = QLabel("标准出厂参数直接导入 · 自动绑定线径、外径、千米电阻与线密度 · 其他非材料库尺寸需咨询华冶定制")
         self.lbl_sub.setStyleSheet("font-size: 11px; color: #64748B;")
