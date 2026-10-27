@@ -18,8 +18,7 @@ from .models import (
 RHO_CU_20 = 0.017241          # 20℃ 纯铜电阻率 (Ω·mm²/m)
 T_ABS_CU_ZERO = 234.5         # 铜线绝对零度推算基准温标 (℃)
 T_REF_20 = 20.0               # 标称参考温度 (℃)
-DENSITY_CU = 8.90             # 纯铜基准密度 (g/cm³) -> 0.00890 g/mm³
-DENSITY_INS = 1.25            # 基准绝缘固化密度 (g/cm³)
+DENSITY_CU = 8.90             # 华冶纯铜出厂基准密度 (g/cm³) -> 0.00890 g/mm³
 
 # -------------------------------------------------------------------------
 # 华冶官方实测烘焙固化漆膜密度表 (Enameled Wire Coating Densities, g/cm³)
@@ -487,7 +486,7 @@ class CoilPhysicsEngine:
         rho_cond = inputs.wire_density if inputs.wire_density > 0 else 8.90
         
         # 华冶实测烘焙固化漆膜密度自动精确匹配 (UEW 1.27, PEW 1.38, EIW 1.39, AIW 1.42, PIW 1.43, SB 1.07)
-        if inputs.insulation_density > 0 and abs(inputs.insulation_density - 1.25) > 1e-3:
+        if inputs.insulation_density > 0:
             rho_ins = inputs.insulation_density
         else:
             rho_ins = calculate_huaye_insulation_density(

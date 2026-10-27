@@ -245,7 +245,7 @@ class CoilOutputs:
     weight_actual_expected_g: float = 0.0 # 车间实测预测重量 (g, 考虑拉细负公差与张力修正)
     wire_fill_factor: float = 0.0 # 绕线区漆包线占空比 (%)
     copper_fill_factor: float = 0.0# 微观纯铜空间填充率 (%)
-    insulation_density: float = 1.25 # 实际采用的漆膜固化密度 (g/cm³)
+    insulation_density: float = 1.27 # 实际采用的漆膜固化密度 (g/cm³, 华冶实测基准)
     finished_km_per_kg: float = 0.0 # 成品线实际千米重量比 (km/kg, 含漆膜与自粘层)
     
     # 热学稳态
