@@ -1641,8 +1641,8 @@ class MainWindow(QMainWindow):
         layout_geo.addWidget(self.combo_coil_type)
 
         # 跑道型与圆线圈专属尺寸
-        self.sb_inner_len = FloatSliderBox("线圈内长 (IL)", "mm", 0.5, 40.0, 4.86, 0.01)
-        self.sb_inner_wid = FloatSliderBox("线圈内宽 (IW)", "mm", 0.2, 20.0, 1.50, 0.01)
+        self.sb_inner_len = FloatSliderBox("线圈内长 (IL)", "mm", 0.2, 500.0, 4.86, 0.01)
+        self.sb_inner_wid = FloatSliderBox("线圈内宽 (IW)", "mm", 0.1, 300.0, 1.50, 0.01)
         layout_geo.addWidget(self.sb_inner_len)
         layout_geo.addWidget(self.sb_inner_wid)
 
@@ -1656,9 +1656,9 @@ class MainWindow(QMainWindow):
         lbl_oct_hint.setStyleSheet("font-size: 10px; font-weight: 700; color: #0284C7; background: #F0F9FF; padding: 4px 6px; border-radius: 4px; border: 1px solid #BAE6FD;")
         layout_oct.addWidget(lbl_oct_hint)
 
-        self.sb_oct_id1 = FloatSliderBox("对边内径 ID1", "mm", 1.0, 25.0, 7.10, 0.01)
-        self.sb_oct_id2 = FloatSliderBox("对角内径 ID2", "mm", 1.0, 30.0, 7.05, 0.01)
-        self.sb_oct_r1 = FloatSliderBox("拐角内圆角 R1", "mm", 0.05, 1.50, 0.30, 0.01)
+        self.sb_oct_id1 = FloatSliderBox("对边内径 ID1", "mm", 0.5, 200.0, 7.10, 0.01)
+        self.sb_oct_id2 = FloatSliderBox("对角内径 ID2", "mm", 0.5, 250.0, 7.05, 0.01)
+        self.sb_oct_r1 = FloatSliderBox("拐角内圆角 R1", "mm", 0.01, 30.0, 0.30, 0.01)
 
         self._oct_l1 = 2.62
         self._oct_l2 = 2.74
@@ -1696,9 +1696,9 @@ class MainWindow(QMainWindow):
         lbl_perim_hint.setStyleSheet("font-size: 10px; font-weight: 700; color: #0D9488; background: #F0FDFA; padding: 4px 6px; border-radius: 4px; border: 1px solid #99F6E4;")
         layout_perim.addWidget(lbl_perim_hint)
 
-        self.sb_perim_in = FloatSliderBox("展开内周长 C_in", "mm", 1.0, 200.0, 20.0, 0.05)
-        self.sb_perim_outer_len = FloatSliderBox("参考外廓长 Max_X", "mm", 1.0, 50.0, 7.0, 0.05)
-        self.sb_perim_outer_wid = FloatSliderBox("参考外廓宽 Max_Y", "mm", 1.0, 50.0, 5.0, 0.05)
+        self.sb_perim_in = FloatSliderBox("展开内周长 C_in", "mm", 1.0, 2000.0, 20.0, 0.05)
+        self.sb_perim_outer_len = FloatSliderBox("参考外廓长 Max_X", "mm", 1.0, 800.0, 7.0, 0.05)
+        self.sb_perim_outer_wid = FloatSliderBox("参考外廓宽 Max_Y", "mm", 1.0, 800.0, 5.0, 0.05)
 
         self.sb_perim_in.valueChanged.connect(self.run_simulation)
         self.sb_perim_outer_len.valueChanged.connect(self.run_simulation)
@@ -1710,8 +1710,8 @@ class MainWindow(QMainWindow):
         self.w_perim_panel.setVisible(False)
         layout_geo.addWidget(self.w_perim_panel)
 
-        self.sb_radial_layers = FloatSliderBox("径向层数", "层", 0.5, 50.0, 14.0, 0.5, decimals=1)
-        self.sb_axial_turns = IntSliderBox("每层匝数", "匝", 1, 80, 12)
+        self.sb_radial_layers = FloatSliderBox("径向层数", "层", 0.5, 300.0, 14.0, 0.5, decimals=1)
+        self.sb_axial_turns = IntSliderBox("每层匝数", "匝", 1, 3000, 12)
 
         layout_geo.addWidget(self.sb_radial_layers)
         layout_geo.addWidget(self.sb_axial_turns)
@@ -1739,7 +1739,7 @@ class MainWindow(QMainWindow):
         layout_mold = QVBoxLayout(self.w_mold_panel)
         layout_mold.setContentsMargins(0, 0, 0, 0)
         layout_mold.setSpacing(4)
-        self.sb_mold_height = FloatSliderBox("模具压实厚度", "mm", 0.10, 5.00, 0.55, 0.01, decimals=2)
+        self.sb_mold_height = FloatSliderBox("模具压实厚度", "mm", 0.05, 100.00, 0.55, 0.01, decimals=2)
         layout_mold.addWidget(self.sb_mold_height)
         self.w_mold_panel.setVisible(False)
         layout_geo.addWidget(self.w_mold_panel)
@@ -1839,8 +1839,8 @@ class MainWindow(QMainWindow):
         layout_rw.setContentsMargins(0, 0, 0, 0)
         layout_rw.setSpacing(6)
 
-        self.sb_bare_dia = FloatSliderBox("铜线裸径 (d)", "mm", 0.010, 0.800, 0.075, 0.001)
-        self.sb_max_od = FloatSliderBox("漆包外径 (D)", "mm", 0.012, 1.000, 0.085, 0.001)
+        self.sb_bare_dia = FloatSliderBox("铜线裸径 (d)", "mm", 0.010, 3.500, 0.075, 0.001)
+        self.sb_max_od = FloatSliderBox("漆包外径 (D)", "mm", 0.012, 4.000, 0.085, 0.001)
         layout_rw.addWidget(self.sb_bare_dia)
         layout_rw.addWidget(self.sb_max_od)
         layout_wire.addWidget(self.container_round_wire)
@@ -1852,9 +1852,9 @@ class MainWindow(QMainWindow):
         layout_fw.setContentsMargins(0, 0, 0, 0)
         layout_fw.setSpacing(6)
 
-        self.sb_flat_w = FloatSliderBox("宽边宽度 (W)", "mm", 0.020, 3.000, 0.800, 0.005)
-        self.sb_flat_h = FloatSliderBox("高边厚度 (H)", "mm", 0.020, 2.000, 0.350, 0.005)
-        self.sb_flat_r = FloatSliderBox("倒圆角半径 (r)", "mm", 0.000, 0.500, 0.080, 0.005)
+        self.sb_flat_w = FloatSliderBox("宽边宽度 (W)", "mm", 0.020, 15.000, 0.800, 0.005)
+        self.sb_flat_h = FloatSliderBox("高边厚度 (H)", "mm", 0.020, 10.000, 0.350, 0.005)
+        self.sb_flat_r = FloatSliderBox("倒圆角半径 (r)", "mm", 0.000, 5.000, 0.080, 0.005)
         self.sb_flat_w.valueChanged.connect(self._on_flat_dim_changed)
         self.sb_flat_h.valueChanged.connect(self._on_flat_dim_changed)
         self.sb_flat_r.valueChanged.connect(self._on_flat_dim_changed)
@@ -1900,7 +1900,7 @@ class MainWindow(QMainWindow):
         layout_wire.addWidget(self.chk_self_bonding)
 
         # 6. 张力与材料电导率
-        self.sb_tension = FloatSliderBox("张力拉伸系数", "系数", 0.85, 1.00, 0.99, 0.005)
+        self.sb_tension = FloatSliderBox("张力拉伸系数", "系数", 0.70, 1.00, 0.99, 0.005)
         layout_wire.addWidget(self.sb_tension)
 
         self.lbl_rho = QLabel("导体材质与电导基准:")
@@ -1918,7 +1918,7 @@ class MainWindow(QMainWindow):
         self.combo_copper_grade.currentIndexChanged.connect(self._on_copper_grade_changed)
         layout_wire.addWidget(self.combo_copper_grade)
 
-        self.sb_copper_rho = FloatSliderBox("20℃材料电阻率", "Ω·mm²/m", 0.0150, 0.0300, 0.017094, 0.00001, decimals=6)
+        self.sb_copper_rho = FloatSliderBox("20℃材料电阻率", "Ω·mm²/m", 0.0100, 0.0500, 0.017094, 0.00001, decimals=6)
         self.sb_copper_rho.valueChanged.connect(self._on_copper_rho_slider_changed)
         layout_wire.addWidget(self.sb_copper_rho)
 
@@ -1948,9 +1948,9 @@ class MainWindow(QMainWindow):
         self.combo_thermal_env.currentIndexChanged.connect(self._on_thermal_env_changed)
         layout_thermal.addWidget(self.combo_thermal_env)
 
-        self.sb_ambient_temp = FloatSliderBox("环境温度", "℃", -20.0, 85.0, 20.0, 0.5)
-        self.sb_drive_current = FloatSliderBox("测试电流", "mA", 0.0, 500.0, 10.0, 1.0)
-        self.sb_convection_h = FloatSliderBox("散热对流系数", "W/(m²·K)", 5.0, 100.0, 25.0, 1.0)
+        self.sb_ambient_temp = FloatSliderBox("环境温度", "℃", -50.0, 180.0, 20.0, 0.5)
+        self.sb_drive_current = FloatSliderBox("测试电流", "mA", 0.0, 20000.0, 10.0, 1.0)
+        self.sb_convection_h = FloatSliderBox("散热对流系数", "W/(m²·K)", 1.0, 500.0, 25.0, 1.0)
         self.sb_convection_h.valueChanged.connect(self._on_convection_h_slider_changed)
 
         layout_thermal.addWidget(self.sb_ambient_temp)
@@ -1982,10 +1982,10 @@ class MainWindow(QMainWindow):
         layout_dfm_panel.setContentsMargins(0, 0, 0, 0)
         layout_dfm_panel.setSpacing(6)
 
-        self.sb_limit_x = FloatSliderBox("X向装配限值 (Max L)", "mm", 1.0, 30.0, 7.20, 0.05)
-        self.sb_limit_y = FloatSliderBox("Y向装配限值 (Max W)", "mm", 1.0, 20.0, 3.82, 0.05)
-        self.sb_limit_z = FloatSliderBox("Z向装配限高 (Max H)", "mm", 0.2, 10.0, 1.05, 0.02)
-        self.sb_limit_v = FloatSliderBox("驱动电压上限 (Max V)", "V", 0.5, 12.0, 2.80, 0.05)
+        self.sb_limit_x = FloatSliderBox("X向装配限值 (Max L)", "mm", 1.0, 600.0, 7.20, 0.05)
+        self.sb_limit_y = FloatSliderBox("Y向装配限值 (Max W)", "mm", 1.0, 400.0, 3.82, 0.05)
+        self.sb_limit_z = FloatSliderBox("Z向装配限高 (Max H)", "mm", 0.1, 150.0, 1.05, 0.02)
+        self.sb_limit_v = FloatSliderBox("驱动电压上限 (Max V)", "V", 0.1, 120.0, 2.80, 0.05)
 
         # 漆包线绝缘耐温等级快捷选择
         self.lbl_temp_class = QLabel("漆包线耐温等级:")
@@ -2003,7 +2003,7 @@ class MainWindow(QMainWindow):
         self.combo_temp_class.currentIndexChanged.connect(self._on_temp_class_changed)
         layout_dfm_panel.addWidget(self.combo_temp_class)
 
-        self.sb_limit_t = FloatSliderBox("耐温安全上限", "℃", 60.0, 220.0, 155.0, 5.0)
+        self.sb_limit_t = FloatSliderBox("耐温安全上限", "℃", 40.0, 350.0, 155.0, 5.0)
         self.sb_limit_t.valueChanged.connect(self._on_limit_t_slider_changed)
 
         layout_dfm_panel.addWidget(self.sb_limit_x)
@@ -2012,8 +2012,8 @@ class MainWindow(QMainWindow):
         layout_dfm_panel.addWidget(self.sb_limit_v)
         layout_dfm_panel.addWidget(self.sb_limit_t)
 
-        self.sb_withstand_ground = FloatSliderBox("对地/轭铁耐压要求", "VAC", 500, 5000, 3000, 100)
-        self.sb_withstand_turn = FloatSliderBox("匝间冲击耐压要求", "V", 200, 3000, 1400, 50)
+        self.sb_withstand_ground = FloatSliderBox("对地/轭铁耐压要求", "VAC", 100, 20000, 3000, 100)
+        self.sb_withstand_turn = FloatSliderBox("匝间冲击耐压要求", "V", 50, 10000, 1400, 50)
         self.sb_withstand_ground.valueChanged.connect(self.run_simulation)
         self.sb_withstand_turn.valueChanged.connect(self.run_simulation)
         layout_dfm_panel.addWidget(self.sb_withstand_ground)

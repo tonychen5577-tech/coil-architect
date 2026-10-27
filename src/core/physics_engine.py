@@ -152,7 +152,7 @@ class CoilPhysicsEngine:
 
         inputs.radial_layers = max(0.5, float(inputs.radial_layers))
         inputs.axial_turns = max(1, int(inputs.axial_turns))
-        inputs.tension_factor = max(0.80, min(1.00, float(inputs.tension_factor)))
+        inputs.tension_factor = max(0.70, min(1.00, float(inputs.tension_factor)))
         inputs.convection_h = max(1.0, float(inputs.convection_h))
         inputs.drive_current_ma = max(0.0, float(inputs.drive_current_ma))
         inputs.copper_resistivity = max(0.010, float(inputs.copper_resistivity))

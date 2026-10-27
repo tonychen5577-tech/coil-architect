@@ -150,7 +150,7 @@ class FloatSliderBox(QWidget):
         self.spin.setSingleStep(step)
         self.spin.setDecimals(decimals)
         self.spin.setValue(default_val)
-        self.spin.setFixedWidth(118 if decimals >= 5 else 98)
+        self.spin.setFixedWidth(120 if decimals >= 5 else 105)
 
         control_layout.addWidget(self.slider)
         control_layout.addWidget(self.spin)
@@ -286,7 +286,7 @@ class IntSliderBox(QWidget):
         self.spin = ClickableSpinBox()
         self.spin.setRange(min_val, max_val)
         self.spin.setValue(default_val)
-        self.spin.setFixedWidth(85)
+        self.spin.setFixedWidth(98)
 
         control_layout.addWidget(self.slider)
         control_layout.addWidget(self.spin)
