@@ -1896,7 +1896,7 @@ class MainWindow(QMainWindow):
         self.chk_self_bonding.setChecked(True) # 默认设定为自粘线 (脱模空心微特线圈标配)
         self.chk_self_bonding.setToolTip("【复合自粘线】采用华冶实测烘焙固化双层密度计算：内层 UEW (1.27 g/cm³) + 外层自粘胶 SB (1.07 g/cm³)")
         self.chk_self_bonding.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569; margin: 2px 0px;")
-        self.chk_self_bonding.toggled.connect(self.run_simulation)
+        self.chk_self_bonding.toggled.connect(self._on_self_bonding_toggled)
         layout_wire.addWidget(self.chk_self_bonding)
 
         # 6. 张力与材料电导率
@@ -2379,15 +2379,18 @@ class MainWindow(QMainWindow):
             self.combo_wire_shape.blockSignals(False)
 
         # 2. 自动填充裸径、外径与材料电阻率
+        is_sb = self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else False
+        eff_od = round(item.max_outer_dia + (0.006 if is_sb else 0.0), 4)
+
         self.sb_bare_dia.setValue(item.diameter)
-        self.sb_max_od.setValue(item.max_outer_dia)
+        self.sb_max_od.setValue(eff_od)
         self.sb_copper_rho.setValue(item.resistivity)
 
         # 锁定裸径与外径，杜绝手动微调导致与出厂规格冲突
         self.sb_bare_dia.setEnabled(False)
         self.sb_bare_dia.setToolTip(f"已锁定华冶标准裸径 {item.diameter:.3f} mm")
         self.sb_max_od.setEnabled(False)
-        self.sb_max_od.setToolTip(f"已锁定华冶标准最大外径 {item.max_outer_dia:.3f} mm")
+        self.sb_max_od.setToolTip(f"已锁定华冶外径 {'(1UEW-SB 含自粘胶)' if is_sb else '(1UEW 标准出厂)'} {eff_od:.3f} mm")
 
         # 3. 联动材料等级下拉框，坚决锁定电导率选择与滑块，彻底杜绝计算冲突
         self.combo_copper_grade.blockSignals(True)
@@ -2401,7 +2404,7 @@ class MainWindow(QMainWindow):
         self.sb_copper_rho.setEnabled(False)
         self.sb_copper_rho.setToolTip("已锁定华冶出厂材质电阻率")
 
-        # 4. 锁定漆膜绝缘等级与自粘层（出厂规格表基准为 1UEW 聚氨酯漆包圆线）
+        # 4. 锁定漆膜基准等级，但保持自粘层选项可选（微特音圈常基于华冶基线加工 1UEW-SB 自粘线）
         if hasattr(self, "combo_enamel_grade"):
             self.combo_enamel_grade.blockSignals(True)
             self.combo_enamel_grade.setCurrentIndex(1) # 1 级 (单涂层 1UEW)
@@ -2409,31 +2412,31 @@ class MainWindow(QMainWindow):
             self.combo_enamel_grade.setToolTip("华冶出厂规格表基准为 1UEW 漆膜（如需自定义漆膜等级请点击【✕ 自定义】）")
             self.combo_enamel_grade.blockSignals(False)
         if hasattr(self, "chk_self_bonding"):
-            self.chk_self_bonding.blockSignals(True)
-            self.chk_self_bonding.setChecked(False)
-            self.chk_self_bonding.setEnabled(False)
-            self.chk_self_bonding.setToolTip("华冶出厂规格表为非自粘漆包圆线")
-            self.chk_self_bonding.blockSignals(False)
+            self.chk_self_bonding.setEnabled(True)
+            self.chk_self_bonding.setToolTip("可根据需要切换华冶 1UEW 原厂线或 1UEW-SB 复合自粘线（勾选即叠加 0.006mm 自粘胶与 1.07g/cm³ 胶层重量）")
 
         # 5. 显示恢复自定义按钮与锁定微标
         if hasattr(self, "btn_reset_wire"):
             self.btn_reset_wire.setVisible(True)
 
         mat_short = "CCAW" if is_ccaw else "纯铜"
-        info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {item.max_outer_dia:.3f}mm | {item.km_resistance_ohm:.1f}Ω/km | {item.km_per_kg:.2f}km/kg)"
+        sb_tag = " 1UEW-SB" if is_sb else " 1UEW"
+        info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
         self.lbl_catalog_selected.setText(info_text)
         self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 700; color: #0284C7;")
         self.lbl_catalog_selected.setToolTip(
             f"【华冶线材出厂规格 · 已全面锁定物理参数】\n"
             f"材质: {item.material_name}\n"
             f"公称裸径: {item.diameter:.3f} mm\n"
-            f"最大外径: {item.max_outer_dia:.3f} mm\n"
-            f"KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
-            f"线密度 KM/KG: {item.km_per_kg:.3f} km/kg (已调入仿真计算线重)\n"
-            f"提示: 为保证计算绝对严谨，已锁定材质电导率、漆膜等级与外径。点击右侧【✕ 自定义】可解除锁定。"
+            f"基准外径: {item.max_outer_dia:.3f} mm (1UEW 标准)\n"
+            f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
+            f"出厂KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
+            f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg\n"
+            f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
+            f"提示: 华冶出厂KM/KG仅为裸导体米重。仿真已自动按实测固化密度严格累加漆膜与胶层重量！"
         )
         self.status_bar.showMessage(
-            f"已载入华冶线材: {item.diameter:.3f}mm | 阻值={item.km_resistance_ohm:.1f}Ω/km | 线密度={item.km_per_kg:.3f}km/kg (已锁定材质与几何参数)",
+            f"已载入华冶线材: {item.diameter:.3f}mm{sb_tag} | 阻值={item.km_resistance_ohm:.1f}Ω/km | 裸铜={item.km_per_kg:.3f}km/kg (已严谨计入漆胶重量)",
             3500
         )
         self.run_simulation()
@@ -2473,6 +2476,34 @@ class MainWindow(QMainWindow):
         self.lbl_catalog_selected.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
         self.lbl_catalog_selected.setToolTip("")
         self.status_bar.showMessage("已恢复自由自定义线规设计模式（所有参数已解锁）", 3000)
+        self.run_simulation()
+
+    def _on_self_bonding_toggled(self, checked: bool):
+        """响应自粘层勾选状态变动 (无论是华冶库线材还是自定义线材，均自适应联动外径与复合固化密度)"""
+        if getattr(self, "_current_catalog_item", None) is not None:
+            item = self._current_catalog_item
+            eff_od = round(item.max_outer_dia + (0.006 if checked else 0.0), 4)
+            self.sb_max_od.setValue(eff_od)
+            self.sb_max_od.setToolTip(f"已锁定华冶外径 {'(1UEW-SB 含自粘胶)' if checked else '(1UEW 标准出厂)'} {eff_od:.3f} mm")
+
+            is_ccaw = getattr(self, "_is_current_wire_ccaw", False)
+            mat_short = "CCAW" if is_ccaw else "纯铜"
+            sb_tag = " 1UEW-SB" if checked else " 1UEW"
+            info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
+            self.lbl_catalog_selected.setText(info_text)
+            self.lbl_catalog_selected.setToolTip(
+                f"【华冶线材出厂规格 · 已全面锁定物理参数】\n"
+                f"材质: {item.material_name}\n"
+                f"公称裸径: {item.diameter:.3f} mm\n"
+                f"基准外径: {item.max_outer_dia:.3f} mm (1UEW 标准)\n"
+                f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
+                f"出厂KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
+                f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg\n"
+                f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
+                f"提示: 华冶出厂KM/KG仅为裸导体米重。仿真已自动按实测固化密度严格累加漆膜与胶层重量！"
+            )
+        else:
+            self._on_enamel_grade_changed(0)
         self.run_simulation()
 
     def _on_enamel_grade_changed(self, idx: int):
@@ -2751,11 +2782,11 @@ class MainWindow(QMainWindow):
                 )
             else:
                 self.card_weight.setToolTip(
-                    f"【线圈称重双基准明细】\n"
+                    f"【线圈称重双基准明细 · 严谨计入漆膜/自粘胶重】\n"
                     f"理论公称总重: {self.outputs.weight_theoretical_g:.4f} g\n"
-                    f"  - 导体净重: {self.outputs.weight_cu_g:.4f} g ({self.outputs.weight_cu_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%)\n"
-                    f"  - 绝缘/自粘胶净重: {self.outputs.weight_ins_g:.4f} g ({self.outputs.weight_ins_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%, 固化密度={self.outputs.insulation_density:.3f}g/cm³)\n"
-                    f"  - 成品线实际米数: {self.outputs.finished_km_per_kg:.1f} km/kg (含漆膜/自粘层)\n"
+                    f"  - 导体裸重: {self.outputs.weight_cu_g:.4f} g ({self.outputs.weight_cu_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%, 基准出厂米重)\n"
+                    f"  - 绝缘/自粘胶净重: {self.outputs.weight_ins_g:.4f} g ({self.outputs.weight_ins_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%, 华冶实测固化密度={self.outputs.insulation_density:.3f}g/cm³)\n"
+                    f"  - 成品线真实千米米数: {self.outputs.finished_km_per_kg:.1f} km/kg (含漆膜/自粘层真实总重)\n"
                     f"车间实测预测重: {self.outputs.weight_actual_expected_g:.4f} g (考虑拉细负公差与张力拉伸)"
                 )
             self.card_wire_fill.setValue(f"{self.outputs.wire_fill_factor:.2f}")

@@ -174,20 +174,27 @@ def test_05_gui_dialog_and_material_presets():
     cu_item = find_wire_by_diameter(0.080, 1)
     window._apply_catalog_wire(cu_item)
     assert abs(window.sb_bare_dia.value() - 0.080) < 1e-4
-    assert abs(window.sb_max_od.value() - 0.083) < 1e-4
+    # 默认勾选自粘线：外径自动适配 1UEW-SB (0.083 + 0.006 = 0.089mm)
+    assert abs(window.sb_max_od.value() - 0.089) < 1e-4
     assert abs(getattr(window, "_catalog_km_kg", 0.0) - 22.3532) < 1e-3
     assert "22.35" in window.lbl_catalog_selected.text()
+    assert "1UEW-SB" in window.lbl_catalog_selected.text()
 
-    # 4. 严格校验锁定机制：选定出厂线规后，必须锁定电导率等级及全部冲突几何/材质选项
+    # 测试取消自粘层：外径自动回退为标准 1UEW (0.083mm)
+    window.chk_self_bonding.setChecked(False)
+    assert abs(window.sb_max_od.value() - 0.083) < 1e-4
+    assert "1UEW" in window.lbl_catalog_selected.text()
+
+    # 4. 严格校验锁定机制：选定出厂线规后，必须锁定电导率等级及裸导体尺寸等冲突选项
     assert not window.combo_copper_grade.isEnabled(), "combo_copper_grade 必须锁定禁用"
     assert not window.sb_copper_rho.isEnabled(), "sb_copper_rho 必须锁定禁用"
     assert not window.sb_bare_dia.isEnabled(), "sb_bare_dia 必须锁定禁用"
     assert not window.sb_max_od.isEnabled(), "sb_max_od 必须锁定禁用"
     assert not window.combo_enamel_grade.isEnabled(), "combo_enamel_grade 必须锁定禁用"
-    assert not window.chk_self_bonding.isEnabled(), "chk_self_bonding 必须锁定禁用"
+    assert window.chk_self_bonding.isEnabled(), "chk_self_bonding 允许自由切换 1UEW 与 1UEW-SB"
     assert not window.combo_wire_shape.isEnabled(), "combo_wire_shape 必须锁定禁用"
     assert window.btn_reset_wire.isVisible(), "恢复自定义按钮必须显现"
-    print("✔ 华冶线规防冲突锁定校验通过: 电导率等级、电阻率滑块、线径、外径、漆膜等级、自粘层、导线形状全部严格锁定！")
+    print("✔ 华冶线规防冲突锁定校验通过: 材质、电阻率、裸径、外径、漆膜等级严格防冲突锁定，自粘线灵活支持！")
 
     # 验证仿真计算直接调用出厂 KM/KG 计算导体净重，并基于华冶漆膜密度计算绝缘重
     assert abs(window.outputs.weight_cu_g - (window.outputs.total_wire_len_m / 22.3532)) < 1e-4
