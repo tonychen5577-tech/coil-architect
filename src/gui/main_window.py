@@ -16,7 +16,8 @@ from PyQt6.QtWidgets import (
     QLineEdit, QInputDialog, QApplication, QScrollBar, QSizePolicy
 )
 
-from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType
+from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType, WireShape, WireCatalogType, EnamelGrade, WindingDirection
+from ..core.wire_catalog import get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
 from ..core.physics_engine import CoilPhysicsEngine
 from .styles import LIGHT_INDUSTRIAL_QSS
 from .widgets.slider_spin_box import FloatSliderBox, IntSliderBox
@@ -381,6 +382,20 @@ class MainWindow(QMainWindow):
             self.sb_mold_height.setTitle(t("lbl_die_press_thk", "模具压实厚度"))
 
         # 左侧参数面板 - 卡片2: 线材与张力
+        if hasattr(self, "lbl_wire_shape"):
+            self.lbl_wire_shape.setText(t("lbl_wire_shape", "线材截面形态:"))
+        if hasattr(self, "lbl_wire_catalog"):
+            self.lbl_wire_catalog.setText(t("lbl_wire_catalog", "线材规格标准库:"))
+        if hasattr(self, "lbl_enamel"):
+            self.lbl_enamel.setText(t("lbl_enamel", "漆膜绝缘等级:"))
+        if hasattr(self, "lbl_flat_winding_dir"):
+            self.lbl_flat_winding_dir.setText(t("lbl_flat_winding_dir", "扁线排线方向:"))
+        if hasattr(self, "chk_self_bonding"):
+            self.chk_self_bonding.setText(t("chk_self_bonding", "复合热风/酒精自粘胶层 (Self-Bonding)"))
+        if hasattr(self, "sb_withstand_ground"):
+            self.sb_withstand_ground.setTitle(t("lbl_withstand_ground", "对地/轭铁耐压要求"))
+        if hasattr(self, "sb_withstand_turn"):
+            self.sb_withstand_turn.setTitle(t("lbl_withstand_turn", "匝间冲击耐压要求"))
         if hasattr(self, "lbl_wire"):
             self.lbl_wire.setText(t("sec_wire_params", "▶ 漆包线线材与张力"))
         if hasattr(self, "sb_bare_dia"):
@@ -1730,29 +1745,120 @@ class MainWindow(QMainWindow):
         lbl_wire.setProperty("class", "SectionTitle")
         layout_wire.addWidget(lbl_wire)
 
+        # 1. 线材截面形态选择 (圆线 / 正方线 / 长方扁线)
+        self.lbl_wire_shape = QLabel("线材截面形态:")
+        self.lbl_wire_shape.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        layout_wire.addWidget(self.lbl_wire_shape)
+
+        self.combo_wire_shape = QComboBox()
+        self.combo_wire_shape.addItem("经典圆线 (Round Wire)", WireShape.ROUND)
+        self.combo_wire_shape.addItem("正方形方线 (Square Wire)", WireShape.SQUARE)
+        self.combo_wire_shape.addItem("长方形扁线 (Rectangular Flat)", WireShape.RECTANGULAR)
+        self.combo_wire_shape.currentIndexChanged.connect(self._on_wire_shape_changed)
+        layout_wire.addWidget(self.combo_wire_shape)
+
+        # 2. 线材规格库选择 (通用自定义 / 华冶纯铜 69档 / 华冶铜包铝 79档)
+        self.lbl_wire_catalog = QLabel("线材规格标准库:")
+        self.lbl_wire_catalog.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
+        layout_wire.addWidget(self.lbl_wire_catalog)
+
+        self.combo_wire_catalog = QComboBox()
+        self.combo_wire_catalog.addItem("通用自定义线规", WireCatalogType.CUSTOM)
+        self.combo_wire_catalog.addItem("华冶线材 · 纯铜出厂系列 (69档)", WireCatalogType.HUAYE_COPPER)
+        self.combo_wire_catalog.addItem("华冶线材 · 15%铜包铝系列 (79档)", WireCatalogType.HUAYE_CCAW)
+        self.combo_wire_catalog.currentIndexChanged.connect(self._on_wire_catalog_type_changed)
+        layout_wire.addWidget(self.combo_wire_catalog)
+
+        # 华冶线规快速下拉选单 (默认隐藏)
+        self.combo_huaye_wire = QComboBox()
+        self.combo_huaye_wire.setVisible(False)
+        self.combo_huaye_wire.currentIndexChanged.connect(self._on_huaye_wire_selected)
+        layout_wire.addWidget(self.combo_huaye_wire)
+
+        # 3. 圆线专属参数容器
+        self.container_round_wire = QWidget()
+        layout_rw = QVBoxLayout(self.container_round_wire)
+        layout_rw.setContentsMargins(0, 0, 0, 0)
+        layout_rw.setSpacing(6)
+
         self.sb_bare_dia = FloatSliderBox("铜线裸径 (d)", "mm", 0.010, 0.800, 0.075, 0.001)
         self.sb_max_od = FloatSliderBox("漆包外径 (D)", "mm", 0.012, 1.000, 0.085, 0.001)
-        self.sb_tension = FloatSliderBox("张力拉伸系数", "系数", 0.85, 1.00, 0.99, 0.005)
+        layout_rw.addWidget(self.sb_bare_dia)
+        layout_rw.addWidget(self.sb_max_od)
+        layout_wire.addWidget(self.container_round_wire)
 
-        layout_wire.addWidget(self.sb_bare_dia)
-        layout_wire.addWidget(self.sb_max_od)
+        # 4. 方线/扁线专属参数容器 (默认隐藏)
+        self.container_flat_wire = QWidget()
+        self.container_flat_wire.setVisible(False)
+        layout_fw = QVBoxLayout(self.container_flat_wire)
+        layout_fw.setContentsMargins(0, 0, 0, 0)
+        layout_fw.setSpacing(6)
+
+        self.sb_flat_w = FloatSliderBox("宽边宽度 (W)", "mm", 0.020, 3.000, 0.800, 0.005)
+        self.sb_flat_h = FloatSliderBox("高边厚度 (H)", "mm", 0.020, 2.000, 0.350, 0.005)
+        self.sb_flat_r = FloatSliderBox("倒圆角半径 (r)", "mm", 0.000, 0.500, 0.080, 0.005)
+        self.sb_flat_w.valueChanged.connect(self._on_flat_dim_changed)
+        self.sb_flat_h.valueChanged.connect(self._on_flat_dim_changed)
+        self.sb_flat_r.valueChanged.connect(self._on_flat_dim_changed)
+
+        self.lbl_flat_winding_dir = QLabel("扁线排线方向:")
+        self.lbl_flat_winding_dir.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
+        self.combo_flat_winding_dir = QComboBox()
+        self.combo_flat_winding_dir.addItem("平绕 / 卧绕 (Flatwise · 端面薄)", WindingDirection.FLATWISE)
+        self.combo_flat_winding_dir.addItem("立绕 / 侧绕 (Edgewise · 高散热)", WindingDirection.EDGEWISE)
+        self.combo_flat_winding_dir.currentIndexChanged.connect(self.run_simulation)
+
+        self.lbl_flat_summary = QLabel("📐 真实截面: 0.273 mm² | 等效圆径: 0.590 mm")
+        self.lbl_flat_summary.setStyleSheet("font-size: 10px; color: #0284C7; font-weight: 600; padding: 2px 0px;")
+
+        layout_fw.addWidget(self.sb_flat_w)
+        layout_fw.addWidget(self.sb_flat_h)
+        layout_fw.addWidget(self.sb_flat_r)
+        layout_fw.addWidget(self.lbl_flat_winding_dir)
+        layout_fw.addWidget(self.combo_flat_winding_dir)
+        layout_fw.addWidget(self.lbl_flat_summary)
+        layout_wire.addWidget(self.container_flat_wire)
+
+        # 5. 漆膜等级细化与自粘胶层
+        self.lbl_enamel = QLabel("漆膜绝缘等级:")
+        self.lbl_enamel.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
+        layout_wire.addWidget(self.lbl_enamel)
+
+        self.combo_enamel_grade = QComboBox()
+        self.combo_enamel_grade.addItem("0 级 (超薄微细漆膜, 外径+0.003mm)", EnamelGrade.GRADE_0)
+        self.combo_enamel_grade.addItem("1 级 (单涂层 1UEW/1PEW, 外径+0.008mm)", EnamelGrade.GRADE_1)
+        self.combo_enamel_grade.addItem("2 级 (加厚双涂层 2UEW/2PEW · 工业推荐)", EnamelGrade.GRADE_2)
+        self.combo_enamel_grade.addItem("3 级 (超厚特种涂层 3UEW, 外径+0.022mm)", EnamelGrade.GRADE_3)
+        self.combo_enamel_grade.addItem("自粘复合层 (Self-Bonding / SB)", EnamelGrade.SELF_BONDING)
+        self.combo_enamel_grade.setCurrentIndex(2) # 默认 Grade 2
+        self.combo_enamel_grade.currentIndexChanged.connect(self._on_enamel_grade_changed)
+        layout_wire.addWidget(self.combo_enamel_grade)
+
+        self.chk_self_bonding = QCheckBox("复合热风/酒精自粘胶层 (Self-Bonding)")
+        self.chk_self_bonding.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569; margin: 2px 0px;")
+        self.chk_self_bonding.toggled.connect(self.run_simulation)
+        layout_wire.addWidget(self.chk_self_bonding)
+
+        # 6. 张力与材料电导率
+        self.sb_tension = FloatSliderBox("张力拉伸系数", "系数", 0.85, 1.00, 0.99, 0.005)
         layout_wire.addWidget(self.sb_tension)
 
-        self.lbl_rho = QLabel("铜材电导等级:")
+        self.lbl_rho = QLabel("导体材质与电导基准:")
         lbl_rho = self.lbl_rho
         lbl_rho.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
         layout_wire.addWidget(lbl_rho)
 
         self.combo_copper_grade = QComboBox()
-        self.combo_copper_grade.addItem("高导电率无氧铜 OFHC", 0.016959)
-        self.combo_copper_grade.addItem("厂家出厂典型实测", 0.016920)
-        self.combo_copper_grade.addItem("国内厂家规格书基准", 0.017100)
-        self.combo_copper_grade.addItem("国际标准退火纯铜 IACS", 0.017241)
+        self.combo_copper_grade.addItem("纯铜 (华冶实测经验 1/58.5: 0.017094)", 0.017094)
+        self.combo_copper_grade.addItem("高导电率无氧铜 OFHC (0.016959)", 0.016959)
+        self.combo_copper_grade.addItem("厂家出厂典型实测 (0.016920)", 0.016920)
+        self.combo_copper_grade.addItem("国际标准退火纯铜 IACS (0.017241)", 0.017241)
+        self.combo_copper_grade.addItem("15% 铜包铝经验值 CCAW (0.025250)", 0.025250)
         self.combo_copper_grade.addItem("自定义实测电阻率", -1.0)
         self.combo_copper_grade.currentIndexChanged.connect(self._on_copper_grade_changed)
         layout_wire.addWidget(self.combo_copper_grade)
 
-        self.sb_copper_rho = FloatSliderBox("20℃铜电阻率", "Ω·mm²/m", 0.0150, 0.0200, 0.016959, 0.00001, decimals=6)
+        self.sb_copper_rho = FloatSliderBox("20℃材料电阻率", "Ω·mm²/m", 0.0150, 0.0300, 0.017094, 0.00001, decimals=6)
         self.sb_copper_rho.valueChanged.connect(self._on_copper_rho_slider_changed)
         layout_wire.addWidget(self.sb_copper_rho)
 
@@ -1845,6 +1951,13 @@ class MainWindow(QMainWindow):
         layout_dfm_panel.addWidget(self.sb_limit_z)
         layout_dfm_panel.addWidget(self.sb_limit_v)
         layout_dfm_panel.addWidget(self.sb_limit_t)
+
+        self.sb_withstand_ground = FloatSliderBox("对地/轭铁耐压要求", "VAC", 500, 5000, 3000, 100)
+        self.sb_withstand_turn = FloatSliderBox("匝间冲击耐压要求", "V", 200, 3000, 1400, 50)
+        self.sb_withstand_ground.valueChanged.connect(self.run_simulation)
+        self.sb_withstand_turn.valueChanged.connect(self.run_simulation)
+        layout_dfm_panel.addWidget(self.sb_withstand_ground)
+        layout_dfm_panel.addWidget(self.sb_withstand_turn)
 
         self.w_dfm_panel.setEnabled(False)
         layout_dfm.addWidget(self.w_dfm_panel)
@@ -2157,6 +2270,112 @@ class MainWindow(QMainWindow):
                 self.sb_inner_len.setValue(self.sb_inner_wid.value())
         self.run_simulation()
 
+    def _on_wire_shape_changed(self, idx: int):
+        """响应线材截面形态切换 (圆线 / 正方线 / 长方扁线)"""
+        shape = self.combo_wire_shape.currentData()
+        is_flat = (shape in (WireShape.SQUARE, WireShape.RECTANGULAR))
+        is_square = (shape == WireShape.SQUARE)
+
+        self.container_round_wire.setVisible(not is_flat)
+        self.container_flat_wire.setVisible(is_flat)
+
+        if is_square:
+            self.sb_flat_h.setVisible(False)
+            self.sb_flat_w.lbl_title.setText(t("lbl_square_side", "正方边长 (a)"))
+        else:
+            self.sb_flat_h.setVisible(True)
+            self.sb_flat_w.lbl_title.setText(t("lbl_flat_w", "宽边宽度 (W)"))
+            self.sb_flat_h.lbl_title.setText(t("lbl_flat_h", "高边厚度 (H)"))
+
+        self._on_flat_dim_changed()
+        self.run_simulation()
+
+    def _on_wire_catalog_type_changed(self, idx: int):
+        """响应线规库切换 (自定义 / 华冶纯铜 / 华冶铜包铝)"""
+        cat_type = self.combo_wire_catalog.currentData()
+        self.combo_huaye_wire.blockSignals(True)
+        self.combo_huaye_wire.clear()
+
+        if cat_type == WireCatalogType.CUSTOM:
+            self.combo_huaye_wire.setVisible(False)
+        else:
+            self.combo_huaye_wire.setVisible(True)
+            wires = get_huaye_copper_wires() if cat_type == WireCatalogType.HUAYE_COPPER else get_huaye_ccaw_wires()
+            for w in wires:
+                self.combo_huaye_wire.addItem(w.display_label, w)
+
+            # 自动选择最接近当前裸径的规格
+            curr_d = self.sb_bare_dia.value()
+            matched = find_wire_by_diameter(curr_d, 1 if cat_type == WireCatalogType.HUAYE_COPPER else 2)
+            if matched:
+                for i in range(self.combo_huaye_wire.count()):
+                    item = self.combo_huaye_wire.itemData(i)
+                    if abs(item.diameter - matched.diameter) < 1e-4:
+                        self.combo_huaye_wire.setCurrentIndex(i)
+                        break
+
+            # 联动材料电阻率与密度
+            if cat_type == WireCatalogType.HUAYE_COPPER:
+                self.sb_copper_rho.setValue(0.017094)
+                self.combo_copper_grade.setCurrentIndex(0)
+            else:
+                self.sb_copper_rho.setValue(0.025250)
+                self.combo_copper_grade.setCurrentIndex(4)
+
+        self.combo_huaye_wire.blockSignals(False)
+        self._on_huaye_wire_selected(self.combo_huaye_wire.currentIndex())
+
+    def _on_huaye_wire_selected(self, idx: int):
+        """选中华冶线材具体规格条目"""
+        if not self.combo_huaye_wire.isVisible() or idx < 0:
+            return
+        item = self.combo_huaye_wire.itemData(idx)
+        if item is not None:
+            self.sb_bare_dia.setValue(item.diameter)
+            self.sb_max_od.setValue(item.max_outer_dia)
+            self.sb_copper_rho.setValue(item.resistivity)
+            self.status_bar.showMessage(
+                f"已调入华冶出厂线材: {item.material_name} | 裸径={item.diameter:.3f}mm | 最大外径={item.max_outer_dia:.3f}mm | {item.km_resistance_ohm:.1f}Ω/km",
+                3500
+            )
+            self.run_simulation()
+
+    def _on_enamel_grade_changed(self, idx: int):
+        """漆膜等级变动联动外径增量预估"""
+        grade = self.combo_enamel_grade.currentData()
+        if hasattr(self, "sb_bare_dia") and hasattr(self, "sb_max_od") and not self.combo_huaye_wire.isVisible():
+            d = self.sb_bare_dia.value()
+            inc_map = {
+                EnamelGrade.GRADE_0: 0.003,
+                EnamelGrade.GRADE_1: 0.008,
+                EnamelGrade.GRADE_2: 0.014,
+                EnamelGrade.GRADE_3: 0.022,
+                EnamelGrade.SELF_BONDING: 0.018,
+            }
+            inc = inc_map.get(grade, 0.014)
+            if hasattr(self, "chk_self_bonding") and self.chk_self_bonding.isChecked() and grade != EnamelGrade.SELF_BONDING:
+                inc += 0.006
+            self.sb_max_od.setValue(round(d + inc, 4))
+        self.run_simulation()
+
+    def _on_flat_dim_changed(self):
+        """方线/扁线尺寸变动实时刷新面积与等效圆"""
+        if not hasattr(self, "sb_flat_w") or not hasattr(self, "sb_flat_h"):
+            return
+        shape = self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND
+        if shape == WireShape.SQUARE:
+            w = self.sb_flat_w.value()
+            h = w
+        else:
+            w = max(self.sb_flat_w.value(), self.sb_flat_h.value())
+            h = min(self.sb_flat_w.value(), self.sb_flat_h.value())
+        r = min(self.sb_flat_r.value(), h / 2.0)
+        area = w * h - (4.0 - 3.14159265) * (r ** 2)
+        d_eq = 2.0 * (area / 3.14159265) ** 0.5
+        if hasattr(self, "lbl_flat_summary"):
+            self.lbl_flat_summary.setText(f"📐 真实截面: {area:.4f} mm² | 等效圆径: {d_eq:.3f} mm")
+        self.run_simulation()
+
     def _on_copper_grade_changed(self, idx: int):
         """响应铜材电导等级切换"""
         rho_val = self.combo_copper_grade.currentData()
@@ -2253,10 +2472,22 @@ class MainWindow(QMainWindow):
             perimeter_mean=0.0,
             arbitrary_outer_len=self.sb_perim_outer_len.value() if hasattr(self, "sb_perim_outer_len") else 7.0,
             arbitrary_outer_wid=self.sb_perim_outer_wid.value() if hasattr(self, "sb_perim_outer_wid") else 5.0,
-            bare_dia=self.sb_bare_dia.value(),
-            max_od=self.sb_max_od.value(),
-            tension_factor=self.sb_tension.value(),
-            copper_resistivity=self.sb_copper_rho.value() if hasattr(self, "sb_copper_rho") else 0.016959,
+            wire_shape=self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND,
+            wire_catalog_type=self.combo_wire_catalog.currentData() if hasattr(self, "combo_wire_catalog") else WireCatalogType.CUSTOM,
+            enamel_grade=self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else EnamelGrade.GRADE_2,
+            has_self_bonding=self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else False,
+            wire_density=3.63 if (hasattr(self, "combo_wire_catalog") and self.combo_wire_catalog.currentData() == WireCatalogType.HUAYE_CCAW) else 8.90,
+            bare_dia=self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.075,
+            max_od=self.sb_max_od.value() if hasattr(self, "sb_max_od") else 0.085,
+            tension_factor=self.sb_tension.value() if hasattr(self, "sb_tension") else 0.99,
+            copper_resistivity=self.sb_copper_rho.value() if hasattr(self, "sb_copper_rho") else 0.017094,
+            flat_w=self.sb_flat_w.value() if hasattr(self, "sb_flat_w") else 0.80,
+            flat_h=self.sb_flat_h.value() if hasattr(self, "sb_flat_h") else 0.35,
+            flat_r=self.sb_flat_r.value() if hasattr(self, "sb_flat_r") else 0.08,
+            flat_r_auto=(self.sb_flat_r.value() <= 0) if hasattr(self, "sb_flat_r") else True,
+            flat_winding_dir=self.combo_flat_winding_dir.currentData() if hasattr(self, "combo_flat_winding_dir") else WindingDirection.FLATWISE,
+            withstand_ground_vac=self.sb_withstand_ground.value() if hasattr(self, "sb_withstand_ground") else 3000.0,
+            withstand_turn_v=self.sb_withstand_turn.value() if hasattr(self, "sb_withstand_turn") else 1400.0,
             mold_clamping_enabled=(c_type == CoilType.RACETRACK and self.chk_mold_clamping.isChecked()) if hasattr(self, "chk_mold_clamping") else False,
             mold_clamping_height=self.sb_mold_height.value() if hasattr(self, "sb_mold_height") else 0.55,
             has_crossover_wire=(c_type == CoilType.RACETRACK and self.chk_crossover.isChecked()) if hasattr(self, "chk_crossover") else False,
@@ -2351,6 +2582,22 @@ class MainWindow(QMainWindow):
 
             # 重量与槽满率
             self.card_weight.setValue(f"{self.outputs.weight_g:.3f}")
+            if is_en:
+                self.card_weight.setToolTip(
+                    f"[Coil Weight Dual-Baseline]\n"
+                    f"Theoretical Nominal: {self.outputs.weight_theoretical_g:.4f} g\n"
+                    f"  - Conductor Net: {self.outputs.weight_cu_g:.4f} g ({self.outputs.weight_cu_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%)\n"
+                    f"  - Enamel Film: {self.outputs.weight_ins_g:.4f} g ({self.outputs.weight_ins_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%)\n"
+                    f"Shop Floor Expected: {self.outputs.weight_actual_expected_g:.4f} g (with drawing tolerance & stretch)"
+                )
+            else:
+                self.card_weight.setToolTip(
+                    f"【线圈称重双基准明细】\n"
+                    f"理论公称总重: {self.outputs.weight_theoretical_g:.4f} g\n"
+                    f"  - 导体净重: {self.outputs.weight_cu_g:.4f} g ({self.outputs.weight_cu_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%)\n"
+                    f"  - 漆膜净重: {self.outputs.weight_ins_g:.4f} g ({self.outputs.weight_ins_g/max(1e-5, self.outputs.weight_theoretical_g)*100:.1f}%)\n"
+                    f"车间实测预测重: {self.outputs.weight_actual_expected_g:.4f} g (考虑拉细负公差与张力拉伸)"
+                )
             self.card_wire_fill.setValue(f"{self.outputs.wire_fill_factor:.2f}")
             self.card_cu_fill.setValue(f"{self.outputs.copper_fill_factor:.2f}")
             self.card_mlt.setValue(f"{self.outputs.mlt:.3f}")
@@ -2359,7 +2606,10 @@ class MainWindow(QMainWindow):
             self.canvas_widget.updateCoil(self.inputs, self.outputs)
 
             # 3. 刷新 DFM 红绿指示灯 (实时使用用户设定的卡控限值)
-            self.dfm_strip.updateDFM(self.outputs.dfm, self.outputs.r20, self.outputs.total_turns)
+            self.dfm_strip.updateDFM(
+                self.outputs.dfm, self.outputs.r20, self.outputs.total_turns,
+                self.outputs.hi_pot_turn_passed, self.outputs.turn_safety_factor, self.outputs.turn_breakdown_voltage_v
+            )
 
             # 4. 实时刷新方案比对抽屉中的 Live 列
             if hasattr(self, "comparison_drawer"):

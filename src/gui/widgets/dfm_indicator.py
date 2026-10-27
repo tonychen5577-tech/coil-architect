@@ -228,12 +228,14 @@ class DFMStatusStrip(QFrame):
         self.chip_z = DFMChip("Z向", "≤1.05mm")
         self.chip_v = DFMChip("端压", "≤2.80V")
         self.chip_t = DFMChip("耐温", "≤155℃")
+        self.chip_hipot = DFMChip("耐压", "3000V/1400V")
 
         chips_layout.addWidget(self.chip_x)
         chips_layout.addWidget(self.chip_y)
         chips_layout.addWidget(self.chip_z)
         chips_layout.addWidget(self.chip_v)
         chips_layout.addWidget(self.chip_t)
+        chips_layout.addWidget(self.chip_hipot)
 
         main_layout.addLayout(chips_layout)
 
@@ -250,12 +252,20 @@ class DFMStatusStrip(QFrame):
             self.chip_z.name = t("dfm_chip_z", "Z向")
             self.chip_v.name = t("dfm_chip_v", "端压")
             self.chip_t.name = t("dfm_chip_t", "耐温")
+            if hasattr(self, "chip_hipot"):
+                self.chip_hipot.name = t("dfm_chip_hipot", "耐压")
         if hasattr(self, "_last_dfm_data"):
-            d, r, trn = self._last_dfm_data
+            d = self._last_dfm_data[0]
+            r = self._last_dfm_data[1]
+            trn = self._last_dfm_data[2]
+            hipot = self._last_dfm_data[3] if len(self._last_dfm_data) > 3 else True
+            margin = self._last_dfm_data[4] if len(self._last_dfm_data) > 4 else 2.0
+            bdv = self._last_dfm_data[5] if len(self._last_dfm_data) > 5 else 2800.0
+            self.updateDFM(d, r, trn, hipot, margin, bdv)
             self.updateDFM(d, r, trn)
 
-    def updateDFM(self, dfm: DFMCheckResult, r20: float, turns: int):
-        self._last_dfm_data = (dfm, r20, turns)
+    def updateDFM(self, dfm: DFMCheckResult, r20: float, turns: int, hi_pot_passed: bool = True, turn_margin: float = 2.0, bdv: float = 2800.0):
+        self._last_dfm_data = (dfm, r20, turns, hi_pot_passed, turn_margin, bdv)
         is_en = i18n.is_english()
         if hasattr(self, "chip_x"):
             self.chip_x.name = t("dfm_chip_x", "X向")
@@ -263,6 +273,8 @@ class DFMStatusStrip(QFrame):
             self.chip_z.name = t("dfm_chip_z", "Z向")
             self.chip_v.name = t("dfm_chip_v", "端压")
             self.chip_t.name = t("dfm_chip_t", "耐温")
+            if hasattr(self, "chip_hipot"):
+                self.chip_hipot.name = t("dfm_chip_hipot", "耐压")
         is_enabled = getattr(dfm, "enabled", False)
         self.chip_x.setStatus(dfm.x_passed, dfm.x_val, dfm.x_limit, "mm", enabled=is_enabled)
         self.chip_y.setStatus(dfm.y_passed, dfm.y_val, dfm.y_limit, "mm", enabled=is_enabled)
@@ -275,6 +287,25 @@ class DFMStatusStrip(QFrame):
 
         self.chip_v.setStatus(dfm.voltage_passed, dfm.voltage_val, dfm.voltage_limit, "V", enabled=is_enabled)
         self.chip_t.setStatus(dfm.temp_passed, dfm.temp_val, dfm.temp_limit, "°C" if is_en else "℃", enabled=is_enabled)
+
+        # 绝缘与耐压指示卡 (3000VAC对地 & 1400V匝间冲击)
+        if hasattr(self, "chip_hipot"):
+            if hi_pot_passed:
+                self.chip_hipot.setStatus(True, turn_margin, 1.5, "x", enabled=True)
+                if is_en:
+                    self.chip_hipot.lbl_text.setText(f"Hi-Pot: Safe ({turn_margin:.1f}x)")
+                    self.chip_hipot.setToolTip(f"[Insulation & Hi-Pot Qualified]\n3000VAC Ground: Passed\n1400V Turn-to-Turn: Passed\nBreakdown Voltage (BDV): {bdv:.0f} V\nSafety Margin: {turn_margin:.1f}x")
+                else:
+                    self.chip_hipot.lbl_text.setText(f"耐压: 合格({turn_margin:.1f}x)")
+                    self.chip_hipot.setToolTip(f"【绝缘与耐压测试评估】\n对地 3000VAC: 绝缘合格\n匝间 1400V: 耐受合格\n单匝击穿电压 (BDV): {bdv:.0f} V\n安全击穿裕度: {turn_margin:.1f} 倍")
+            else:
+                self.chip_hipot.setStatus(False, turn_margin, 1.5, "x", enabled=True)
+                if is_en:
+                    self.chip_hipot.lbl_text.setText(f"Hi-Pot: Weak (<1.5x)")
+                    self.chip_hipot.setToolTip(f"[Insulation Warning]\nTurn-to-turn 1400V breakdown margin insufficient ({turn_margin:.1f}x)!\nRecommend Grade 2 Enamel.")
+                else:
+                    self.chip_hipot.lbl_text.setText("耐压: 裕度不足")
+                    self.chip_hipot.setToolTip(f"【绝缘耐压预警】\n匝间 1400V 耐压裕度不足 ({turn_margin:.1f}倍)！\n建议切换至 Grade 2 加厚漆膜。")
 
         if not is_enabled:
             if is_en:

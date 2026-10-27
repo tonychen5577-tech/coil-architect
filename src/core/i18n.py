@@ -166,6 +166,42 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     },
 
     # ------------------ 左侧参数面板：线材与张力 ------------------
+    "lbl_wire_shape": {
+        "zh": "线材截面形态:",
+        "en": "Wire Cross-Section Shape:"
+    },
+    "lbl_wire_catalog": {
+        "zh": "线材规格标准库:",
+        "en": "Wire Specification Catalog:"
+    },
+    "lbl_square_side": {
+        "zh": "正方边长 (a)",
+        "en": "Square Side (a)"
+    },
+    "lbl_flat_w": {
+        "zh": "宽边宽度 (W)",
+        "en": "Flat Width (W)"
+    },
+    "lbl_flat_h": {
+        "zh": "高边厚度 (H)",
+        "en": "Flat Height/Thk (H)"
+    },
+    "lbl_flat_r": {
+        "zh": "倒圆角半径 (r)",
+        "en": "Corner Radius (r)"
+    },
+    "lbl_flat_winding_dir": {
+        "zh": "扁线排线方向:",
+        "en": "Winding Orientation:"
+    },
+    "lbl_enamel": {
+        "zh": "漆膜绝缘等级:",
+        "en": "Enamel Insulation Grade:"
+    },
+    "dfm_chip_hipot": {
+        "zh": "耐压",
+        "en": "Hi-Pot"
+    },
     "sec_wire_params": {
         "zh": "▶ 漆包线线材与张力",
         "en": "▶ Magnet Wire & Tension Properties"

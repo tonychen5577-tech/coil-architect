@@ -1,6 +1,9 @@
+# -*- coding: utf-8 -*-
 """
 Coil-Architect Pro - Data Models
-数据模型定义：输入参数、计算结果输出与工程配置 (支持跑道型与圆线圈)
+数据模型定义：输入参数、计算结果输出与工程配置
+支持跑道型、圆形、八角形及任意中线展开异形线圈；
+支持圆线、正方线、长方形扁线全形态截面与华冶出厂标准线规库。
 """
 
 from dataclasses import dataclass, field
@@ -20,6 +23,35 @@ class WindingMode(IntEnum):
     """绕线排布模式"""
     EVEN = 0      # 同数绕线 (Mode 0: 6-6-6-6 每层同匝, 奇数层浮动0.5D, 顶部含0.5D偏移)
     VARIABLE = 1  # 异数绕线 (Mode 1: 6-5-6-5 六方密排交错 HCP, 奇数层缩进1匝, 边界端面平齐)
+
+
+class WireShape(IntEnum):
+    """线材截面拓扑形状"""
+    ROUND = 0             # 圆线 (Round wire)
+    SQUARE = 1            # 正方形方线 (Square wire, W = H)
+    RECTANGULAR = 2       # 长方形扁线 (Rectangular flat wire)
+
+
+class WireCatalogType(IntEnum):
+    """线材规格库来源"""
+    CUSTOM = 0            # 通用自定义线规
+    HUAYE_COPPER = 1      # 华冶线材 · 纯铜标准系列 (69档, 0.07~0.75mm, 1/58.5)
+    HUAYE_CCAW = 2        # 华冶线材 · 15% 铜包铝系列 (79档, 0.07~0.85mm, 0.02525)
+
+
+class EnamelGrade(IntEnum):
+    """漆膜绝缘厚度等级体系"""
+    GRADE_0 = 0           # 0 级 (超薄微细涂层 / Ultra-Thin, 外径增量约 +0.003mm)
+    GRADE_1 = 1           # 1 级 (单涂层 1UEW/1PEW, 外径增量约 +0.006~0.010mm)
+    GRADE_2 = 2           # 2 级 (加厚双涂层 2UEW/2PEW · 工业推荐, 外径增量约 +0.010~0.018mm)
+    GRADE_3 = 3           # 3 级 (超厚特种涂层 3UEW, 外径增量约 +0.018~0.028mm)
+    SELF_BONDING = 4      # 复合自粘层 (Self-Bonding / SB, 外径额外增加 +0.004~0.008mm)
+
+
+class WindingDirection(IntEnum):
+    """扁线排线方向"""
+    FLATWISE = 0          # 平绕 / 卧绕 (厚度朝向轴向高度，端面平，壁厚较大)
+    EDGEWISE = 1          # 立绕 / 侧绕 (宽度朝向轴向高度，端面高，散热极好)
 
 
 @dataclass
@@ -50,12 +82,32 @@ class CoilInputs:
     arbitrary_outer_len: float = 7.0 # 异形线圈外形参考长 (mm, 用于DFM卡控)
     arbitrary_outer_wid: float = 5.0 # 异形线圈外形参考宽 (mm, 用于DFM卡控)
     
-    # 漆包线与工艺特性
+    # 线材截面形态与规格库配置
+    wire_shape: WireShape = WireShape.ROUND
+    wire_catalog_type: WireCatalogType = WireCatalogType.CUSTOM
+    enamel_grade: EnamelGrade = EnamelGrade.GRADE_2
+    has_self_bonding: bool = False
+    wire_density: float = 8.90    # 导体密度 (纯铜 8.90, CCAW 3.63, 纯铝 2.70 g/cm³)
+    insulation_density: float = 1.25 # 绝缘漆膜固化密度 (g/cm³)
+
+    # 圆线工艺特性
     bare_dia: float = 0.075       # d_nom: 裸铜导体标称直径 (mm)
     max_od: float = 0.085         # B_nom: 带漆膜标称外径 (mm)
     tension_factor: float = 0.99  # η_tension: 绕线张力拉伸修正系数 (0.95 ~ 1.00)
-    copper_resistivity: float = 0.016959  # ρ: 铜线20℃电阻率 (默认高导电率无氧铜 OFHC: 0.016959 Ω·mm²/m)
+    copper_resistivity: float = 0.017094  # ρ: 20℃材料电阻率 (默认华冶实测经验 1/58.5: 0.01709402 Ω·mm²/m)
+
+    # 方线与扁线专属几何参数
+    flat_w: float = 0.80          # W: 宽边公称宽度 (mm)
+    flat_h: float = 0.35          # H: 高边公称厚度 (mm)
+    flat_r: float = 0.08          # r: 倒圆角半径 (mm)
+    flat_r_auto: bool = True      # 是否自动按 min(W,H)/2 约束理论推荐圆角
+    flat_winding_dir: WindingDirection = WindingDirection.FLATWISE # 扁线排线方向 (平绕/立绕)
     
+    # 绝缘耐压与可靠性卡控要求
+    withstand_ground_vac: float = 3000.0 # 对地/对轭铁耐压要求 (VAC, 50Hz, 5s, <1mA)
+    withstand_turn_v: float = 1400.0     # 匝间耐压要求 (Vpk, 50Hz, 1min, 升压速率100V/s, <1mA)
+    pinhole_max_per_30m: int = 5         # 针孔数上限要求 (盐水测试 <= 5个/30m)
+
     # 模具限位压实与工艺外扩算法 (Mold Clamping Compaction)
     mold_clamping_enabled: bool = False   # 是否启用模具限位压实硬卡控
     mold_clamping_height: float = 0.55    # H_mold: 模具限位型腔厚度 (mm)
@@ -68,14 +120,14 @@ class CoilInputs:
     convection_h: float = 25.0    # h: 表面综合对流换热系数 (W/(m²·K))
     
     # DFM 线圈装配空间与电气安全限值 (线圈物理包络边界 Keep-out Box)
-    dfm_enabled: bool = False     # 是否启用 DFM 装配公差与安全限值检查 (默认关闭，避免纯参数设计时误报)
+    dfm_enabled: bool = False     # 是否启用 DFM 装配公差与安全限值检查 (默认关闭)
     max_x_len_limit: float = 7.20 # X 向结构空间上限 (mm，跑道外长 / 圆线圈外径 / 八角形外宽)
     max_y_wid_limit: float = 3.82 # Y 向结构空间上限 (mm，跑道外宽)
     max_z_h_limit: float = 1.05   # Z 向装配限高上限 (mm，线圈成型厚度 F 上限)
     max_v_term_limit: float = 2.80# 驱动电压上限 (V)
     max_temp_limit: float = 155.0 # 漆包线耐温等级安全限值 (℃, 预设130/155/180/200级)
 
-    # 兼容历史算例字段 (不再参与复杂机壳假设计算)
+    # 兼容历史算例字段
     zlra_z_adaptive: bool = False
     zlra_vibe_space_mm: float = 0.50
     zlra_safety_gap_mm: float = 0.08
@@ -147,10 +199,18 @@ class CoilOutputs:
     c_outer_mm: float = 0.0       # C_out: 外轮廓单匝展开周长 (mm)
     oct_od1: float = 0.0          # OD1: 八角形实际外对边宽 (mm, = ID1 + 2*E)
     oct_od2: float = 0.0          # OD2: 八角形实际外对角宽 (mm, = ID2 + 2*E)
+
+    # 扁线/方线截面特征输出 (华冶算法)
+    flat_actual_area: float = 0.0        # A: 真实导电截面积 (mm², 倒角削减后)
+    flat_eq_round_dia: float = 0.0       # D_eq: 等效圆直径 (mm)
+    flat_circumscribed_dia: float = 0.0  # D_circum: 尖角外接圆直径 (mm)
+    flat_inscribed_dia: float = 0.0      # D_in: 内切圆直径 (mm)
+    flat_fillet_dia: float = 0.0         # D_fillet: 考虑倒角的外接圆直径 (mm)
+    flat_perimeter: float = 0.0          # P: 扁线截面单圈周长 (mm)
     
     # 电气性能指标
     a_cu: float = 0.0             # A_cu: 裸铜截面积 (mm²)
-    copper_resistivity: float = 0.016959  # ρ: 计算采用的铜电阻率 (Ω·mm²/m)
+    copper_resistivity: float = 0.017094  # ρ: 计算采用的铜电阻率 (Ω·mm²/m)
     rho_per_meter: float = 0.0    # 实际单线米阻 (Ω/m)
     r20: float = 0.0              # R20: 20℃本征冷态直流电阻 (Ω)
     r_init: float = 0.0           # R_init: 当前环境温度下的初始冷态电阻 (Ω)
@@ -162,11 +222,15 @@ class CoilOutputs:
     inductance_uh: float = 0.0    # L: Wheeler 空心电感 (μH)
     inductance_mh: float = 0.0    # L: Wheeler 空心电感 (mH)
     
-    # 质量与槽满率
+    # 质量与槽满率（称重双基准）
     v_cu: float = 0.0             # V_cu: 纯铜体积 (mm³)
     v_wire: float = 0.0           # V_wire: 漆包线总体积 (mm³)
     v_wind_net: float = 0.0       # V_wind_net: 绕线槽净容积 (mm³)
-    weight_g: float = 0.0         # Weight: 线圈有效动质量 (g)
+    weight_g: float = 0.0         # Weight: 最终输出线圈有效动质量 (g)
+    weight_cu_g: float = 0.0      # 纯铜/导体净重 (g)
+    weight_ins_g: float = 0.0     # 绝缘漆膜净重 (g)
+    weight_theoretical_g: float = 0.0 # 理论公称总重 (g = Cu + Ins)
+    weight_actual_expected_g: float = 0.0 # 车间实测预测重量 (g, 考虑拉细负公差与张力修正)
     wire_fill_factor: float = 0.0 # 绕线区漆包线占空比 (%)
     copper_fill_factor: float = 0.0# 微观纯铜空间填充率 (%)
     
@@ -175,5 +239,14 @@ class CoilOutputs:
     t_final: float = 0.0          # 稳态极限结温 (℃)
     total_cooling_area_m2: float = 0.0 # 总散热有效表面积 (m²)
     
+    # 绝缘耐压与可靠性评估指标
+    turn_voltage_peak: float = 0.0       # 工作状态单匝最大瞬态峰值压差 (V)
+    turn_breakdown_voltage_v: float = 0.0# 所选漆膜等级理论匝间击穿电压 (V)
+    turn_safety_factor: float = 0.0      # 匝间绝缘击穿安全裕度 (BDV / V_turn)
+    hi_pot_ground_passed: bool = True    # 对地 3000VAC 绝缘耐压判定
+    hi_pot_turn_passed: bool = True      # 匝间 1400V 耐压判定
+    insulation_risk_level: str = "NORMAL"# 绝缘风险评级 ("SAFE", "NORMAL", "WARNING", "DANGER")
+    insulation_recommendation: str = ""  # 绝缘工艺建议
+
     # DFM 校验
     dfm: DFMCheckResult = field(default_factory=DFMCheckResult)
