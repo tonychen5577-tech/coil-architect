@@ -209,11 +209,11 @@ class CoilPhysicsEngine:
         else:
             # 方线与长方形扁线 (Square & Rectangular Flat Wire - 华冶算法)
             if inputs.wire_shape == WireShape.SQUARE:
-                raw_w = max(0.02, float(inputs.flat_w))
+                raw_w = max(0.005, float(inputs.flat_w))
                 raw_h = raw_w
             else:
-                raw_w = max(0.02, float(inputs.flat_w))
-                raw_h = max(0.02, float(inputs.flat_h))
+                raw_w = max(0.005, float(inputs.flat_w))
+                raw_h = max(0.005, float(inputs.flat_h))
 
             flat_w = max(raw_w, raw_h)
             flat_h = min(raw_w, raw_h)
@@ -221,14 +221,36 @@ class CoilPhysicsEngine:
 
             # 先获取漆膜厚度以供特征带漆尺寸基准
             t_ins, bdv = get_enamel_thickness_and_bdv(inputs.enamel_grade, inputs.has_self_bonding, ref_bare_dia)
-            ref_max_od = ref_bare_dia + 2.0 * t_ins
 
-            # 圆角 r 上限约束 (华冶算法: min(W,H)/2)
-            r_max = flat_h / 2.0
-            if inputs.flat_r_auto or inputs.flat_r <= 0:
-                flat_r = r_max * 0.5  # 推荐优质圆角
+            # 优先使用用户输入/实测带漆外宽与外厚 (双输入支持)
+            flat_max_w_in = getattr(inputs, "flat_max_w", 0.0)
+            flat_max_h_in = getattr(inputs, "flat_max_h", 0.0)
+            if flat_max_w_in > flat_w + 0.001:
+                flat_w_out = flat_max_w_in
+                flat_h_out = flat_max_h_in if flat_max_h_in > flat_h + 0.001 else (flat_h + (flat_max_w_in - flat_w))
+                t_ins = ((flat_w_out - flat_w) + (flat_h_out - flat_h)) / 4.0
             else:
-                flat_r = min(float(inputs.flat_r), r_max)
+                flat_w_out = flat_w + 2.0 * t_ins
+                flat_h_out = flat_h + 2.0 * t_ins
+            ref_max_od = flat_h_out
+
+            # 华冶异形线 R 角工艺标准分级与下限
+            r_max = flat_h / 2.0
+            r_safe_mfg = min(0.020, r_max)
+            aspect_ratio = (flat_w / flat_h) if flat_h > 1e-6 else 1.0
+
+            if inputs.flat_r_auto or inputs.flat_r <= 0:
+                if inputs.wire_shape == WireShape.RECTANGULAR and aspect_ratio >= 2.5:
+                    flat_r = r_max
+                else:
+                    flat_r = max(r_safe_mfg, min(0.040, round(flat_h * 0.09, 3)))
+            else:
+                flat_r = max(0.005, min(float(inputs.flat_r), r_max))
+
+            # 尖角缩漆风险与耐压折减联动 (Laplace表面张力与尖端电场效应)
+            is_sharp_corner_risk = (flat_r < 0.0199 and flat_r < (r_max - 0.002))
+            if is_sharp_corner_risk:
+                bdv = round(bdv * max(0.40, (flat_r / 0.020) ** 0.6), 0)
 
             # 华冶带倒角矩形真实公称导电截面积: A_cu = W·H - (4 - π)·r²
             a_cu_nominal = max(1e-6, flat_w * flat_h - (4.0 - math.pi) * (flat_r ** 2))
@@ -242,9 +264,7 @@ class CoilPhysicsEngine:
             d_fillet = 2.0 * math.sqrt((flat_w / 2.0 - flat_r) ** 2 + (flat_h / 2.0 - flat_r) ** 2) + 2.0 * flat_r
             perimeter = 2.0 * (flat_w + flat_h) - (8.0 - 2.0 * math.pi) * flat_r
 
-            # 带漆膜外廓截面尺寸 (双边增加 2*t_ins, Steiner定理严格无误差)
-            flat_w_out = flat_w + 2.0 * t_ins
-            flat_h_out = flat_h + 2.0 * t_ins
+            # 带漆膜外廓截面尺寸 (Steiner定理严格无误差)
             r_out = flat_r + t_ins
             a_wire_nominal = flat_w_out * flat_h_out - (4.0 - math.pi) * (r_out ** 2)
 
@@ -264,6 +284,8 @@ class CoilPhysicsEngine:
             out.flat_inscribed_dia = d_in
             out.flat_fillet_dia = d_fillet
             out.flat_perimeter = perimeter
+            out.flat_r = flat_r
+            out.is_sharp_corner_risk = is_sharp_corner_risk
 
             # 排线步距与轴向裸铜尺寸 (严格遵循三维绕线工艺标准 IEC / 微型音圈规范)
             if inputs.flat_winding_dir == WindingDirection.FLATWISE:
@@ -372,7 +394,7 @@ class CoilPhysicsEngine:
 
             b_radial = e_elec
             denom = 3.0 * mean_dia + 9.0 * b_radial + 10.0 * thickness_f
-            l_uh = (0.08 * (mean_dia ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
+            l_uh = (0.007874 * (mean_dia ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
             out.inductance_mh = l_uh / 1000.0
 
@@ -397,7 +419,7 @@ class CoilPhysicsEngine:
             c_inner = 4.0 * l1 + 4.0 * l2 + 2.0 * math.pi * r1
             out.c_inner_mm = c_inner
 
-            mlt = c_inner + math.pi * e_env
+            mlt = c_inner + math.pi * e_elec
             c_outer = c_inner + 2.0 * math.pi * e_env
             out.c_outer_mm = c_outer
 
@@ -411,13 +433,13 @@ class CoilPhysicsEngine:
 
             total_len_mm = total_n * mlt * 1.01
 
-            area_face = mlt * e_env
+            area_face = mlt * e_elec
             area_outer_side = c_outer * thickness_f
             area_inner_side = c_inner * thickness_f
 
             eq_dm = out.mean_dia_mm
             denom = 3.0 * eq_dm + 9.0 * e_elec + 10.0 * thickness_f
-            l_uh = (0.08 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
+            l_uh = (0.007874 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
             out.inductance_mh = l_uh / 1000.0
 
@@ -429,7 +451,7 @@ class CoilPhysicsEngine:
             if inputs.perimeter_mean > 0:
                 mlt = inputs.perimeter_mean
             else:
-                mlt = c_inner + math.pi * e_env
+                mlt = c_inner + math.pi * e_elec
             
             c_outer = c_inner + 2.0 * math.pi * e_env
             out.c_outer_mm = c_outer
@@ -442,13 +464,13 @@ class CoilPhysicsEngine:
 
             total_len_mm = total_n * mlt * 1.01
 
-            area_face = mlt * e_env
+            area_face = mlt * e_elec
             area_outer_side = c_outer * thickness_f
             area_inner_side = c_inner * thickness_f
 
             eq_dm = mlt / math.pi
             denom = 3.0 * eq_dm + 9.0 * e_elec + 10.0 * thickness_f
-            l_uh = (0.08 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
+            l_uh = (0.007874 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
             out.inductance_mh = l_uh / 1000.0
 
@@ -485,7 +507,7 @@ class CoilPhysicsEngine:
 
             eq_dm = mlt / math.pi
             denom = 3.0 * eq_dm + 9.0 * e_elec + 10.0 * thickness_f
-            l_uh = (0.08 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
+            l_uh = (0.007874 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
             out.inductance_mh = l_uh / 1000.0
 
@@ -649,6 +671,10 @@ class CoilPhysicsEngine:
         else:
             out.insulation_risk_level = "DANGER"
             out.insulation_recommendation = "绝缘高风险：高压试验击穿或针孔超标风险高，必须加强绝缘层厚度并核验绕线骨架壁厚！"
+
+        # 华冶尖角缩漆风险与耐压折减警报追加
+        if is_flat and getattr(out, "is_sharp_corner_risk", False):
+            out.insulation_recommendation += f" 【尖角缩漆预警】当前设定 R 角 ({flat_r:.3f}mm) 低于华冶 0.020mm 涂漆安全极限，尖角缩漆与电场集中已使有效耐压折减至 {bdv:.0f}V，量产极易出现盐水针孔超标！"
 
         # ---------------------------------------------------------
         # 9. DFM 线圈物理空间与电气安全卡控判定

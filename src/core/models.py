@@ -118,6 +118,8 @@ class CoilInputs:
     # 方线与扁线专属几何参数
     flat_w: float = 0.80          # W: 宽边公称宽度 (mm)
     flat_h: float = 0.35          # H: 高边公称厚度 (mm)
+    flat_max_w: float = 0.0       # W_out: 带漆外宽 (mm, <=0 时根据漆膜等级自动解算)
+    flat_max_h: float = 0.0       # H_out: 带漆外厚 (mm, <=0 时根据漆膜等级自动解算)
     flat_r: float = 0.08          # r: 倒圆角半径 (mm)
     flat_r_auto: bool = True      # 是否自动按 min(W,H)/2 约束理论推荐圆角
     flat_winding_dir: WindingDirection = WindingDirection.FLATWISE # 扁线排线方向 (平绕/立绕)
@@ -226,6 +228,8 @@ class CoilOutputs:
     flat_inscribed_dia: float = 0.0      # D_in: 内切圆直径 (mm)
     flat_fillet_dia: float = 0.0         # D_fillet: 考虑倒角的外接圆直径 (mm)
     flat_perimeter: float = 0.0          # P: 扁线截面单圈周长 (mm)
+    flat_r: float = 0.0                  # r: 实际采用的倒圆角半径 (mm)
+    is_sharp_corner_risk: bool = False   # 是否触发尖角缩漆风险预警 (<0.020mm)
     
     # 电气性能指标
     a_cu: float = 0.0             # A_cu: 裸铜截面积 (mm²)
