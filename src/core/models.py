@@ -23,6 +23,7 @@ class WindingMode(IntEnum):
     """绕线排布模式"""
     EVEN = 0      # 同数绕线 (Mode 0: 6-6-6-6 每层同匝, 奇数层浮动0.5D, 顶部含0.5D偏移)
     VARIABLE = 1  # 异数绕线 (Mode 1: 6-5-6-5 六方密排交错 HCP, 奇数层缩进1匝, 边界端面平齐)
+    ODD = 1       # 异数绕线别名 (奇偶交错/阶梯减匝排法)
 
 
 class WireShape(IntEnum):
