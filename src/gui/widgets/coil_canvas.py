@@ -15,7 +15,7 @@ from PyQt6.QtGui import (
     QLinearGradient, QPainterPath, QPolygonF
 )
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QFrame, QTabWidget
-from ...core.models import CoilInputs, CoilOutputs, WindingMode, CoilType
+from ...core.models import CoilInputs, CoilOutputs, WindingMode, CoilType, WireShape, WindingDirection
 from src.core.i18n import i18n, t
 
 
@@ -408,10 +408,8 @@ class MicroPackingCanvas(QWidget):
                 t_z
             )
 
-            # 5. 渲染双侧微观漆包线 (脱胎空心纯自粘铜包)
-            wire_r_px = max(1.2, (b_act * scale) / 2.0)
-            cu_r_px = max(0.8, (d_act * scale) / 2.0)
-
+            # 5. 渲染双侧微观漆包线 (支持圆线与方线/扁线真实形态与倒角排布)
+            is_flat = (getattr(self.inputs, "wire_shape", WireShape.ROUND) in (WireShape.SQUARE, WireShape.RECTANGULAR))
             pen_ins = QPen(QColor("#D97706"), 0.8)
             brush_ins = QBrush(QColor(254, 215, 170, 220))
             brush_cu = QBrush(QColor("#C2410C"))
@@ -420,35 +418,107 @@ class MicroPackingCanvas(QWidget):
             has_half = (layers - full_layers) >= 0.25
             ceil_layers = int(math.ceil(layers))
 
-            def render_pack(base_inner_x: float, direction: float):
-                for i in range(ceil_layers):
-                    is_odd_layer = (i % 2 == 1)
-                    layer_dx = (b_act / 2.0 + i * hcp_dx) * scale
+            if is_flat:
+                # 方线与扁线截面尺寸及平立绕排布步距
+                raw_w = max(0.02, float(self.inputs.flat_w))
+                raw_h = raw_w if self.inputs.wire_shape == WireShape.SQUARE else max(0.02, float(self.inputs.flat_h))
+                fw = max(raw_w, raw_h)
+                fh = min(raw_w, raw_h)
+                t_ins = max(0.001, (self.outputs.b_actual - self.outputs.d_actual) / 2.0) if (hasattr(self.outputs, "b_actual") and self.outputs.b_actual > self.outputs.d_actual) else 0.005
+                fw_out = fw + 2.0 * t_ins
+                fh_out = fh + 2.0 * t_ins
+                fr = (fh / 4.0) if (self.inputs.flat_r_auto or self.inputs.flat_r <= 0) else min(float(self.inputs.flat_r), fh / 2.0)
+                r_out = fr + t_ins
+                eta = max(0.7, min(1.0, float(getattr(self.inputs, "tension_factor", 1.0))))
 
-                    cur_layer_turns = int(turns)
-                    if self.inputs.winding_mode == WindingMode.VARIABLE and is_odd_layer:
-                        cur_layer_turns = max(1, int(turns) - 1)
-                    if i == ceil_layers - 1 and has_half:
-                        cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
+                if getattr(self.inputs, "flat_winding_dir", WindingDirection.FLATWISE) == WindingDirection.FLATWISE:
+                    # 平绕: 宽面沿轴向，薄面沿径向
+                    w_step_mm = fh_out * eta
+                    h_step_mm = fw_out * eta
+                    w_bare_mm = fh * eta
+                    h_bare_mm = fw * eta
+                else:
+                    # 立绕: 宽面沿径向，薄面沿轴向
+                    w_step_mm = fw_out * eta
+                    h_step_mm = fh_out * eta
+                    w_bare_mm = fw * eta
+                    h_bare_mm = fh * eta
 
-                    for j in range(cur_layer_turns):
-                        if is_odd_layer:
-                            cz_mm = (b_act / 2.0) + (j + 0.5) * b_act
-                        else:
-                            cz_mm = (b_act / 2.0) + j * b_act
+                delta_nest_mm = 0.0
+                if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and r_out > (h_step_mm / 4.0):
+                    term = max(0.0, (2.0 * r_out) ** 2 - (2.0 * r_out - h_step_mm / 2.0) ** 2)
+                    delta_nest_mm = 2.0 * r_out - math.sqrt(term)
+                rad_pitch_mm = w_step_mm - delta_nest_mm
 
-                        px = base_inner_x + direction * layer_dx
-                        py = origin_y - cz_mm * scale
+                w_wire_px = max(1.5, w_step_mm * scale)
+                h_wire_px = max(1.5, h_step_mm * scale)
+                w_cu_px = max(0.8, w_bare_mm * scale)
+                h_cu_px = max(0.8, h_bare_mm * scale)
+                r_out_px = max(0.0, r_out * scale)
+                r_cu_px = max(0.0, fr * scale)
 
-                        # 漆膜
-                        painter.setPen(pen_ins)
-                        painter.setBrush(brush_ins)
-                        painter.drawEllipse(QPointF(px, py), wire_r_px, wire_r_px)
+                def render_pack(base_inner_x: float, direction: float):
+                    for i in range(ceil_layers):
+                        is_odd_layer = (i % 2 == 1)
+                        layer_dx = (w_step_mm / 2.0 + i * rad_pitch_mm) * scale
+                        cur_layer_turns = int(turns)
+                        if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
+                            cur_layer_turns = max(1, int(turns) - 1)
+                        if i == ceil_layers - 1 and has_half:
+                            cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
 
-                        # 铜芯
-                        painter.setPen(Qt.PenStyle.NoPen)
-                        painter.setBrush(brush_cu)
-                        painter.drawEllipse(QPointF(px, py), cu_r_px, cu_r_px)
+                        for j in range(cur_layer_turns):
+                            if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
+                                cz_mm = (h_step_mm / 2.0) + (j + 0.5) * h_step_mm
+                            else:
+                                cz_mm = (h_step_mm / 2.0) + j * h_step_mm
+
+                            px = base_inner_x + direction * layer_dx
+                            py = origin_y - cz_mm * scale
+
+                            # 绘制方线/扁线带倒角外廓漆膜
+                            painter.setPen(pen_ins)
+                            painter.setBrush(brush_ins)
+                            painter.drawRoundedRect(QRectF(px - w_wire_px / 2.0, py - h_wire_px / 2.0, w_wire_px, h_wire_px), r_out_px, r_out_px)
+
+                            # 绘制方线/扁线导电铜芯
+                            painter.setPen(Qt.PenStyle.NoPen)
+                            painter.setBrush(brush_cu)
+                            painter.drawRoundedRect(QRectF(px - w_cu_px / 2.0, py - h_cu_px / 2.0, w_cu_px, h_cu_px), r_cu_px, r_cu_px)
+            else:
+                # 经典圆线渲染
+                wire_r_px = max(1.2, (b_act * scale) / 2.0)
+                cu_r_px = max(0.8, (d_act * scale) / 2.0)
+
+                def render_pack(base_inner_x: float, direction: float):
+                    for i in range(ceil_layers):
+                        is_odd_layer = (i % 2 == 1)
+                        layer_dx = (b_act / 2.0 + i * hcp_dx) * scale
+
+                        cur_layer_turns = int(turns)
+                        if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
+                            cur_layer_turns = max(1, int(turns) - 1)
+                        if i == ceil_layers - 1 and has_half:
+                            cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
+
+                        for j in range(cur_layer_turns):
+                            if is_odd_layer:
+                                cz_mm = (b_act / 2.0) + (j + 0.5) * b_act
+                            else:
+                                cz_mm = (b_act / 2.0) + j * b_act
+
+                            px = base_inner_x + direction * layer_dx
+                            py = origin_y - cz_mm * scale
+
+                            # 漆膜
+                            painter.setPen(pen_ins)
+                            painter.setBrush(brush_ins)
+                            painter.drawEllipse(QPointF(px, py), wire_r_px, wire_r_px)
+
+                            # 铜芯
+                            painter.setPen(Qt.PenStyle.NoPen)
+                            painter.setBrush(brush_cu)
+                            painter.drawEllipse(QPointF(px, py), cu_r_px, cu_r_px)
 
             render_pack(x_left_inner, -1.0)
             render_pack(x_right_inner, 1.0)
@@ -575,31 +645,97 @@ class MicroPackingCanvas(QWidget):
             has_half = (layers - full_layers) >= 0.25
             ceil_layers = int(math.ceil(layers))
 
-            for i in range(ceil_layers):
-                is_odd_layer = (i % 2 == 1)
-                cx_mm = (b_act / 2.0) + i * hcp_dx
-                cur_layer_turns = int(turns)
-                if self.inputs.winding_mode == WindingMode.VARIABLE and is_odd_layer:
-                    cur_layer_turns = max(1, int(turns) - 1)
-                if i == ceil_layers - 1 and has_half:
-                    cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
+            is_flat = (getattr(self.inputs, "wire_shape", WireShape.ROUND) in (WireShape.SQUARE, WireShape.RECTANGULAR))
 
-                for j in range(cur_layer_turns):
-                    if is_odd_layer:
-                        cz_mm = (b_act / 2.0) + (j + 0.5) * b_act
-                    else:
-                        cz_mm = (b_act / 2.0) + j * b_act
+            if is_flat:
+                raw_w = max(0.02, float(self.inputs.flat_w))
+                raw_h = raw_w if self.inputs.wire_shape == WireShape.SQUARE else max(0.02, float(self.inputs.flat_h))
+                fw = max(raw_w, raw_h)
+                fh = min(raw_w, raw_h)
+                t_ins = max(0.001, (self.outputs.b_actual - self.outputs.d_actual) / 2.0) if (hasattr(self.outputs, "b_actual") and self.outputs.b_actual > self.outputs.d_actual) else 0.005
+                fw_out = fw + 2.0 * t_ins
+                fh_out = fh + 2.0 * t_ins
+                fr = (fh / 4.0) if (self.inputs.flat_r_auto or self.inputs.flat_r <= 0) else min(float(self.inputs.flat_r), fh / 2.0)
+                r_out = fr + t_ins
+                eta = max(0.7, min(1.0, float(getattr(self.inputs, "tension_factor", 1.0))))
 
-                    px = origin_x + cx_mm * scale
-                    py = origin_y - cz_mm * scale
+                if getattr(self.inputs, "flat_winding_dir", WindingDirection.FLATWISE) == WindingDirection.FLATWISE:
+                    w_step_mm = fh_out * eta
+                    h_step_mm = fw_out * eta
+                    w_bare_mm = fh * eta
+                    h_bare_mm = fw * eta
+                else:
+                    w_step_mm = fw_out * eta
+                    h_step_mm = fh_out * eta
+                    w_bare_mm = fw * eta
+                    h_bare_mm = fh * eta
 
-                    painter.setPen(pen_ins)
-                    painter.setBrush(brush_ins)
-                    painter.drawEllipse(QPointF(px, py), wire_r_px, wire_r_px)
+                delta_nest_mm = 0.0
+                if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and r_out > (h_step_mm / 4.0):
+                    term = max(0.0, (2.0 * r_out) ** 2 - (2.0 * r_out - h_step_mm / 2.0) ** 2)
+                    delta_nest_mm = 2.0 * r_out - math.sqrt(term)
+                rad_pitch_mm = w_step_mm - delta_nest_mm
 
-                    painter.setPen(Qt.PenStyle.NoPen)
-                    painter.setBrush(brush_cu)
-                    painter.drawEllipse(QPointF(px, py), cu_r_px, cu_r_px)
+                w_wire_px = max(1.5, w_step_mm * scale)
+                h_wire_px = max(1.5, h_step_mm * scale)
+                w_cu_px = max(0.8, w_bare_mm * scale)
+                h_cu_px = max(0.8, h_bare_mm * scale)
+                r_out_px = max(0.0, r_out * scale)
+                r_cu_px = max(0.0, fr * scale)
+
+                for i in range(ceil_layers):
+                    is_odd_layer = (i % 2 == 1)
+                    cx_mm = (w_step_mm / 2.0) + i * rad_pitch_mm
+                    cur_layer_turns = int(turns)
+                    if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
+                        cur_layer_turns = max(1, int(turns) - 1)
+                    if i == ceil_layers - 1 and has_half:
+                        cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
+
+                    for j in range(cur_layer_turns):
+                        if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
+                            cz_mm = (h_step_mm / 2.0) + (j + 0.5) * h_step_mm
+                        else:
+                            cz_mm = (h_step_mm / 2.0) + j * h_step_mm
+
+                        px = origin_x + cx_mm * scale
+                        py = origin_y - cz_mm * scale
+
+                        # 绘制方线/扁线单侧放大漆膜
+                        painter.setPen(pen_ins)
+                        painter.setBrush(brush_ins)
+                        painter.drawRoundedRect(QRectF(px - w_wire_px / 2.0, py - h_wire_px / 2.0, w_wire_px, h_wire_px), r_out_px, r_out_px)
+
+                        # 绘制方线/扁线单侧放大铜芯
+                        painter.setPen(Qt.PenStyle.NoPen)
+                        painter.setBrush(brush_cu)
+                        painter.drawRoundedRect(QRectF(px - w_cu_px / 2.0, py - h_cu_px / 2.0, w_cu_px, h_cu_px), r_cu_px, r_cu_px)
+            else:
+                for i in range(ceil_layers):
+                    is_odd_layer = (i % 2 == 1)
+                    cx_mm = (b_act / 2.0) + i * hcp_dx
+                    cur_layer_turns = int(turns)
+                    if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
+                        cur_layer_turns = max(1, int(turns) - 1)
+                    if i == ceil_layers - 1 and has_half:
+                        cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
+
+                    for j in range(cur_layer_turns):
+                        if is_odd_layer:
+                            cz_mm = (b_act / 2.0) + (j + 0.5) * b_act
+                        else:
+                            cz_mm = (b_act / 2.0) + j * b_act
+
+                        px = origin_x + cx_mm * scale
+                        py = origin_y - cz_mm * scale
+
+                        painter.setPen(pen_ins)
+                        painter.setBrush(brush_ins)
+                        painter.drawEllipse(QPointF(px, py), wire_r_px, wire_r_px)
+
+                        painter.setPen(Qt.PenStyle.NoPen)
+                        painter.setBrush(brush_cu)
+                        painter.drawEllipse(QPointF(px, py), cu_r_px, cu_r_px)
 
             # 3. 单侧标注
             dim_font = QFont("Consolas", 8, QFont.Weight.Bold)

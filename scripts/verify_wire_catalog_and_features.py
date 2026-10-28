@@ -106,16 +106,23 @@ def test_02_flat_wire_physics():
     assert out_sq.b_actual > out_sq.d_actual, "Square wire b_actual must be strictly greater than d_actual"
     print(f"✔ 0.20x0.20方线消除倒挂: d_actual={out_sq.d_actual:.4f} mm < b_actual={out_sq.b_actual:.4f} mm")
 
-    # 验证轴向压实刚性极限 (平绕 vs 立绕)
+    # 验证三维工艺标准轴向刚性极限 (平绕宽面沿轴向4.0mm vs 立绕窄面沿轴向1.0mm)
     inp_fw = CoilInputs(wire_shape=WireShape.RECTANGULAR, flat_w=0.40, flat_h=0.10, axial_turns=10, flat_winding_dir=WindingDirection.FLATWISE, tension_factor=1.00)
     out_fw = CoilPhysicsEngine.calculate(inp_fw)
-    assert abs(out_fw.h_solid_limit - 1.00) < 1e-4, f"Flatwise h_solid should be 1.00mm, got {out_fw.h_solid_limit}"
+    assert abs(out_fw.h_solid_limit - 4.00) < 1e-4, f"Flatwise h_solid should be 4.00mm, got {out_fw.h_solid_limit}"
     assert out_fw.h_solid_limit < out_fw.free_thickness_h, "h_solid must be less than free thickness"
 
     inp_ew = CoilInputs(wire_shape=WireShape.RECTANGULAR, flat_w=0.40, flat_h=0.10, axial_turns=10, flat_winding_dir=WindingDirection.EDGEWISE, tension_factor=1.00)
     out_ew = CoilPhysicsEngine.calculate(inp_ew)
-    assert abs(out_ew.h_solid_limit - 4.00) < 1e-4, f"Edgewise h_solid should be 4.00mm, got {out_ew.h_solid_limit}"
-    print("✔ 扁线轴向刚性极限平绕(1.0mm)与立绕(4.0mm)真实物理约束校验通过")
+    assert abs(out_ew.h_solid_limit - 1.00) < 1e-4, f"Edgewise h_solid should be 1.00mm, got {out_ew.h_solid_limit}"
+    assert out_ew.h_solid_limit < out_ew.free_thickness_h, "h_solid must be less than free thickness"
+    print("✔ 扁线三维绕向轴向刚性极限校验通过: 平绕(4.0mm) / 立绕(1.0mm)")
+
+    # 验证多层扁线 ODD 阶梯防塌边减匝模式
+    inp_odd = CoilInputs(wire_shape=WireShape.RECTANGULAR, radial_layers=4, axial_turns=10, winding_mode=WindingMode.VARIABLE)
+    out_odd = CoilPhysicsEngine.calculate(inp_odd)
+    assert out_odd.total_turns == 38, f"ODD mode should have 38 turns, got {out_odd.total_turns}"
+    print("✔ 扁线多层防塌边阶梯减匝 (4层x10匝 -> 38匝) 校验通过")
 
 
 def test_03_dual_baseline_and_catalog_weight():
