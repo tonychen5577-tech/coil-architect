@@ -315,9 +315,176 @@ def test_05_gui_dialog_and_material_presets():
 
     print("✔ 自定义模式外径防篡改与常规厂商 +0.010mm/+0.008mm 标准联动测试全部通过！")
 
+    # 5. 方线/扁线专属双输入与圆线切方线自动调用同步测试
+    window.sb_bare_dia.setValue(0.045)
+    window.sb_max_od.setValue(0.055)
+
+    # 切换至方线 (SQUARE)
+    for i in range(window.combo_wire_shape.count()):
+        if window.combo_wire_shape.itemData(i) == WireShape.SQUARE:
+            window.combo_wire_shape.setCurrentIndex(i)
+            break
+
+    assert not window.container_flat_wire.isHidden()
+    assert window.container_round_wire.isHidden()
+    assert abs(window.sb_flat_w.value() - 0.045) < 1e-4
+    assert abs(window.sb_flat_max_w.value() - 0.055) < 1e-4
+    assert window.sb_flat_h.isHidden()
+    assert window.sb_flat_max_h.isHidden()
+    assert "正方边长" in window.sb_flat_w.lbl_title.text()
+    assert "漆包外径" in window.sb_flat_max_w.lbl_title.text()
+    assert abs(window.sb_flat_r.value() - 0.020) < 1e-4
+    print("✔ 圆线切方线裸径与漆包外径自动同步通过: a=0.045mm, D=0.055mm, r=0.020mm")
+
+    # 切换至长方形扁线 (RECTANGULAR)
+    for i in range(window.combo_wire_shape.count()):
+        if window.combo_wire_shape.itemData(i) == WireShape.RECTANGULAR:
+            window.combo_wire_shape.setCurrentIndex(i)
+            break
+
+    assert not window.sb_flat_h.isHidden()
+    assert not window.sb_flat_max_h.isHidden()
+    assert "宽边宽度" in window.sb_flat_w.lbl_title.text()
+    assert "高边厚度" in window.sb_flat_h.lbl_title.text()
+    assert "带漆外宽" in window.sb_flat_max_w.lbl_title.text()
+    assert "带漆外厚" in window.sb_flat_max_h.lbl_title.text()
+    print("✔ 矩形扁线四项双输入控件展示正确")
+
+    # 手动输入带漆外径与微小 R 角并验证工程文件保存/读取
+    window.sb_flat_w.setValue(0.300)
+    window.sb_flat_h.setValue(0.080)
+    window.sb_flat_max_w.setValue(0.320)
+    window.sb_flat_max_h.setValue(0.100)
+    window.sb_flat_r.setValue(0.015)
+
+    test_proj = os.path.abspath("test_temp_flat_wire.ansvcoil")
+    import json
+    try:
+        inp_export = window._collect_inputs()
+        data = {
+            "version": "1.1.0",
+            "file_type": "ANSV_COIL_PROJECT",
+            "project_name": "Flat_Wire_Test",
+            "inputs": {
+                "coil_type": int(inp_export.coil_type),
+                "inner_len": inp_export.inner_len,
+                "inner_wid": inp_export.inner_wid,
+                "radial_layers": inp_export.radial_layers,
+                "axial_turns": inp_export.axial_turns,
+                "winding_mode": int(inp_export.winding_mode),
+                "wire_shape": int(inp_export.wire_shape),
+                "flat_w": inp_export.flat_w,
+                "flat_h": inp_export.flat_h,
+                "flat_max_w": inp_export.flat_max_w,
+                "flat_max_h": inp_export.flat_max_h,
+                "flat_r": inp_export.flat_r,
+                "flat_winding_dir": int(inp_export.flat_winding_dir),
+            }
+        }
+        with open(test_proj, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+        load_ok = window.load_project_file(test_proj)
+        assert load_ok is True
+        assert window.combo_wire_shape.currentData() == WireShape.RECTANGULAR
+        assert abs(window.sb_flat_w.value() - 0.300) < 1e-4
+        assert abs(window.sb_flat_h.value() - 0.080) < 1e-4
+        assert abs(window.sb_flat_max_w.value() - 0.320) < 1e-4
+        assert abs(window.sb_flat_max_h.value() - 0.100) < 1e-4
+        assert abs(window.sb_flat_r.value() - 0.015) < 1e-4
+        print("✔ 工程文件保存与载入 100% 恢复方线与扁线双输入参数！")
+    finally:
+        if os.path.exists(test_proj):
+            os.remove(test_proj)
+
     window.close()
     print("✔ GUI 弹窗集成、电导率锁定与排查防冲突测试全部通过！")
 
+
+
+def test_06_huaye_r_angle_and_dual_od():
+    print("\n--- Test 6: Huaye Shaped Wire R-Angle & Dual Input Verification ---")
+    
+    # 1. 大宽厚比超薄扁线 (0.06 x 0.25, 宽厚比 4.167 >= 2.5) -> 全圆边 flat_r = r_max = 0.030mm
+    inp_thin = CoilInputs(
+        wire_shape=WireShape.RECTANGULAR,
+        flat_w=0.25,
+        flat_h=0.06,
+        flat_r_auto=True,
+    )
+    out_thin = CoilPhysicsEngine.calculate(inp_thin)
+    assert abs(out_thin.flat_r - 0.030) < 1e-4, f"Expected 0.030mm, got {out_thin.flat_r}"
+    assert not out_thin.is_sharp_corner_risk, "Full round narrow side must not trigger sharp corner risk"
+    print(f"✔ 超薄扁线 (0.06x0.25) 全圆边自动 R 角校验通过: r={out_thin.flat_r:.3f}mm")
+
+    # 2. 方线 0.07 x 0.07 -> 自动取华冶涂漆安全最小基准 0.020mm
+    inp_sq_small = CoilInputs(
+        wire_shape=WireShape.SQUARE,
+        flat_w=0.07,
+        flat_h=0.07,
+        flat_r_auto=True,
+    )
+    out_sq_small = CoilPhysicsEngine.calculate(inp_sq_small)
+    assert abs(out_sq_small.flat_r - 0.020) < 1e-4, f"Expected 0.020mm, got {out_sq_small.flat_r}"
+    assert not out_sq_small.is_sharp_corner_risk
+    print(f"✔ 微型方线 (0.07x0.07) 华冶安全涂漆基准 R 角校验通过: r={out_sq_small.flat_r:.3f}mm")
+
+    # 3. 较大方线 0.45 x 0.45 -> round(0.45 * 0.09, 3) = 0.040mm (上限 0.040mm)
+    inp_sq_large = CoilInputs(
+        wire_shape=WireShape.SQUARE,
+        flat_w=0.45,
+        flat_h=0.45,
+        flat_r_auto=True,
+    )
+    out_sq_large = CoilPhysicsEngine.calculate(inp_sq_large)
+    assert abs(out_sq_large.flat_r - 0.040) < 1e-4, f"Expected 0.040mm, got {out_sq_large.flat_r}"
+    print(f"✔ 常规方线 (0.45x0.45) 推荐标准 R 角校验通过: r={out_sq_large.flat_r:.3f}mm")
+
+    # 4. 手动微小 R 角 (0.010mm < 0.020mm) 触发尖角缩漆风险与耐压折减联动
+    inp_sharp = CoilInputs(
+        wire_shape=WireShape.RECTANGULAR,
+        flat_w=0.25,
+        flat_h=0.08,
+        flat_r=0.010,
+        flat_r_auto=False,
+        enamel_grade=EnamelGrade.GRADE_2,
+        has_self_bonding=False,
+    )
+    out_sharp = CoilPhysicsEngine.calculate(inp_sharp)
+    assert abs(out_sharp.flat_r - 0.010) < 1e-4
+    assert out_sharp.is_sharp_corner_risk is True, "R=0.010mm must trigger sharp corner risk"
+    assert "【尖角缩漆预警】" in out_sharp.insulation_recommendation
+    # 验证击穿电压折减: 正常 Grade 2 为 2800V, 折减后应为 2800 * (0.010/0.020)^0.6 ≈ 1847V
+    assert out_sharp.turn_breakdown_voltage_v < 2000
+    print(f"✔ 尖角缩漆预警 (<0.020mm) 与耐压折减联动校验通过: BDV={out_sharp.turn_breakdown_voltage_v:.0f}V | 风险警报已追加")
+
+    # 5. 扁线/方线带漆外径双输入支持
+    inp_dual = CoilInputs(
+        wire_shape=WireShape.RECTANGULAR,
+        flat_w=0.80,
+        flat_h=0.35,
+        flat_max_w=0.820,
+        flat_max_h=0.370,
+        flat_r=0.040,
+        flat_r_auto=False,
+    )
+    out_dual = CoilPhysicsEngine.calculate(inp_dual)
+    assert out_dual.b_actual > out_dual.d_actual
+    print(f"✔ 扁线带漆外径双输入 (0.82x0.37) 优先解算校验通过: b_actual={out_dual.b_actual:.4f}mm")
+
+    # 6. Wheeler 电感公制单位制系数 (0.007874) 校验
+    inp_circ = CoilInputs(
+        coil_type=CoilType.CIRCULAR,
+        inner_len=2.30,
+        radial_layers=8,
+        axial_turns=26,
+        winding_mode=WindingMode.VARIABLE,
+        bare_dia=0.042,
+        max_od=0.052,
+    )
+    out_circ = CoilPhysicsEngine.calculate(inp_circ)
+    assert 80 < out_circ.inductance_uh < 110, f"Expected ~95uH, got {out_circ.inductance_uh}uH"
+    print(f"✔ Wheeler 公制标准电感校验通过: L={out_circ.inductance_uh:.2f}μH ({out_circ.inductance_mh:.4f}mH)")
 
 if __name__ == "__main__":
     test_01_wire_catalog()
@@ -325,6 +492,7 @@ if __name__ == "__main__":
     test_03_dual_baseline_and_catalog_weight()
     test_04_insulation_and_hipot()
     test_05_gui_dialog_and_material_presets()
+    test_06_huaye_r_angle_and_dual_od()
     print("\n==========================================")
-    print("🎉 ALL 5 INTEGRATION TESTS PASSED (100%)!")
+    print("🎉 ALL 6 INTEGRATION TESTS PASSED (100%)!")
     print("==========================================")

@@ -115,9 +115,9 @@ def test_circular_coil_against_excel():
     assert out.outer_len > 3.0
     assert out.mean_dia_mm > 2.5
 
-    # 3. Wheeler 电感应在 ~950 μH (≈ 0.95 mH)
-    assert 800 < out.inductance_uh < 1100
-    assert 0.8 < out.inductance_mh < 1.1
+    # 3. Wheeler 电感应在 ~95 μH (≈ 0.095 mH, 公制标准系数 0.007874)
+    assert 80 < out.inductance_uh < 110
+    assert 0.08 < out.inductance_mh < 0.11
 
     # 4. 安匝数校验
     assert out.ampere_turns > 0
@@ -198,7 +198,7 @@ def test_octagonal_vcm_coil():
     # MLT 恒等于 C_in + pi * E_env
     # C_out 恒等于 C_in + 2 * pi * E_env
     e_env = out.e_env
-    assert round(out.mlt, 4) == round(out.c_inner_mm + 3.141592653589793 * e_env, 4)
+    assert round(out.mlt, 4) == round(out.c_inner_mm + 3.141592653589793 * out.e_elec, 4)
     assert round(out.c_outer_mm, 4) == round(out.c_inner_mm + 2.0 * 3.141592653589793 * e_env, 4)
 
     # 3. 验证对边外宽与对角外宽
@@ -238,7 +238,7 @@ def test_arbitrary_perimeter_coil():
 
     e_env = out.e_env
     assert out.c_inner_mm == c_in
-    assert round(out.mlt, 4) == round(c_in + 3.141592653589793 * e_env, 4)
+    assert round(out.mlt, 4) == round(c_in + 3.141592653589793 * out.e_elec, 4)
     assert round(out.c_outer_mm, 4) == round(c_in + 2.0 * 3.141592653589793 * e_env, 4)
     assert out.r20 > 0
     assert out.dfm.all_passed is True

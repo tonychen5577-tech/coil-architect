@@ -178,6 +178,18 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "zh": "正方边长 (a)",
         "en": "Square Side (a)"
     },
+    "lbl_square_max_od": {
+        "zh": "漆包外径 (D)",
+        "en": "Insulated Outer Dia (D)"
+    },
+    "lbl_flat_max_w": {
+        "zh": "带漆外宽 (W_out)",
+        "en": "Insulated Width (W_out)"
+    },
+    "lbl_flat_max_h": {
+        "zh": "带漆外厚 (H_out)",
+        "en": "Insulated Height (H_out)"
+    },
     "lbl_flat_w": {
         "zh": "宽边宽度 (W)",
         "en": "Flat Width (W)"

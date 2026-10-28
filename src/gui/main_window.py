@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 
 from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType, WireShape, WireCatalogType, EnamelGrade, WindingDirection
 from ..core.wire_catalog import WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
-from ..core.physics_engine import CoilPhysicsEngine
+from ..core.physics_engine import CoilPhysicsEngine, get_enamel_thickness_and_bdv
 from .styles import LIGHT_INDUSTRIAL_QSS
 from .widgets.slider_spin_box import FloatSliderBox, IntSliderBox
 from .widgets.metric_card import MetricCard
@@ -402,6 +402,24 @@ class MainWindow(QMainWindow):
             self.sb_bare_dia.setTitle(t("lbl_bare_dia", "铜线裸径 (d)"))
         if hasattr(self, "sb_max_od"):
             self.sb_max_od.setTitle(t("lbl_outer_dia", "漆包外径 (D)"))
+
+        shape = self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND
+        if shape == WireShape.SQUARE:
+            if hasattr(self, "sb_flat_w"):
+                self.sb_flat_w.setTitle(t("lbl_square_side", "正方边长 (a)"))
+            if hasattr(self, "sb_flat_max_w"):
+                self.sb_flat_max_w.setTitle(t("lbl_square_max_od", "漆包外径 (D)"))
+        else:
+            if hasattr(self, "sb_flat_w"):
+                self.sb_flat_w.setTitle(t("lbl_flat_w", "宽边宽度 (W)"))
+            if hasattr(self, "sb_flat_h"):
+                self.sb_flat_h.setTitle(t("lbl_flat_h", "高边厚度 (H)"))
+            if hasattr(self, "sb_flat_max_w"):
+                self.sb_flat_max_w.setTitle(t("lbl_flat_max_w", "带漆外宽 (W_out)"))
+            if hasattr(self, "sb_flat_max_h"):
+                self.sb_flat_max_h.setTitle(t("lbl_flat_max_h", "带漆外厚 (H_out)"))
+        if hasattr(self, "sb_flat_r"):
+            self.sb_flat_r.setTitle(t("lbl_flat_r", "倒圆角半径 (r)"))
         if hasattr(self, "lbl_enamel"):
             self.lbl_enamel.setText(t("lbl_enamel_grade", "漆膜绝缘与自粘等级:"))
         if hasattr(self, "combo_enamel_grade"):
@@ -1920,12 +1938,16 @@ class MainWindow(QMainWindow):
         layout_fw.setContentsMargins(0, 0, 0, 0)
         layout_fw.setSpacing(6)
 
-        self.sb_flat_w = FloatSliderBox("宽边宽度 (W)", "mm", 0.020, 15.000, 0.800, 0.005)
-        self.sb_flat_h = FloatSliderBox("高边厚度 (H)", "mm", 0.020, 10.000, 0.350, 0.005)
-        self.sb_flat_r = FloatSliderBox("倒圆角半径 (r)", "mm", 0.000, 5.000, 0.080, 0.005)
+        self.sb_flat_w = FloatSliderBox("宽边宽度 (W)", "mm", 0.010, 15.000, 0.800, 0.001)
+        self.sb_flat_h = FloatSliderBox("高边厚度 (H)", "mm", 0.010, 10.000, 0.350, 0.001)
+        self.sb_flat_max_w = FloatSliderBox("带漆外宽 (W_out)", "mm", 0.010, 16.000, 0.810, 0.001)
+        self.sb_flat_max_h = FloatSliderBox("带漆外厚 (H_out)", "mm", 0.010, 11.000, 0.360, 0.001)
+        self.sb_flat_r = FloatSliderBox("倒圆角半径 (r)", "mm", 0.000, 5.000, 0.080, 0.001)
         self.sb_flat_w.valueChanged.connect(self._on_flat_dim_changed)
         self.sb_flat_h.valueChanged.connect(self._on_flat_dim_changed)
-        self.sb_flat_r.valueChanged.connect(self._on_flat_dim_changed)
+        self.sb_flat_max_w.valueChanged.connect(self._on_flat_max_dim_changed)
+        self.sb_flat_max_h.valueChanged.connect(self._on_flat_max_dim_changed)
+        self.sb_flat_r.valueChanged.connect(self._on_flat_r_changed)
 
         self.lbl_flat_winding_dir = QLabel("扁线排线方向:")
         self.lbl_flat_winding_dir.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155; margin-top: 4px;")
@@ -1939,6 +1961,8 @@ class MainWindow(QMainWindow):
 
         layout_fw.addWidget(self.sb_flat_w)
         layout_fw.addWidget(self.sb_flat_h)
+        layout_fw.addWidget(self.sb_flat_max_w)
+        layout_fw.addWidget(self.sb_flat_max_h)
         layout_fw.addWidget(self.sb_flat_r)
         layout_fw.addWidget(self.lbl_flat_winding_dir)
         layout_fw.addWidget(self.combo_flat_winding_dir)
@@ -2469,13 +2493,61 @@ class MainWindow(QMainWindow):
             self.combo_mode.setEnabled(True)
             self.combo_mode.setToolTip("")
 
+        if getattr(self, "_is_syncing_params", False):
+            if is_square:
+                self.sb_flat_h.setVisible(False)
+                self.sb_flat_max_h.setVisible(False)
+                self.sb_flat_w.lbl_title.setText(t("lbl_square_side", "正方边长 (a)"))
+                self.sb_flat_max_w.lbl_title.setText(t("lbl_square_max_od", "漆包外径 (D)"))
+            else:
+                self.sb_flat_h.setVisible(True)
+                self.sb_flat_max_h.setVisible(True)
+                self.sb_flat_w.lbl_title.setText(t("lbl_flat_w", "宽边宽度 (W)"))
+                self.sb_flat_h.lbl_title.setText(t("lbl_flat_h", "高边厚度 (H)"))
+                self.sb_flat_max_w.lbl_title.setText(t("lbl_flat_max_w", "带漆外宽 (W_out)"))
+                self.sb_flat_max_h.lbl_title.setText(t("lbl_flat_max_h", "带漆外厚 (H_out)"))
+            return
+
         if is_square:
+            # 当从圆线切换到方线时：自动将圆线的芯径与漆包外径同步给方线，方便直接对比同尺寸圆线与方线
+            bare_val = self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.075
+            od_val = self.sb_max_od.value() if hasattr(self, "sb_max_od") else 0.085
+            self._is_syncing_params = True
+            try:
+                self.sb_flat_w.setValue(bare_val)
+                self.sb_flat_h.setValue(bare_val)
+                self.sb_flat_max_w.setValue(od_val)
+                self.sb_flat_max_h.setValue(od_val)
+                # 华冶推荐方线 R 角: max(0.020, min(0.040, round(bare_val * 0.09, 3)))
+                r_safe = min(0.020, bare_val / 2.0)
+                rec_r = max(r_safe, min(0.040, round(bare_val * 0.09, 3)))
+                self.sb_flat_r.setValue(rec_r)
+            finally:
+                self._is_syncing_params = False
+
             self.sb_flat_h.setVisible(False)
+            self.sb_flat_max_h.setVisible(False)
+            self._is_manual_flat_od = False
             self.sb_flat_w.lbl_title.setText(t("lbl_square_side", "正方边长 (a)"))
+            self.sb_flat_max_w.lbl_title.setText(t("lbl_square_max_od", "漆包外径 (D)"))
         else:
             self.sb_flat_h.setVisible(True)
+            self.sb_flat_max_h.setVisible(True)
             self.sb_flat_w.lbl_title.setText(t("lbl_flat_w", "宽边宽度 (W)"))
             self.sb_flat_h.lbl_title.setText(t("lbl_flat_h", "高边厚度 (H)"))
+            self.sb_flat_max_w.lbl_title.setText(t("lbl_flat_max_w", "带漆外宽 (W_out)"))
+            self.sb_flat_max_h.lbl_title.setText(t("lbl_flat_max_h", "带漆外厚 (H_out)"))
+            if is_flat:
+                # 切换至长方形扁线: 根据当前漆膜等级自动更新带漆外宽/外厚
+                grade = self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else EnamelGrade.SB_010
+                has_sb = self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else True
+                t_ins, _ = get_enamel_thickness_and_bdv(grade, has_sb, self.sb_flat_h.value())
+                self._is_syncing_flat_od = True
+                try:
+                    self.sb_flat_max_w.setValue(round(self.sb_flat_w.value() + 2.0 * t_ins, 4))
+                    self.sb_flat_max_h.setValue(round(self.sb_flat_h.value() + 2.0 * t_ins, 4))
+                finally:
+                    self._is_syncing_flat_od = False
 
         self._on_flat_dim_changed()
         self.run_simulation()
@@ -2839,10 +2911,25 @@ class MainWindow(QMainWindow):
                     self.chk_self_bonding.blockSignals(False)
             finally:
                 self._is_syncing_wire_grade = False
+
+        # 若为方线/扁线，联动刷新带漆外宽/外厚
+        shape = self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND
+        if shape in (WireShape.SQUARE, WireShape.RECTANGULAR) and not getattr(self, "_is_syncing_params", False) and not getattr(self, "_is_syncing_wire_grade", False):
+            h_ref = self.sb_flat_w.value() if shape == WireShape.SQUARE else self.sb_flat_h.value()
+            t_ins, _ = get_enamel_thickness_and_bdv(grade, has_sb, h_ref)
+            self._is_syncing_flat_od = True
+            try:
+                if hasattr(self, "sb_flat_max_w"):
+                    self.sb_flat_max_w.setValue(round(self.sb_flat_w.value() + 2.0 * t_ins, 4))
+                if hasattr(self, "sb_flat_max_h"):
+                    self.sb_flat_max_h.setValue(round((self.sb_flat_w.value() if shape == WireShape.SQUARE else self.sb_flat_h.value()) + 2.0 * t_ins, 4))
+            finally:
+                self._is_syncing_flat_od = False
+
         self.run_simulation()
 
     def _on_flat_dim_changed(self):
-        """方线/扁线尺寸变动实时刷新面积与等效圆"""
+        """方线/扁线裸铜尺寸变动实时同步带漆外径与刷新截面"""
         if not hasattr(self, "sb_flat_w") or not hasattr(self, "sb_flat_h"):
             return
         shape = self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND
@@ -2852,11 +2939,47 @@ class MainWindow(QMainWindow):
         else:
             w = max(self.sb_flat_w.value(), self.sb_flat_h.value())
             h = min(self.sb_flat_w.value(), self.sb_flat_h.value())
+
+        # 仅在用户未手动指定带漆外径时，自动按漆膜等级增量联动带漆外宽与外厚
+        if not getattr(self, "_is_manual_flat_od", False) and not getattr(self, "_is_syncing_flat_od", False) and not getattr(self, "_is_syncing_params", False):
+            grade = self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else EnamelGrade.SB_010
+            has_sb = self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else True
+            t_ins, _ = get_enamel_thickness_and_bdv(grade, has_sb, h)
+            self._is_syncing_flat_od = True
+            try:
+                if hasattr(self, "sb_flat_max_w"):
+                    self.sb_flat_max_w.setValue(round(w + 2.0 * t_ins, 4))
+                if hasattr(self, "sb_flat_max_h"):
+                    self.sb_flat_max_h.setValue(round((w if shape == WireShape.SQUARE else h) + 2.0 * t_ins, 4))
+            finally:
+                self._is_syncing_flat_od = False
+
         r = min(self.sb_flat_r.value(), h / 2.0)
-        area = w * h - (4.0 - 3.14159265) * (r ** 2)
+        area = max(1e-6, w * h - (4.0 - 3.14159265) * (r ** 2))
         d_eq = 2.0 * (area / 3.14159265) ** 0.5
         if hasattr(self, "lbl_flat_summary"):
             self.lbl_flat_summary.setText(f"📐 真实截面: {area:.4f} mm² | 等效圆径: {d_eq:.3f} mm")
+        self.run_simulation()
+
+    def _on_flat_r_changed(self):
+        """R 角调整刷新真实截面积与仿真"""
+        if not hasattr(self, "sb_flat_w") or not hasattr(self, "sb_flat_h") or not hasattr(self, "sb_flat_r"):
+            return
+        shape = self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND
+        w = self.sb_flat_w.value()
+        h = w if shape == WireShape.SQUARE else min(self.sb_flat_w.value(), self.sb_flat_h.value())
+        r = min(self.sb_flat_r.value(), h / 2.0)
+        area = max(1e-6, w * h - (4.0 - 3.14159265) * (r ** 2))
+        d_eq = 2.0 * (area / 3.14159265) ** 0.5
+        if hasattr(self, "lbl_flat_summary"):
+            self.lbl_flat_summary.setText(f"📐 真实截面: {area:.4f} mm² | 等效圆径: {d_eq:.3f} mm")
+        self.run_simulation()
+
+    def _on_flat_max_dim_changed(self):
+        """用户手动编辑带漆外径标记手动覆盖并触发求解"""
+        if getattr(self, "_is_syncing_flat_od", False) or getattr(self, "_is_syncing_params", False):
+            return
+        self._is_manual_flat_od = True
         self.run_simulation()
 
     def _on_copper_grade_changed(self, idx: int):
@@ -3040,6 +3163,8 @@ class MainWindow(QMainWindow):
             copper_resistivity=self.sb_copper_rho.value() if hasattr(self, "sb_copper_rho") else 0.017094,
             flat_w=self.sb_flat_w.value() if hasattr(self, "sb_flat_w") else 0.80,
             flat_h=self.sb_flat_h.value() if hasattr(self, "sb_flat_h") else 0.35,
+            flat_max_w=self.sb_flat_max_w.value() if hasattr(self, "sb_flat_max_w") else 0.0,
+            flat_max_h=self.sb_flat_max_h.value() if hasattr(self, "sb_flat_max_h") else 0.0,
             flat_r=self.sb_flat_r.value() if hasattr(self, "sb_flat_r") else 0.08,
             flat_r_auto=(self.sb_flat_r.value() <= 0) if hasattr(self, "sb_flat_r") else True,
             flat_winding_dir=self.combo_flat_winding_dir.currentData() if hasattr(self, "combo_flat_winding_dir") else WindingDirection.FLATWISE,
@@ -3477,6 +3602,13 @@ class MainWindow(QMainWindow):
                 "perimeter_mean": getattr(self.inputs, "perimeter_mean", 0.0),
                 "arbitrary_outer_len": getattr(self.inputs, "arbitrary_outer_len", 8.0),
                 "arbitrary_outer_wid": getattr(self.inputs, "arbitrary_outer_wid", 6.0),
+                "wire_shape": int(getattr(self.inputs, "wire_shape", 0)),
+                "flat_w": getattr(self.inputs, "flat_w", 0.80),
+                "flat_h": getattr(self.inputs, "flat_h", 0.35),
+                "flat_max_w": getattr(self.inputs, "flat_max_w", 0.0),
+                "flat_max_h": getattr(self.inputs, "flat_max_h", 0.0),
+                "flat_r": getattr(self.inputs, "flat_r", 0.08),
+                "flat_winding_dir": int(getattr(self.inputs, "flat_winding_dir", 0)),
             }
         }
         atomic_write_json(Path(path), data)
@@ -3570,6 +3702,33 @@ class MainWindow(QMainWindow):
                 if hasattr(self, "sb_arb_outer_wid"):
                     self.sb_arb_outer_wid.setValue(float(inp.get("arbitrary_outer_wid", 6.0)))
 
+                # 恢复方线与扁线参数
+                if hasattr(self, "combo_wire_shape") and "wire_shape" in inp:
+                    w_shape = int(inp.get("wire_shape", 0))
+                    for i in range(self.combo_wire_shape.count()):
+                        if int(self.combo_wire_shape.itemData(i)) == w_shape:
+                            self.combo_wire_shape.setCurrentIndex(i)
+                            break
+                if hasattr(self, "sb_flat_w") and "flat_w" in inp:
+                    self.sb_flat_w.setValue(float(inp.get("flat_w", 0.80)))
+                if hasattr(self, "sb_flat_h") and "flat_h" in inp:
+                    self.sb_flat_h.setValue(float(inp.get("flat_h", 0.35)))
+                if hasattr(self, "sb_flat_max_w") and "flat_max_w" in inp:
+                    mw_val = float(inp.get("flat_max_w", 0.0))
+                    self.sb_flat_max_w.setValue(mw_val)
+                    if mw_val > 0:
+                        self._is_manual_flat_od = True
+                if hasattr(self, "sb_flat_max_h") and "flat_max_h" in inp:
+                    self.sb_flat_max_h.setValue(float(inp.get("flat_max_h", 0.0)))
+                if hasattr(self, "sb_flat_r") and "flat_r" in inp:
+                    self.sb_flat_r.setValue(float(inp.get("flat_r", 0.08)))
+                if hasattr(self, "combo_flat_winding_dir") and "flat_winding_dir" in inp:
+                    f_dir = int(inp.get("flat_winding_dir", 0))
+                    for i in range(self.combo_flat_winding_dir.count()):
+                        if int(self.combo_flat_winding_dir.itemData(i)) == f_dir:
+                            self.combo_flat_winding_dir.setCurrentIndex(i)
+                            break
+
                 mode_val = parse_winding_mode(inp.get("winding_mode", 1))
                 for i in range(self.combo_mode.count()):
                     if self.combo_mode.itemData(i) == mode_val:
@@ -3582,7 +3741,9 @@ class MainWindow(QMainWindow):
             c_type = self.combo_coil_type.currentData() if hasattr(self, "combo_coil_type") else CoilType.RACETRACK
             if c_type in (CoilType.RACETRACK, CoilType.CIRCULAR):
                 self._on_inner_len_changed(self.sb_inner_len.value())
-            self._on_bare_dia_changed(self.sb_bare_dia.value())
+            shape = self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND
+            if shape == WireShape.ROUND:
+                self._on_bare_dia_changed(self.sb_bare_dia.value())
             self.run_simulation()
             if hasattr(self, "status_bar"):
                 self.status_bar.showMessage(
