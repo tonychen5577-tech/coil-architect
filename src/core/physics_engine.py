@@ -180,12 +180,14 @@ class CoilPhysicsEngine:
         # 1. 线材截面形态与几何物理参数解算 (Wire Shape & Dimensions)
         # ---------------------------------------------------------
         is_flat = (inputs.wire_shape in (WireShape.SQUARE, WireShape.RECTANGULAR))
-        t_ins, bdv = get_enamel_thickness_and_bdv(inputs.enamel_grade, inputs.has_self_bonding, inputs.bare_dia)
-
         eta = inputs.tension_factor
 
         if not is_flat:
             # 经典圆线 (Round Wire)
+            ref_bare_dia = inputs.bare_dia
+            ref_max_od = inputs.max_od
+            t_ins, bdv = get_enamel_thickness_and_bdv(inputs.enamel_grade, inputs.has_self_bonding, ref_bare_dia)
+
             b_actual = inputs.max_od * eta      # B: 实际带漆外径 (mm)
             d_actual = inputs.bare_dia * eta    # d: 实际裸铜外径 (mm)
             a_cu = (math.pi / 4.0) * (d_actual ** 2)
@@ -202,6 +204,8 @@ class CoilPhysicsEngine:
 
             wire_w_step = b_actual
             wire_h_step = b_actual
+            wire_h_bare = d_actual
+            wire_h_ins = b_actual - d_actual
         else:
             # 方线与长方形扁线 (Square & Rectangular Flat Wire - 华冶算法)
             if inputs.wire_shape == WireShape.SQUARE:
@@ -213,6 +217,11 @@ class CoilPhysicsEngine:
 
             flat_w = max(raw_w, raw_h)
             flat_h = min(raw_w, raw_h)
+            ref_bare_dia = flat_h  # 扁线特征厚度
+
+            # 先获取漆膜厚度以供特征带漆尺寸基准
+            t_ins, bdv = get_enamel_thickness_and_bdv(inputs.enamel_grade, inputs.has_self_bonding, ref_bare_dia)
+            ref_max_od = ref_bare_dia + 2.0 * t_ins
 
             # 圆角 r 上限约束 (华冶算法: min(W,H)/2)
             r_max = flat_h / 2.0
@@ -221,12 +230,11 @@ class CoilPhysicsEngine:
             else:
                 flat_r = min(float(inputs.flat_r), r_max)
 
-            # 华冶带倒角矩形真实导电截面积公式: A = W·H - (4 - π)·r²
-            a_cu_raw = flat_w * flat_h - (4.0 - math.pi) * (flat_r ** 2)
-            a_cu = max(1e-6, a_cu_raw)
+            # 华冶带倒角矩形真实公称导电截面积: A_cu = W·H - (4 - π)·r²
+            a_cu_nominal = max(1e-6, flat_w * flat_h - (4.0 - math.pi) * (flat_r ** 2))
 
-            # 华冶等效圆直径公式: D_eq = 2·√(A / π)
-            d_eq = 2.0 * math.sqrt(a_cu / math.pi)
+            # 华冶公称等效圆直径公式: D_eq = 2·√(A / π)
+            d_eq = 2.0 * math.sqrt(a_cu_nominal / math.pi)
 
             # 几何特征圆与周长
             d_circum = math.sqrt(flat_w ** 2 + flat_h ** 2)
@@ -234,14 +242,19 @@ class CoilPhysicsEngine:
             d_fillet = 2.0 * math.sqrt((flat_w / 2.0 - flat_r) ** 2 + (flat_h / 2.0 - flat_r) ** 2) + 2.0 * flat_r
             perimeter = 2.0 * (flat_w + flat_h) - (8.0 - 2.0 * math.pi) * flat_r
 
-            # 带漆膜外形尺寸 (双边增加 2*t_ins)
+            # 带漆膜外廓截面尺寸 (双边增加 2*t_ins, Steiner定理严格无误差)
             flat_w_out = flat_w + 2.0 * t_ins
             flat_h_out = flat_h + 2.0 * t_ins
             r_out = flat_r + t_ins
-            a_wire = flat_w_out * flat_h_out - (4.0 - math.pi) * (r_out ** 2)
+            a_wire_nominal = flat_w_out * flat_h_out - (4.0 - math.pi) * (r_out ** 2)
 
+            # 张力拉伸修正 (Tension Stretch η): 面积随张力 η^2 真实缩减
+            a_cu = a_cu_nominal * (eta ** 2)
+            a_wire = a_wire_nominal * (eta ** 2)
             d_actual = d_eq * eta
-            b_actual = math.sqrt(flat_w_out * flat_h_out) * eta
+
+            # 修正缺陷①: 统一采用等效圆直径基准, 杜绝方圆基准冲突导致的“裸线大于带漆线”物理倒挂
+            b_actual = 2.0 * math.sqrt(a_wire / math.pi)
 
             out.b_actual = b_actual
             out.d_actual = d_actual
@@ -252,15 +265,18 @@ class CoilPhysicsEngine:
             out.flat_fillet_dia = d_fillet
             out.flat_perimeter = perimeter
 
-            # 排线步距 (平绕 vs 立绕)
+            # 排线步距与轴向裸铜尺寸 (平绕 vs 立绕, 同步引入张力修正)
             if inputs.flat_winding_dir == WindingDirection.FLATWISE:
                 # 平绕 (卧绕): 厚度朝向轴向高度，宽度朝向径向壁厚
-                wire_w_step = flat_w_out
-                wire_h_step = flat_h_out
+                wire_w_step = flat_w_out * eta
+                wire_h_step = flat_h_out * eta
+                wire_h_bare = flat_h * eta
             else:
                 # 立绕 (侧绕): 宽度朝向轴向高度，厚度朝向径向壁厚
-                wire_w_step = flat_h_out
-                wire_h_step = flat_w_out
+                wire_w_step = flat_h_out * eta
+                wire_h_step = flat_w_out * eta
+                wire_h_bare = flat_w * eta
+            wire_h_ins = wire_h_step - wire_h_bare
 
         # ---------------------------------------------------------
         # 2. 成型总匝数 N 计算
@@ -303,9 +319,9 @@ class CoilPhysicsEngine:
         out.free_thickness_h = free_thickness_f
         delta_e_comp = 0.0
 
-        # 刚性与绝缘压缩极限
-        h_solid = j_turns * d_actual
-        h_safe_min = j_turns * d_actual + 0.35 * j_turns * max(0.002, b_actual - d_actual)
+        # 刚性与绝缘压缩极限 (修正缺陷②: 区分圆线与扁线轴向真实裸铜高度, 杜绝扁线压实高度翻倍误判)
+        h_solid = j_turns * wire_h_bare
+        h_safe_min = j_turns * wire_h_bare + 0.35 * j_turns * max(0.002, wire_h_ins)
         out.h_solid_limit = h_solid
         out.h_safe_min_limit = h_safe_min
 
@@ -353,7 +369,7 @@ class CoilPhysicsEngine:
             area_outer_side = math.pi * outer_dia * thickness_f
             area_inner_side = math.pi * inner_dia * thickness_f
 
-            b_radial = e_env
+            b_radial = e_elec
             denom = 3.0 * mean_dia + 9.0 * b_radial + 10.0 * thickness_f
             l_uh = (0.08 * (mean_dia ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
@@ -399,7 +415,7 @@ class CoilPhysicsEngine:
             area_inner_side = c_inner * thickness_f
 
             eq_dm = out.mean_dia_mm
-            denom = 3.0 * eq_dm + 9.0 * e_env + 10.0 * thickness_f
+            denom = 3.0 * eq_dm + 9.0 * e_elec + 10.0 * thickness_f
             l_uh = (0.08 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
             out.inductance_mh = l_uh / 1000.0
@@ -430,19 +446,19 @@ class CoilPhysicsEngine:
             area_inner_side = c_inner * thickness_f
 
             eq_dm = mlt / math.pi
-            denom = 3.0 * eq_dm + 9.0 * e_env + 10.0 * thickness_f
+            denom = 3.0 * eq_dm + 9.0 * e_elec + 10.0 * thickness_f
             l_uh = (0.08 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
             out.inductance_mh = l_uh / 1000.0
 
         else:
             # 经典跑道型线圈 (Racetrack)
-            delta_w_cross = 0.0
-            if inputs.has_crossover_wire:
-                delta_w_cross = 1.0 * b_actual
+            # 修正缺陷⑤: 跨线突包在扁线模式下严格采用径向排线步距 wire_w_step
+            delta_w_cross = (1.0 * wire_w_step) if inputs.has_crossover_wire else 0.0
             out.delta_w_crossover = delta_w_cross
 
-            outer_len = inputs.inner_len + 2.0 * e_env
+            # 机械外包络: 长向两端为密排圆弧 (2*e_elec), 宽向直边考虑换层公差与突包 (2*e_env + delta_w_cross)
+            outer_len = inputs.inner_len + 2.0 * e_elec
             outer_wid = inputs.inner_wid + 2.0 * e_env + delta_w_cross
             out.outer_len = outer_len
             out.outer_wid = outer_wid
@@ -450,21 +466,24 @@ class CoilPhysicsEngine:
             c_inner = 2.0 * (inputs.inner_len - inputs.inner_wid) + math.pi * inputs.inner_wid
             out.c_inner_mm = c_inner
 
-            mlt = 2.0 * (inputs.inner_len - inputs.inner_wid) + math.pi * (inputs.inner_wid + e_env)
+            # 跑道积分解析解: MLT = OL + OW + IL + IW + (π - 4) * E_elec (严格匹配基准仿真器)
+            mlt = outer_len + outer_wid + inputs.inner_len + inputs.inner_wid + (math.pi - 4.0) * e_elec
             c_outer = 2.0 * (outer_len - outer_wid) + math.pi * outer_wid
             out.c_outer_mm = c_outer
-            out.mean_dia_mm = mlt / math.pi
+            out.mean_dia_mm = (outer_len + outer_wid) / 2.0
 
             total_len_mm = total_n * mlt * 1.01
 
+            # 跑道绕线槽几何
             area_out = (outer_len - outer_wid) * outer_wid + (math.pi / 4.0) * (outer_wid ** 2)
             area_in = (inputs.inner_len - inputs.inner_wid) * inputs.inner_wid + (math.pi / 4.0) * (inputs.inner_wid ** 2)
             area_face = area_out - area_in
-            area_outer_side = 2.0 * (outer_len + outer_wid) * thickness_f
-            area_inner_side = 2.0 * (inputs.inner_len + inputs.inner_wid) * thickness_f
+            # 修正缺陷3: 跑道散热侧表面积严格采用真实周长 c_outer*H 与 c_inner*H (杜绝矩形折弯虚增)
+            area_outer_side = c_outer * thickness_f
+            area_inner_side = c_inner * thickness_f
 
             eq_dm = mlt / math.pi
-            denom = 3.0 * eq_dm + 9.0 * e_env + 10.0 * thickness_f
+            denom = 3.0 * eq_dm + 9.0 * e_elec + 10.0 * thickness_f
             l_uh = (0.08 * (eq_dm ** 2) * (total_n ** 2)) / denom if denom > 0 else 0.0
             out.inductance_uh = l_uh
             out.inductance_mh = l_uh / 1000.0
@@ -512,11 +531,12 @@ class CoilPhysicsEngine:
         if inputs.insulation_density > 0:
             rho_ins = inputs.insulation_density
         else:
+            # 修正缺陷③: 扁线/方线模式下传入特征厚度 ref_bare_dia 与 ref_max_od, 避免误读圆线残余值
             rho_ins = calculate_huaye_insulation_density(
                 inputs.enamel_grade,
                 inputs.has_self_bonding,
-                inputs.bare_dia,
-                inputs.max_od,
+                ref_bare_dia,
+                ref_max_od,
                 getattr(inputs, "enamel_type", "UEW")
             )
         out.insulation_density = rho_ins
@@ -531,12 +551,14 @@ class CoilPhysicsEngine:
         # 华冶出厂线密度 catalog_km_kg 严格对应出厂标称裸导体米重 (1 / (π/4 * d² * ρ_cond))
         if inputs.catalog_km_kg > 0:
             weight_cu = out.total_wire_len_m / inputs.catalog_km_kg
+            weight_actual_expected = weight_cu * (eta ** 2) * 0.985 + (v_ins * rho_ins / 1000.0) * 0.980
         else:
             weight_cu = (v_cu * rho_cond) / 1000.0
+            # 修正缺陷④: 若 v_cu 已包含张力拉伸面积缩减 eta^2，避免在此处重复二次连乘 eta^2
+            weight_actual_expected = weight_cu * 0.985 + ((v_ins * rho_ins) / 1000.0) * 0.980
 
         weight_ins = (v_ins * rho_ins) / 1000.0
         weight_theoretical = weight_cu + weight_ins
-        weight_actual_expected = weight_cu * (eta ** 2) * 0.985 + weight_ins * 0.980
 
         out.weight_cu_g = weight_cu
         out.weight_ins_g = weight_ins
@@ -595,7 +617,9 @@ class CoilPhysicsEngine:
         v_term_eval = max(inputs.rated_voltage_v, out.v_term)
         if total_n > 0:
             v_per_turn = v_term_eval / total_n
-            v_layer_peak = 2.0 * j_turns * v_per_turn * 1.414 * 1.20
+            # 修正全局缺陷2: 单层线圈 (i_layers <= 1.0) 匝间仅相邻1匝, 杜绝盲目乘以 2*j_turns 导致虚假击穿警报
+            max_adj_turns = 1.0 if i_layers <= 1.0 else min(float(total_n), 2.0 * j_turns)
+            v_layer_peak = max_adj_turns * v_per_turn * 1.414 * 1.20
         else:
             v_per_turn = 0.0
             v_layer_peak = 0.0
