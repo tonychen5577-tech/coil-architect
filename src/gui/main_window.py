@@ -2460,6 +2460,15 @@ class MainWindow(QMainWindow):
         self.container_round_wire.setVisible(not is_flat)
         self.container_flat_wire.setVisible(is_flat)
 
+        if is_flat:
+            # 方线/扁线具有规整平直表面，工业上恒为正交同数矩阵排布 (i×j)，锁定并禁用圆线异数排布
+            self.combo_mode.setCurrentIndex(1)  # WindingMode.EVEN 同数绕线
+            self.combo_mode.setEnabled(False)
+            self.combo_mode.setToolTip("方线与长方形扁线具备平直接触面，工艺上严格采用正交矩阵同数排布 (N=i×j)，无圆线异数交错模式")
+        else:
+            self.combo_mode.setEnabled(True)
+            self.combo_mode.setToolTip("")
+
         if is_square:
             self.sb_flat_h.setVisible(False)
             self.sb_flat_w.lbl_title.setText(t("lbl_square_side", "正方边长 (a)"))

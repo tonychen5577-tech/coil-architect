@@ -118,11 +118,11 @@ def test_02_flat_wire_physics():
     assert out_ew.h_solid_limit < out_ew.free_thickness_h, "h_solid must be less than free thickness"
     print("✔ 扁线三维绕向轴向刚性极限校验通过: 平绕(4.0mm) / 立绕(1.0mm)")
 
-    # 验证多层扁线 ODD 阶梯防塌边减匝模式
-    inp_odd = CoilInputs(wire_shape=WireShape.RECTANGULAR, radial_layers=4, axial_turns=10, winding_mode=WindingMode.VARIABLE)
-    out_odd = CoilPhysicsEngine.calculate(inp_odd)
-    assert out_odd.total_turns == 38, f"ODD mode should have 38 turns, got {out_odd.total_turns}"
-    print("✔ 扁线多层防塌边阶梯减匝 (4层x10匝 -> 38匝) 校验通过")
+    # 验证方线/扁线平直接触面恒为正交矩阵同数排布 (N = i * j = 4 * 10 = 40匝)
+    inp_matrix = CoilInputs(wire_shape=WireShape.RECTANGULAR, radial_layers=4, axial_turns=10, winding_mode=WindingMode.VARIABLE)
+    out_matrix = CoilPhysicsEngine.calculate(inp_matrix)
+    assert out_matrix.total_turns == 40, f"Flat wire matrix must strictly be 40 turns, got {out_matrix.total_turns}"
+    print("✔ 扁线正交矩阵整齐排布校验通过: 4层 x 10匝 = 40匝 (无异数空隙减匝)")
 
 
 def test_03_dual_baseline_and_catalog_weight():

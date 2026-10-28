@@ -419,7 +419,7 @@ class MicroPackingCanvas(QWidget):
             ceil_layers = int(math.ceil(layers))
 
             if is_flat:
-                # 方线与扁线截面尺寸及平立绕排布步距
+                # 方线与扁线：规整正交矩形网格排布 (严格与工业实测一致: 各层匝数完全相同，绝无错层交错)
                 raw_w = max(0.02, float(self.inputs.flat_w))
                 raw_h = raw_w if self.inputs.wire_shape == WireShape.SQUARE else max(0.02, float(self.inputs.flat_h))
                 fw = max(raw_w, raw_h)
@@ -432,23 +432,17 @@ class MicroPackingCanvas(QWidget):
                 eta = max(0.7, min(1.0, float(getattr(self.inputs, "tension_factor", 1.0))))
 
                 if getattr(self.inputs, "flat_winding_dir", WindingDirection.FLATWISE) == WindingDirection.FLATWISE:
-                    # 平绕: 宽面沿轴向，薄面沿径向
+                    # 平绕: 宽面平贴芯轴沿轴向 Z，薄边沿径向壁厚
                     w_step_mm = fh_out * eta
                     h_step_mm = fw_out * eta
                     w_bare_mm = fh * eta
                     h_bare_mm = fw * eta
                 else:
-                    # 立绕: 宽面沿径向，薄面沿轴向
+                    # 立绕: 窄面立在芯轴上沿轴向 Z，宽边沿径向壁厚
                     w_step_mm = fw_out * eta
                     h_step_mm = fh_out * eta
                     w_bare_mm = fw * eta
                     h_bare_mm = fh * eta
-
-                delta_nest_mm = 0.0
-                if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and r_out > (h_step_mm / 4.0):
-                    term = max(0.0, (2.0 * r_out) ** 2 - (2.0 * r_out - h_step_mm / 2.0) ** 2)
-                    delta_nest_mm = 2.0 * r_out - math.sqrt(term)
-                rad_pitch_mm = w_step_mm - delta_nest_mm
 
                 w_wire_px = max(1.5, w_step_mm * scale)
                 h_wire_px = max(1.5, h_step_mm * scale)
@@ -459,24 +453,17 @@ class MicroPackingCanvas(QWidget):
 
                 def render_pack(base_inner_x: float, direction: float):
                     for i in range(ceil_layers):
-                        is_odd_layer = (i % 2 == 1)
-                        layer_dx = (w_step_mm / 2.0 + i * rad_pitch_mm) * scale
+                        layer_dx = (w_step_mm / 2.0 + i * w_step_mm) * scale
                         cur_layer_turns = int(turns)
-                        if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
-                            cur_layer_turns = max(1, int(turns) - 1)
                         if i == ceil_layers - 1 and has_half:
                             cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
 
                         for j in range(cur_layer_turns):
-                            if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
-                                cz_mm = (h_step_mm / 2.0) + (j + 0.5) * h_step_mm
-                            else:
-                                cz_mm = (h_step_mm / 2.0) + j * h_step_mm
-
+                            cz_mm = (h_step_mm / 2.0) + j * h_step_mm
                             px = base_inner_x + direction * layer_dx
                             py = origin_y - cz_mm * scale
 
-                            # 绘制方线/扁线带倒角外廓漆膜
+                            # 绘制方线/扁线带倒角外廓漆膜 (整齐正交矩阵)
                             painter.setPen(pen_ins)
                             painter.setBrush(brush_ins)
                             painter.drawRoundedRect(QRectF(px - w_wire_px / 2.0, py - h_wire_px / 2.0, w_wire_px, h_wire_px), r_out_px, r_out_px)
@@ -648,6 +635,7 @@ class MicroPackingCanvas(QWidget):
             is_flat = (getattr(self.inputs, "wire_shape", WireShape.ROUND) in (WireShape.SQUARE, WireShape.RECTANGULAR))
 
             if is_flat:
+                # 方线/扁线单侧放大：规整正交矩形网格排布
                 raw_w = max(0.02, float(self.inputs.flat_w))
                 raw_h = raw_w if self.inputs.wire_shape == WireShape.SQUARE else max(0.02, float(self.inputs.flat_h))
                 fw = max(raw_w, raw_h)
@@ -670,12 +658,6 @@ class MicroPackingCanvas(QWidget):
                     w_bare_mm = fw * eta
                     h_bare_mm = fh * eta
 
-                delta_nest_mm = 0.0
-                if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and r_out > (h_step_mm / 4.0):
-                    term = max(0.0, (2.0 * r_out) ** 2 - (2.0 * r_out - h_step_mm / 2.0) ** 2)
-                    delta_nest_mm = 2.0 * r_out - math.sqrt(term)
-                rad_pitch_mm = w_step_mm - delta_nest_mm
-
                 w_wire_px = max(1.5, w_step_mm * scale)
                 h_wire_px = max(1.5, h_step_mm * scale)
                 w_cu_px = max(0.8, w_bare_mm * scale)
@@ -684,24 +666,17 @@ class MicroPackingCanvas(QWidget):
                 r_cu_px = max(0.0, fr * scale)
 
                 for i in range(ceil_layers):
-                    is_odd_layer = (i % 2 == 1)
-                    cx_mm = (w_step_mm / 2.0) + i * rad_pitch_mm
+                    cx_mm = (w_step_mm / 2.0) + i * w_step_mm
                     cur_layer_turns = int(turns)
-                    if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
-                        cur_layer_turns = max(1, int(turns) - 1)
                     if i == ceil_layers - 1 and has_half:
                         cur_layer_turns = max(1, int(round(cur_layer_turns * (layers - full_layers))))
 
                     for j in range(cur_layer_turns):
-                        if self.inputs.winding_mode in (WindingMode.VARIABLE, WindingMode.VARIABLE) and is_odd_layer:
-                            cz_mm = (h_step_mm / 2.0) + (j + 0.5) * h_step_mm
-                        else:
-                            cz_mm = (h_step_mm / 2.0) + j * h_step_mm
-
+                        cz_mm = (h_step_mm / 2.0) + j * h_step_mm
                         px = origin_x + cx_mm * scale
                         py = origin_y - cz_mm * scale
 
-                        # 绘制方线/扁线单侧放大漆膜
+                        # 绘制方线/扁线单侧放大漆膜 (整齐正交矩阵)
                         painter.setPen(pen_ins)
                         painter.setBrush(brush_ins)
                         painter.drawRoundedRect(QRectF(px - w_wire_px / 2.0, py - h_wire_px / 2.0, w_wire_px, h_wire_px), r_out_px, r_out_px)
