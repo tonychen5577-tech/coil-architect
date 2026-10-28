@@ -279,26 +279,29 @@ class CoilPhysicsEngine:
             wire_h_ins = wire_h_step - wire_h_bare
 
         # ---------------------------------------------------------
-        # 2. 成型总匝数 N 计算 (支持圆线与多层方线/扁线 ODD 阶梯防塌边减匝模式)
+        # 2. 成型总匝数 N 计算
         # ---------------------------------------------------------
         i_layers = inputs.radial_layers
         j_turns = inputs.axial_turns
-        if inputs.winding_mode == WindingMode.EVEN or i_layers <= 1.0:
-            total_n = int(round(i_layers * j_turns))
+        if not is_flat:
+            if inputs.winding_mode == WindingMode.EVEN:
+                total_n = int(round(i_layers * j_turns))
+            else:
+                total_n = int(round((i_layers * j_turns) - math.floor(i_layers / 2.0)))
         else:
-            # 奇偶交错排布 (ODD): 折返层内缩1匝防塌边
-            total_n = int(round((i_layers * j_turns) - math.floor(i_layers / 2.0)))
+            # 方线与扁线表面平整，工程工艺上严格为正交整齐矩阵排布 (N = i * j)，无异数交错或空隙减匝
+            total_n = int(round(i_layers * j_turns))
 
         out.total_turns = total_n
 
         # ---------------------------------------------------------
-        # 3. 壁厚与轴向厚度解算 (引入大圆角微嵌合、换层爬升鼓包与拐角梯形增厚)
+        # 3. 壁厚与轴向厚度解算 (Hexagonal Packing vs Orthogonal Matrix)
         # ---------------------------------------------------------
         hcp_factor = math.sqrt(3.0) / 2.0  # ≈ 0.8660254
         i_env_layers = math.ceil(i_layers)
 
         if not is_flat:
-            # 圆线六方密排
+            # 圆线六方密排 (HCP)
             e_elec = ((i_layers - 1.0) * hcp_factor + 1.0) * b_actual
             if inputs.winding_mode == WindingMode.EVEN:
                 e_env = ((i_env_layers - 1.0) * hcp_factor + 2.0) * b_actual
@@ -307,27 +310,11 @@ class CoilPhysicsEngine:
                 e_env = ((i_env_layers - 1.0) * hcp_factor + 2.0) * b_actual
                 thickness_f = j_turns * b_actual * 1.01
         else:
-            # 方线/扁线排布：计算大圆角 (r_out > wire_h_step/4) 时的层间微嵌合深度
-            delta_nest = 0.0
-            if inputs.winding_mode != WindingMode.EVEN and r_out > (wire_h_step / 4.0):
-                term = max(0.0, (2.0 * r_out) ** 2 - (2.0 * r_out - wire_h_step / 2.0) ** 2)
-                delta_nest = 2.0 * r_out - math.sqrt(term)
-
-            radial_pitch = wire_w_step - delta_nest
-            e_elec = (i_layers - 1.0) * radial_pitch + wire_w_step
-
-            # 径向包络壁厚：多层计入换层爬升鼓包 (0.35 * wire_w_step) 与层间微间隙 (1.02)
-            layer_step_bulge = 0.35 * wire_w_step if i_env_layers > 1 else 0.0
-            e_env = ((i_env_layers - 1.0) * radial_pitch + wire_w_step) * 1.02 + layer_step_bulge
-
-            # 拐角折弯梯形增厚因子 (Keystoning Effect)
-            r_bend_min = inputs.oct_r1 if inputs.coil_type == CoilType.OCTAGONAL else (inputs.inner_wid / 2.0)
-            r_bend_min = max(0.1, r_bend_min)
-            keystone_factor = 1.0 + min(0.15, wire_w_step / (8.0 * r_bend_min))
-
-            # 轴向高度：EVEN 模式计入 +0.35 匝螺旋换匝爬升余量，并叠加拐角微增厚
-            axial_climb = 0.35 if (inputs.winding_mode == WindingMode.EVEN and j_turns > 1) else 0.0
-            thickness_f = (j_turns + axial_climb) * wire_h_step * keystone_factor * 1.01
+            # 方线与长方形扁线：规整正交矩形矩阵密排 (Orthogonal Grid Matrix)
+            e_elec = i_layers * wire_w_step
+            # 考虑层间自粘胶层厚度与微量绕制公差 (1.02)
+            e_env = i_env_layers * wire_w_step * 1.02
+            thickness_f = j_turns * wire_h_step * 1.01
 
         free_thickness_f = thickness_f
         out.free_thickness_h = free_thickness_f
