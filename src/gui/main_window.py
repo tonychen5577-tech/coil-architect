@@ -178,6 +178,13 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.debug(f"启动云端心跳失败: {e}")
 
+        # 启动自定义线材库全自动后台静默云端同步 (开机自启防灾备份，无需用户手动点击)
+        try:
+            from src.core.wire_catalog import get_custom_wire_manager
+            get_custom_wire_manager().auto_cloud_sync_async()
+        except Exception as e:
+            logger.debug(f"线材库自动静默同步启动提示: {e}")
+
         # 全局快捷键 Ctrl+D 极速呼出数据库网络通信与诊断中心 (对标 Gear 规范)
         from PyQt6.QtGui import QKeySequence, QShortcut
         self.shortcut_db = QShortcut(QKeySequence("Ctrl+D"), self)

@@ -231,21 +231,29 @@ class CloudWireSyncDialog(QDialog):
             if cloud_ok:
                 sync_dest = "Cloudflare 全球边缘云 (D1 数据库) 与 本地快照"
                 status_note = f"云端通信: {cloud_msg}"
+                QMessageBox.information(
+                    self,
+                    "云端备份成功",
+                    f"✔ 已成功完成当前 {len(items)} 档线材规格同步备份！\n\n"
+                    f"备份存储目标: {sync_dest}\n"
+                    f"绑定账号/客户: {self.cust_name}\n"
+                    f"设备识别码: {self.mid[:16]}...\n"
+                    f"快照文件: {snapshot_file.name}\n"
+                    f"{status_note}\n\n"
+                    f"提示: 系统已开启全自动实时静默备份，后续增删改线规均会自动同步，无需每次手动点击！"
+                )
             else:
                 sync_dest = "本地防灾镜像快照 (离线已就绪)"
-                status_note = "说明: 云端端点在部署发布后将全自动实时云端同步"
-
-            QMessageBox.information(
-                self,
-                "云端备份成功",
-                f"✔ 已成功完成当前 {len(items)} 档线材规格同步备份！\n\n"
-                f"备份存储目标: {sync_dest}\n"
-                f"绑定账号/客户: {self.cust_name}\n"
-                f"设备识别码: {self.mid[:16]}...\n"
-                f"快照文件: {snapshot_file.name}\n"
-                f"{status_note}\n\n"
-                f"无论更换电脑或重装系统，随时点击【从云端同步拉取】即可无损恢复！"
-            )
+                status_note = f"本地快照已完成，云端状态: {cloud_msg}"
+                QMessageBox.warning(
+                    self,
+                    "备份提示",
+                    f"✔ 已完成当前 {len(items)} 档线材规格本地镜像快照！\n\n"
+                    f"快照存储目标: {snapshot_file.name}\n"
+                    f"云端同步提示: 节点正在后台自动重试\n"
+                    f"{status_note}\n\n"
+                    f"系统已开启全自动后台同步，待网络连通后将自动补传至云端。"
+                )
         except Exception as e:
             QMessageBox.critical(self, "备份异常", f"备份过程中发生异常: {e}")
 
@@ -847,8 +855,11 @@ class CustomWireLibraryDialog(QDialog):
         self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1E3A8A;")
         self.lbl_sub = QLabel("支持自定义厂商、型号、国标米阻、击穿电压、伸长率与铜导率推导 · 自由调入仿真计算")
         self.lbl_sub.setStyleSheet("font-size: 11px; color: #64748B;")
+        self.lbl_sync_status = QLabel("🟢 边缘云端全自动静默同步: 已激活 (增删改任何规格均自动静默备份至云端，免手动操作)")
+        self.lbl_sync_status.setStyleSheet("font-size: 11px; font-weight: 600; color: #059669; margin-top: 2px;")
         title_box.addWidget(self.lbl_title)
         title_box.addWidget(self.lbl_sub)
+        title_box.addWidget(self.lbl_sync_status)
         top_bar.addLayout(title_box)
         top_bar.addStretch()
 

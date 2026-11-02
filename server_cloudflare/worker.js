@@ -1465,11 +1465,15 @@ async function handleAdmin(path, request, env, url) {
         const releases = (await db.prepare("SELECT * FROM releases").all()).results;
         const audit = (await db.prepare("SELECT * FROM audit_logs").all()).results;
         const config = (await db.prepare("SELECT * FROM app_config").all()).results;
+        let wire_libs = [];
+        try {
+            wire_libs = (await db.prepare("SELECT * FROM user_wire_libraries").all()).results || [];
+        } catch (_) {}
 
         const backup = {
             export_time: new Date().toISOString(),
             platform: "ANSV Coil-Architect Pro Edge DB",
-            tables: { devices, licenses, releases, audit_logs: audit, app_config: config }
+            tables: { devices, licenses, releases, audit_logs: audit, app_config: config, user_wire_libraries: wire_libs }
         };
 
         return new Response(JSON.stringify(backup, null, 2), {
@@ -1994,6 +1998,11 @@ function renderDashboardPage() {
       <div class="stat-label">🚀 当前主推版本</div>
       <div class="stat-val" id="stat-latest-ver" style="color: var(--primary);">-</div>
     </div>
+    <div class="stat-card" style="border-left: 4px solid #0284C7; cursor:pointer;" onclick="switchTab('wire_libraries')">
+      <div class="stat-label">📚 云端已备份线材库</div>
+      <div class="stat-val" id="stat-wire-libs" style="color: #0284C7; font-weight:700;">-</div>
+      <div style="font-size:10px; color:#64748B; margin-top:2px;">点击一键跳转查验明细</div>
+    </div>
   </div>
 
   <!-- 选项卡导航 (对齐 Gear 架构) -->
@@ -2326,6 +2335,12 @@ async function loadStats() {
       document.getElementById('stat-today-syncs').innerText = d.stats.today_syncs;
       document.getElementById('stat-total-cases').innerText = d.stats.total_cases || 0;
       document.getElementById('stat-latest-ver').innerText = d.stats.latest_version;
+      if (document.getElementById('stat-wire-libs') && d.stats.total_wire_libs !== undefined) {
+        document.getElementById('stat-wire-libs').innerText = d.stats.total_wire_libs;
+      }
+      if (document.getElementById('tab-wire-count') && d.stats.total_wire_libs !== undefined) {
+        document.getElementById('tab-wire-count').innerText = d.stats.total_wire_libs;
+      }
     }
   } catch(e){}
 }
@@ -3187,6 +3202,7 @@ function closeWireDetailModal(e) {
 window.onload = function() {
   loadStats();
   loadDevices();
+  loadWireLibraries();
   // 生产级：每 10 秒自动静默轮询刷新工位机在线状态与心跳
   setInterval(function() {
     const tabDevices = document.getElementById('tab-devices');

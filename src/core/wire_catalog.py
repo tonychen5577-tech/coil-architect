@@ -631,6 +631,7 @@ class CustomWireManager:
             for attempt in range(5):
                 try:
                     tmp_path.replace(self.storage_path)
+                    self.auto_cloud_sync_async()
                     return True
                 except PermissionError:
                     if attempt < 4:
@@ -641,10 +642,46 @@ class CustomWireManager:
                             json.dump(data, f_out, ensure_ascii=False, indent=2)
                         if tmp_path.exists():
                             tmp_path.unlink(missing_ok=True)
+                        self.auto_cloud_sync_async()
                         return True
+            self.auto_cloud_sync_async()
             return True
         except Exception:
             return False
+
+    def auto_cloud_sync_async(self):
+        """在后台守护线程中静默执行云端自动同步备份 (D1 数据库 + 本地防灾快照)，绝不阻塞界面"""
+        import threading
+        t = threading.Thread(target=self._do_auto_cloud_sync, daemon=True)
+        t.start()
+
+    def _do_auto_cloud_sync(self):
+        """执行静默云端同步备份工作"""
+        try:
+            from .cloud_client import CloudClient
+            from .license_manager import LicenseManager, get_machine_code
+            lm = LicenseManager()
+            is_auth, _, auth_data = lm.is_system_authorized()
+            cust_name = auth_data.get("cust", "-") if (is_auth and auth_data) else "-"
+            mid = get_machine_code()
+            data = [item.to_dict() for item in self._items]
+            
+            # 1. 自动写入本地镜像防灾快照
+            snapshot_dir = self.storage_path.parent
+            snapshot_dir.mkdir(parents=True, exist_ok=True)
+            snapshot_file = snapshot_dir / "cloud_wire_backup.snapshot"
+            with open(snapshot_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "mid": mid,
+                    "cust": cust_name,
+                    "updated_at": datetime.now().isoformat(),
+                    "wires": data
+                }, f, ensure_ascii=False, indent=2)
+
+            # 2. 静默上报备份至 Cloudflare D1 边缘数据库
+            CloudClient.backup_wire_library(data, customer_name=cust_name)
+        except Exception:
+            pass
 
     def list_all(self, sort_by_pinyin: bool = True) -> List[CustomWireItem]:
         """获取所有自定义线材列表，默认按供应商拼音序和线径升序排序"""
