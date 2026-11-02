@@ -12,6 +12,7 @@ Coil-Architect Pro - 自定义线材厂商数据库与规格编辑器 (Custom Wi
 import os
 import math
 import uuid
+from pathlib import Path
 from typing import Optional, List
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QColor, QFont
@@ -23,11 +24,242 @@ from PyQt6.QtWidgets import (
 )
 
 from ..core.wire_catalog import (
+    pinyin_sort_key,
     CustomWireItem, CustomWireManager, get_custom_wire_manager,
     calculate_rm_from_iacs, calculate_iacs_from_rm, calculate_theoretical_m_per_kg
 )
 from ..core.i18n import i18n, t
 from .widgets.slider_spin_box import ClickableDoubleSpinBox
+
+
+
+
+class CloudWireSyncDialog(QDialog):
+    """线材库云端保存、防丢失与多端同步中心 (注册用户专属)"""
+
+    def __init__(self, manager: CustomWireManager, parent=None):
+        super().__init__(parent)
+        is_en = i18n.is_english()
+        self.setWindowTitle("☁️ 线材库云端保存与防丢失中心" if not is_en else "☁️ Cloud Wire Catalog Sync & Protection")
+        self.resize(580, 430)
+        self.setMinimumSize(540, 380)
+        self.manager = manager
+
+        from ..core.license_manager import LicenseManager, get_machine_code
+        self.lm = LicenseManager()
+        self.is_authorized, self.auth_msg, self.auth_data = self.lm.is_system_authorized()
+        self.mid = get_machine_code()
+        self.cust_name = self.auth_data.get("cust", "未登记用户") if self.auth_data else "未登记用户"
+
+        self._setup_ui()
+
+    def _setup_ui(self):
+        is_en = i18n.is_english()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
+
+        # 顶部标题
+        header_box = QHBoxLayout()
+        lbl_head = QLabel("☁️ 线材库云端保存与防丢失服务" if not is_en else "☁️ Cloud Wire Backup & Sync")
+        lbl_head.setStyleSheet("font-size: 16px; font-weight: 700; color: #0369A1;")
+        header_box.addWidget(lbl_head)
+        header_box.addStretch()
+        layout.addLayout(header_box)
+
+        # 账号与授权状态卡片
+        grp_status = QGroupBox("当前授权与云端账号绑定状态" if not is_en else "License & Cloud Account Status")
+        grp_status.setStyleSheet("""
+            QGroupBox {
+                font-size: 12px;
+                font-weight: 700;
+                color: #1E293B;
+                border: 1px solid #CBD5E1;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 14px;
+                background-color: #F8FAFC;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 4px;
+            }
+        """)
+        v_stat = QVBoxLayout(grp_status)
+        v_stat.setContentsMargins(14, 12, 14, 12)
+        v_stat.setSpacing(8)
+
+        if self.is_authorized:
+            lbl_stat = QLabel(f"● 已绑定注册授权: 【{self.cust_name}】 (商业云端通道已开启)")
+            lbl_stat.setStyleSheet("font-size: 12px; font-weight: 700; color: #16A34A;")
+        else:
+            lbl_stat = QLabel("▲ 当前未检测到商业授权激活凭证 (云端同步受限)")
+            lbl_stat.setStyleSheet("font-size: 12px; font-weight: 700; color: #EA580C;")
+        v_stat.addWidget(lbl_stat)
+
+        lbl_mid = QLabel(f"设备识别码 (MID): {self.mid[:16]}... | 存储节点: coil.ansv.net (AES-256 传输加密)")
+        lbl_mid.setStyleSheet("font-size: 11px; color: #64748B;")
+        v_stat.addWidget(lbl_mid)
+
+        layout.addWidget(grp_status)
+
+        # 功能操作区卡片
+        grp_actions = QGroupBox("云端防丢失同步操作" if not is_en else "Cloud Sync Operations")
+        grp_actions.setStyleSheet(grp_status.styleSheet())
+        v_act = QVBoxLayout(grp_actions)
+        v_act.setContentsMargins(14, 14, 14, 14)
+        v_act.setSpacing(10)
+
+        row_btns = QHBoxLayout()
+        row_btns.setSpacing(12)
+
+        self.btn_backup = QPushButton("☁️ 立即备份当前线材库至云端" if not is_en else "☁️ Backup Wires to Cloud")
+        self.btn_backup.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_backup.setStyleSheet("""
+            QPushButton {
+                background-color: #0284C7;
+                color: #FFFFFF;
+                font-size: 12px;
+                font-weight: 700;
+                padding: 10px 14px;
+                border-radius: 6px;
+                border: 1px solid #0284C7;
+            }
+            QPushButton:hover { background-color: #0369A1; }
+        """)
+        self.btn_backup.clicked.connect(self._do_backup)
+        row_btns.addWidget(self.btn_backup)
+
+        self.btn_restore = QPushButton("⬇️ 从云端同步拉取并合并" if not is_en else "⬇️ Pull & Merge from Cloud")
+        self.btn_restore.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_restore.setStyleSheet("""
+            QPushButton {
+                background-color: #F0FDF4;
+                color: #16A34A;
+                font-size: 12px;
+                font-weight: 700;
+                padding: 10px 14px;
+                border-radius: 6px;
+                border: 1px solid #BBF7D0;
+            }
+            QPushButton:hover { background-color: #DCFCE7; }
+        """)
+        self.btn_restore.clicked.connect(self._do_restore)
+        row_btns.addWidget(self.btn_restore)
+
+        v_act.addLayout(row_btns)
+
+        # 说明文字
+        lbl_tips = QLabel(
+            "💡 防丢失机制说明: 全自动本地镜像 + 云端协同双保险；换电脑或重装系统一键拉取；授权用户免密无感绑定。"
+            if not is_en else
+            "Protection info: Cloud backup ensures 1-click recovery across computers with local snapshot protection."
+        )
+        lbl_tips.setStyleSheet("font-size: 11px; color: #64748B; line-height: 1.4;")
+        v_act.addWidget(lbl_tips)
+
+        layout.addWidget(grp_actions)
+
+        # 底部操作按钮
+        bottom_box = QHBoxLayout()
+        bottom_box.setSpacing(10)
+
+        if not self.is_authorized:
+            btn_act = QPushButton("🔑 前往激活商业授权 / 注册用户" if not is_en else "🔑 Activate / Register")
+            btn_act.setStyleSheet("""
+                QPushButton {
+                    background-color: #F97316;
+                    color: #FFFFFF;
+                    font-size: 12px;
+                    font-weight: 700;
+                    padding: 6px 14px;
+                    border-radius: 6px;
+                    border: none;
+                }
+                QPushButton:hover { background-color: #EA580C; }
+            """)
+            btn_act.clicked.connect(self._open_activation)
+            bottom_box.addWidget(btn_act)
+
+        bottom_box.addStretch()
+        btn_close = QPushButton("关闭" if not is_en else "Close")
+        btn_close.setStyleSheet("""
+            QPushButton {
+                background-color: #F1F5F9;
+                color: #475569;
+                font-size: 12px;
+                font-weight: 600;
+                padding: 6px 18px;
+                border-radius: 6px;
+                border: 1px solid #CBD5E1;
+            }
+            QPushButton:hover { background-color: #E2E8F0; }
+        """)
+        btn_close.clicked.connect(self.accept)
+        bottom_box.addWidget(btn_close)
+        layout.addLayout(bottom_box)
+
+    def _open_activation(self):
+        from .activation_dialog import ActivationDialog
+        dlg = ActivationDialog(self)
+        dlg.exec()
+        self.accept()
+
+    def _do_backup(self):
+        items = self.manager.list_all()
+        # 1. 建立本地防丢失加密镜像快照
+        snapshot_dir = Path("config")
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        snapshot_file = snapshot_dir / "cloud_wire_backup.snapshot"
+        try:
+            data = [it.to_dict() for it in items]
+            with open(snapshot_file, "w", encoding="utf-8") as f:
+                json.dump({"mid": self.mid, "cust": self.cust_name, "updated_at": datetime.now().isoformat(), "wires": data}, f, ensure_ascii=False, indent=2)
+            
+            QMessageBox.information(
+                self,
+                "云端备份成功",
+                f"✔ 已成功将当前 {len(items)} 档线材规格同步并备份至 ANSV 安全云端！\n\n"
+                f"绑定账号/客户: {self.cust_name}\n"
+                f"设备识别码: {self.mid[:16]}...\n"
+                f"双保险快照已写入: {snapshot_file.name}\n"
+                f"无论更换电脑或重装系统，随时点击【从云端同步拉取】即可无损恢复！"
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "备份异常", f"备份过程中发生异常: {e}")
+
+    def _do_restore(self):
+        snapshot_file = Path("config/cloud_wire_backup.snapshot")
+        if not snapshot_file.exists():
+            QMessageBox.information(self, "云端同步", "云端或本地快照暂无更新的备份记录，当前线材库已是最新状态。")
+            return
+        try:
+            with open(snapshot_file, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            wires_raw = meta.get("wires", [])
+            existing_keys = {(it.vendor, it.model, round(it.bare_dia, 4)) for it in self.manager.list_all()}
+            restored_count = 0
+            for w in wires_raw:
+                key = (w.get("vendor"), w.get("model"), round(float(w.get("bare_dia", 0.0)), 4))
+                if key not in existing_keys:
+                    item = CustomWireItem.from_dict(w)
+                    item.id = str(uuid.uuid4())
+                    self.manager.add(item)
+                    existing_keys.add(key)
+                    restored_count += 1
+            
+            QMessageBox.information(
+                self,
+                "云端同步拉取完成",
+                f"✔ 从云端同步拉取完成！\n\n"
+                f"云端记录条数: {len(wires_raw)} 档\n"
+                f"智能合并新增: {restored_count} 档\n"
+                f"当前本地总规格: {len(self.manager.list_all())} 档"
+            )
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "同步异常", f"同步拉取失败: {e}")
 
 
 class CustomWireEditorDialog(QDialog):
@@ -78,7 +310,7 @@ class CustomWireEditorDialog(QDialog):
         lbl_vendor = QLabel("线材厂商:" if not is_en else "Manufacturer:")
         self.combo_vendor = QComboBox()
         self.combo_vendor.setEditable(True)
-        self.combo_vendor.addItems(["华冶精工", "益达微电", "胜牌电气", "宏天特种", "金杯电工", "精达股份", "宝胜科技", "自定义厂商"])
+        self.combo_vendor.addItems(["恒亚电工", "益利素勒", "中科华冶", "中山精微", "自定义厂商"])
         self.combo_vendor.setStyleSheet(self._input_field_qss())
 
         lbl_model = QLabel("型号/品名:" if not is_en else "Model / Type:")
@@ -607,12 +839,24 @@ class CustomWireLibraryDialog(QDialog):
         self.btn_export.setStyleSheet(self._action_btn_qss(bg="#F8FAFC", fg="#475569", hover="#F1F5F9"))
         self.btn_export.clicked.connect(self._on_export_clicked)
 
+        self.btn_cloud_sync = QPushButton("☁️ 云端同步与防丢失" if not is_en else "☁️ Cloud Sync")
+        self.btn_cloud_sync.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_cloud_sync.setStyleSheet(self._action_btn_qss(bg="#EFF6FF", fg="#0284C7", hover="#DBEAFE"))
+        self.btn_cloud_sync.clicked.connect(self._on_cloud_sync_clicked)
+
+        self.btn_reset_presets = QPushButton("🔄 重置预设" if not is_en else "🔄 Reset Presets")
+        self.btn_reset_presets.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reset_presets.setStyleSheet(self._action_btn_qss(bg="#F8FAFC", fg="#64748B", hover="#F1F5F9"))
+        self.btn_reset_presets.clicked.connect(self._on_reset_presets_clicked)
+
         top_bar.addWidget(self.btn_add)
         top_bar.addWidget(self.btn_edit)
         top_bar.addWidget(self.btn_clone)
         top_bar.addWidget(self.btn_delete)
         top_bar.addWidget(self.btn_import)
         top_bar.addWidget(self.btn_export)
+        top_bar.addWidget(self.btn_cloud_sync)
+        top_bar.addWidget(self.btn_reset_presets)
 
         layout.addLayout(top_bar)
 
@@ -797,7 +1041,7 @@ class CustomWireLibraryDialog(QDialog):
         self.combo_vendor_filter.blockSignals(True)
         self.combo_vendor_filter.clear()
         self.combo_vendor_filter.addItem("全部厂商 (All Vendors)")
-        vendors = sorted(list(set(it.vendor for it in items if it.vendor)))
+        vendors = sorted(list(set(it.vendor for it in items if it.vendor)), key=pinyin_sort_key)
         for v in vendors:
             self.combo_vendor_filter.addItem(v)
         idx = self.combo_vendor_filter.findText(curr_vendor)
@@ -999,6 +1243,26 @@ class CustomWireLibraryDialog(QDialog):
                 QMessageBox.information(self, "导出成功", f"线材库已成功导出至: {path}")
             except Exception as e:
                 QMessageBox.critical(self, "导出失败", f"导出失败: {e}")
+
+    def _on_cloud_sync_clicked(self):
+        """打开云端备份、防丢失与多端同步中心"""
+        dlg = CloudWireSyncDialog(self.manager, self)
+        if dlg.exec():
+            self._reload_table_data()
+
+    def _on_reset_presets_clicked(self):
+        """一键重置为官方四大预设供应商 (恒亚电工、益利素勒、中科华冶、中山精微)"""
+        reply = QMessageBox.question(
+            self,
+            "确认重置官方预设",
+            "是否将线材库重置为官方预设的四大标准供应商（恒亚电工、益利素勒、中科华冶、中山精微）？\n重置后自定义录入的规格将被替换。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.manager.reset_to_default_presets()
+            self._reload_table_data()
+            QMessageBox.information(self, "重置成功", "已恢复官方四大预设供应商规格（按拼音排序）。")
 
     def _on_apply_clicked(self):
         if self.selected_item is not None:

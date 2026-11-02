@@ -15,6 +15,14 @@ import os
 import math
 import json
 import uuid
+
+def pinyin_sort_key(s: str) -> bytes:
+    """按汉语拼音字母顺序生成排序键（基于国标 GBK 拼音编码序）"""
+    try:
+        return s.encode('gbk')
+    except Exception:
+        return s.encode('utf-8', errors='ignore')
+
 from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
@@ -463,93 +471,115 @@ class CustomWireManager:
     """
 
     DEFAULT_PRESETS: List[Dict[str, Any]] = [
+        # 1. 恒亚电工 (H - Hengya Electric)
+        {
+            "id": "preset_hengya_0070_sb",
+            "vendor": "恒亚电工",
+            "model": "1UEW-SB 复合自粘线 (155级)",
+            "spec_name": "0.0700mm",
+            "bare_dia": 0.0700,
+            "max_od": 0.0780,
+            "meter_resistance_ohm": 4.47998,
+            "breakdown_voltage": 1700.0,
+            "elongation_pct": 14.0,
+            "copper_conductivity_iacs": 100.0,
+            "resistivity": 0.017241,
+            "weight_m_per_kg": 29196.3,
+            "density": 8.90,
+            "note": "恒亚高精密自粘漆包线，适用于微特电机音圈与微型传感器",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        },
+        # 2. 益利素勒 (Y - Elektrisola)
+        {
+            "id": "preset_elektrisola_0050",
+            "vendor": "益利素勒",
+            "model": "Polysol 180 (1UEW) 高温直焊线",
+            "spec_name": "0.0500mm",
+            "bare_dia": 0.0500,
+            "max_od": 0.0560,
+            "meter_resistance_ohm": 8.78077,
+            "breakdown_voltage": 1600.0,
+            "elongation_pct": 12.0,
+            "copper_conductivity_iacs": 100.0,
+            "resistivity": 0.017241,
+            "weight_m_per_kg": 57224.2,
+            "density": 8.90,
+            "note": "德国益利素勒精密超微细漆包线，极佳的直焊性与耐温性",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        },
+        {
+            "id": "preset_elektrisola_0080_sb",
+            "vendor": "益利素勒",
+            "model": "Estersol 180 (1UEW-SB) 自粘线",
+            "spec_name": "0.0800mm",
+            "bare_dia": 0.0800,
+            "max_od": 0.0890,
+            "meter_resistance_ohm": 3.42999,
+            "breakdown_voltage": 1900.0,
+            "elongation_pct": 16.0,
+            "copper_conductivity_iacs": 100.0,
+            "resistivity": 0.017241,
+            "weight_m_per_kg": 22353.2,
+            "density": 8.90,
+            "note": "德国益利素勒耐热自粘线，高级音圈与高端电声专用",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        },
+        # 3. 中科华冶 (Z-K - Zhongke Huaye)
         {
             "id": "preset_huaye_0080_sb",
-            "vendor": "华冶精工",
-            "model": "1UEW-SB 复合自粘线",
-            "spec_name": "0.080mm",
-            "bare_dia": 0.080,
-            "max_od": 0.089,
-            "meter_resistance_ohm": 3.4007,
+            "vendor": "中科华冶",
+            "model": "1UEW-SB 复合自粘线 (1/58.5 高纯铜)",
+            "spec_name": "0.0800mm",
+            "bare_dia": 0.0800,
+            "max_od": 0.0890,
+            "meter_resistance_ohm": 3.40074,
             "breakdown_voltage": 1800.0,
             "elongation_pct": 16.0,
             "copper_conductivity_iacs": 100.86,
             "resistivity": 0.01709402,
             "weight_m_per_kg": 22353.2,
             "density": 8.90,
-            "note": "华冶自粘线标杆规格，出厂 1/58.5 高导退火铜",
+            "note": "湖北中科华冶出厂标杆自粘线，1/58.5 高导无氧退火铜",
             "created_at": "2026-01-01T00:00:00",
             "updated_at": "2026-01-01T00:00:00"
         },
         {
             "id": "preset_huaye_0120_sb",
-            "vendor": "华冶精工",
-            "model": "1UEW-SB 复合自粘线",
-            "spec_name": "0.120mm",
-            "bare_dia": 0.120,
-            "max_od": 0.133,
-            "meter_resistance_ohm": 1.5114,
+            "vendor": "中科华冶",
+            "model": "1UEW-SB 复合自粘线 (1/58.5 高纯铜)",
+            "spec_name": "0.1200mm",
+            "bare_dia": 0.1200,
+            "max_od": 0.1330,
+            "meter_resistance_ohm": 1.51144,
             "breakdown_voltage": 2100.0,
             "elongation_pct": 20.0,
             "copper_conductivity_iacs": 100.86,
             "resistivity": 0.01709402,
             "weight_m_per_kg": 9934.8,
             "density": 8.90,
-            "note": "华冶音圈经典出厂规格",
+            "note": "湖北中科华冶经典音圈规格，低阻抗高槽满率",
             "created_at": "2026-01-01T00:00:00",
             "updated_at": "2026-01-01T00:00:00"
         },
+        # 4. 中山精微 (Z-S - Zhongshan Jingwei)
         {
-            "id": "preset_yida_0050",
-            "vendor": "益达微电",
-            "model": "2UEW 超微细线",
-            "spec_name": "0.050mm",
-            "bare_dia": 0.050,
-            "max_od": 0.058,
-            "meter_resistance_ohm": 8.7808,
-            "breakdown_voltage": 1500.0,
-            "elongation_pct": 12.0,
+            "id": "preset_jingwei_0060",
+            "vendor": "中山精微",
+            "model": "2UEW-N 尼龙微特特种线",
+            "spec_name": "0.0600mm",
+            "bare_dia": 0.0600,
+            "max_od": 0.0680,
+            "meter_resistance_ohm": 6.09776,
+            "breakdown_voltage": 1900.0,
+            "elongation_pct": 14.0,
             "copper_conductivity_iacs": 100.0,
             "resistivity": 0.017241,
-            "weight_m_per_kg": 57224.2,
+            "weight_m_per_kg": 39739.0,
             "density": 8.90,
-            "note": "微特传感器微细线",
-            "created_at": "2026-01-01T00:00:00",
-            "updated_at": "2026-01-01T00:00:00"
-        },
-        {
-            "id": "preset_shengpai_0100",
-            "vendor": "胜牌电气",
-            "model": "0UEW 厚漆膜绝缘线",
-            "spec_name": "0.100mm",
-            "bare_dia": 0.100,
-            "max_od": 0.116,
-            "meter_resistance_ohm": 2.1952,
-            "breakdown_voltage": 2800.0,
-            "elongation_pct": 18.0,
-            "copper_conductivity_iacs": 100.0,
-            "resistivity": 0.017241,
-            "weight_m_per_kg": 14306.1,
-            "density": 8.90,
-            "note": "高耐压电机出厂标准线",
-            "created_at": "2026-01-01T00:00:00",
-            "updated_at": "2026-01-01T00:00:00"
-        },
-        {
-            "id": "preset_hongtian_0100_ccaw",
-            "vendor": "宏天特种",
-            "model": "15% CCAW-1UEW 铜包铝",
-            "spec_name": "0.100mm",
-            "bare_dia": 0.100,
-            "max_od": 0.110,
-            "meter_resistance_ohm": 3.2149,
-            "breakdown_voltage": 1800.0,
-            "elongation_pct": 15.0,
-            "copper_conductivity_iacs": 68.28,
-            "resistivity": 0.02525,
-            "weight_m_per_kg": 35075.5,
-            "density": 3.63,
-            "note": "轻量化铜包铝音圈专用线材",
+            "note": "中山精微微细电磁线，适用于手机防抖马达及高柔性精密线圈",
             "created_at": "2026-01-01T00:00:00",
             "updated_at": "2026-01-01T00:00:00"
         }
@@ -616,9 +646,16 @@ class CustomWireManager:
         except Exception:
             return False
 
-    def list_all(self) -> List[CustomWireItem]:
-        """获取所有自定义线材列表"""
-        return list(self._items)
+    def list_all(self, sort_by_pinyin: bool = True) -> List[CustomWireItem]:
+        """获取所有自定义线材列表，默认按供应商拼音序和线径升序排序"""
+        if not sort_by_pinyin:
+            return list(self._items)
+        return sorted(self._items, key=lambda it: (pinyin_sort_key(it.vendor), it.bare_dia))
+
+    def reset_to_default_presets(self) -> bool:
+        """重置为官方预设供应商与规格 (按拼音排序: 恒亚电工、益利素勒、中科华冶、中山精微)"""
+        self._items = [CustomWireItem.from_dict(d) for d in self.DEFAULT_PRESETS]
+        return self.save()
 
     def get_by_id(self, wire_id: str) -> Optional[CustomWireItem]:
         """按 ID 查找"""
