@@ -164,7 +164,10 @@ def step3_pyinstaller_build() -> bool:
     icon_file = ROOT_DIR / "resources" / "app_icon.ico"
     resources_dir = ROOT_DIR / "resources"
 
-    # 清理旧生成物
+    # 清理旧生成物并自动终止残留运行实例
+    subprocess.run("taskkill /F /IM Coil-Architect-Pro.exe >nul 2>&1", shell=True)
+    import time
+    time.sleep(0.5)
     if (dist_dir / "Coil-Architect-Pro").exists():
         shutil.rmtree(dist_dir / "Coil-Architect-Pro", ignore_errors=True)
     if build_dir.exists():
