@@ -3074,60 +3074,64 @@ let _allWireLibs = [];
 
 async function loadWireLibraries() {
   const tbody = document.getElementById('wire-lib-table-body');
+  if(!tbody) return;
   tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">正在连接 Cloudflare D1 边缘数据库...</td></tr>';
   try {
     const res = await fetch('/admin/api/wire_libraries');
     const data = await res.json();
     if (!data.success) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding: 20px;">载入失败: ${data.error}</td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red; padding: 20px;">载入失败: ' + (data.error || '未知错误') + '</td></tr>';
       return;
     }
     _allWireLibs = data.libraries || [];
-    document.getElementById('tab-wire-count').innerText = _allWireLibs.length;
+    const countEl = document.getElementById('tab-wire-count');
+    if (countEl) countEl.innerText = _allWireLibs.length;
     renderWireLibsTable(_allWireLibs);
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding: 20px;">网络请求异常: ${e}</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red; padding: 20px;">网络请求异常: ' + e + '</td></tr>';
   }
 }
 
 function renderWireLibsTable(libs) {
   const tbody = document.getElementById('wire-lib-table-body');
-  if (libs.length === 0) {
+  if(!tbody) return;
+  if (!libs || libs.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color:#64748B;">暂无客户端上传备份个人线材库</td></tr>';
     return;
   }
   let html = '';
-  libs.forEach(item => {
+  libs.forEach(function(item) {
     const cust = item.customer_name || '未登记客户';
     const mid = item.machine_id || '-';
     const count = item.wire_count || 0;
     const updated = (item.updated_at || '-').replace('T', ' ').substring(0, 19);
     const ukey = item.user_key || '';
-    html += `<tr>
-      <td><b>${cust}</b></td>
-      <td><span class="mono">${mid.substring(0, 16)}...</span></td>
-      <td><span class="badge badge-info">${count} 档线规</span></td>
-      <td>${updated}</td>
-      <td><span class="mono" style="font-size:11px; color:#64748B;">${ukey.substring(0, 14)}...</span></td>
-      <td>
-        <button class="btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="viewWireDetail('${encodeURIComponent(ukey)}')">🔍 查看规格明细</button>
-      </td>
-    </tr>`;
+    html += '<tr>' +
+      '<td><b>' + cust + '</b></td>' +
+      '<td><span class="mono">' + mid.substring(0, 16) + '...</span></td>' +
+      '<td><span class="badge badge-info">' + count + ' 档线规</span></td>' +
+      '<td>' + updated + '</td>' +
+      '<td><span class="mono" style="font-size:11px; color:#64748B;">' + ukey.substring(0, 14) + '...</span></td>' +
+      '<td>' +
+        '<button class="btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="viewWireDetail(\'' + encodeURIComponent(ukey) + '\')">🔍 查看规格明细</button>' +
+      '</td>' +
+    '</tr>';
   });
   tbody.innerHTML = html;
 }
 
 function filterWireLibs() {
-  const q = document.getElementById('search-wire-lib').value.toLowerCase().trim();
+  const inputEl = document.getElementById('search-wire-lib');
+  const q = (inputEl ? inputEl.value : '').toLowerCase().trim();
   if (!q) {
     renderWireLibsTable(_allWireLibs);
     return;
   }
-  const filtered = _allWireLibs.filter(it => 
-    (it.customer_name || '').toLowerCase().includes(q) ||
-    (it.machine_id || '').toLowerCase().includes(q) ||
-    (it.user_key || '').toLowerCase().includes(q)
-  );
+  const filtered = _allWireLibs.filter(function(it) {
+    return (it.customer_name || '').toLowerCase().indexOf(q) !== -1 ||
+           (it.machine_id || '').toLowerCase().indexOf(q) !== -1 ||
+           (it.user_key || '').toLowerCase().indexOf(q) !== -1;
+  });
   renderWireLibsTable(filtered);
 }
 
@@ -3139,15 +3143,15 @@ async function viewWireDetail(encodedUserKey) {
   modal.style.display = 'flex';
 
   try {
-    const res = await fetch(`/admin/api/wire_libraries/detail?user_key=${encodeURIComponent(userKey)}`);
+    const res = await fetch('/admin/api/wire_libraries/detail?user_key=' + encodeURIComponent(userKey));
     const data = await res.json();
     if (!data.success) {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:red; padding:20px;">读取失败: ${data.error}</td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:red; padding:20px;">读取失败: ' + (data.error || '未知错误') + '</td></tr>';
       return;
     }
     const lib = data.library;
-    document.getElementById('wire-modal-title').innerText = `🔍 客户端线材库: ${lib.customer_name || '未知客户'} (${lib.wire_count} 档)`;
-    document.getElementById('wire-modal-sub').innerText = `设备识别码: ${lib.machine_id} | 最近备份时间: ${lib.updated_at}`;
+    document.getElementById('wire-modal-title').innerText = '🔍 客户端线材库: ' + (lib.customer_name || '未知客户') + ' (' + lib.wire_count + ' 档)';
+    document.getElementById('wire-modal-sub').innerText = '设备识别码: ' + lib.machine_id + ' | 最近备份时间: ' + lib.updated_at;
 
     const wires = lib.wires || [];
     if (wires.length === 0) {
@@ -3155,22 +3159,22 @@ async function viewWireDetail(encodedUserKey) {
       return;
     }
     let html = '';
-    wires.forEach(w => {
-      html += `<tr style="border-bottom:1px solid #E2E8F0; font-size:12px;">
-        <td style="padding:6px 8px;"><b>${w.vendor || '-'}</b></td>
-        <td style="padding:6px 8px;">${w.model || '-'}</td>
-        <td style="padding:6px 8px; text-align:center;" class="mono">${Number(w.bare_dia||0).toFixed(4)}</td>
-        <td style="padding:6px 8px; text-align:center;" class="mono">${Number(w.max_od||0).toFixed(4)}</td>
-        <td style="padding:6px 8px; text-align:right;" class="mono">${Number(w.meter_resistance_ohm||0).toFixed(5)}</td>
-        <td style="padding:6px 8px; text-align:right;" class="mono">${Number(w.weight_m_per_kg||0).toFixed(1)}</td>
-        <td style="padding:6px 8px; text-align:center;">${Number(w.breakdown_voltage||0).toFixed(0)}</td>
-        <td style="padding:6px 8px; text-align:center;">${Number(w.copper_conductivity_iacs||100).toFixed(1)}%</td>
-        <td style="padding:6px 8px; color:#64748B; font-size:11px;">${w.note || '-'}</td>
-      </tr>`;
+    wires.forEach(function(w) {
+      html += '<tr style="border-bottom:1px solid #E2E8F0; font-size:12px;">' +
+        '<td style="padding:6px 8px;"><b>' + (w.vendor || '-') + '</b></td>' +
+        '<td style="padding:6px 8px;">' + (w.model || '-') + '</td>' +
+        '<td style="padding:6px 8px; text-align:center;" class="mono">' + Number(w.bare_dia || 0).toFixed(4) + '</td>' +
+        '<td style="padding:6px 8px; text-align:center;" class="mono">' + Number(w.max_od || 0).toFixed(4) + '</td>' +
+        '<td style="padding:6px 8px; text-align:right;" class="mono">' + Number(w.meter_resistance_ohm || 0).toFixed(5) + '</td>' +
+        '<td style="padding:6px 8px; text-align:right;" class="mono">' + Number(w.weight_m_per_kg || 0).toFixed(1) + '</td>' +
+        '<td style="padding:6px 8px; text-align:center;">' + Number(w.breakdown_voltage || 0).toFixed(0) + '</td>' +
+        '<td style="padding:6px 8px; text-align:center;">' + Number(w.copper_conductivity_iacs || 100).toFixed(1) + '%</td>' +
+        '<td style="padding:6px 8px; color:#64748B; font-size:11px;">' + (w.note || '-') + '</td>' +
+      '</tr>';
     });
     tbody.innerHTML = html;
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:red; padding:20px;">网络请求异常: ${e}</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:red; padding:20px;">网络请求异常: ' + e + '</td></tr>';
   }
 }
 
