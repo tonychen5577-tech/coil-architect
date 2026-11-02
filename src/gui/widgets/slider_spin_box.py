@@ -170,7 +170,7 @@ class FloatSliderBox(QWidget):
         self.spin.setSingleStep(step)
         self.spin.setDecimals(decimals)
         self.spin.setValue(default_val)
-        self.spin.setFixedWidth(120 if decimals >= 5 else 105)
+        self.spin.setFixedWidth(120 if decimals >= 4 else 105)
 
         control_layout.addWidget(self.slider)
         control_layout.addWidget(self.spin)
@@ -238,6 +238,16 @@ class FloatSliderBox(QWidget):
         self.slider.setMaximum(int(round(max_val * self.scale)))
         if self.spin.value() > max_val:
             self.setValue(max_val)
+
+    def setDecimals(self, decimals: int):
+        """动态设置小数显示位数与滑块精度"""
+        self.decimals = decimals
+        self.scale = 10 ** decimals
+        self.spin.setDecimals(decimals)
+        self.spin.setFixedWidth(120 if decimals >= 4 else 105)
+        self.slider.setRange(int(round(self.min_val * self.scale)), int(round(self.max_val * self.scale)))
+        self.slider.setSingleStep(int(round(self.step * self.scale)))
+        self.slider.setValue(int(round(self.spin.value() * self.scale)))
 
     def setRange(self, min_val: float, max_val: float):
         self.min_val = min_val

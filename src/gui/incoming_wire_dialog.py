@@ -121,9 +121,9 @@ class IncomingWireDialog(QDialog):
         lbl_rm = QLabel("实测常温米阻 (Ω/m):" if not is_en else "Measured Res (Ω/m):")
         lbl_rm.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
         self.sb_rm = ClickableDoubleSpinBox()
-        self.sb_rm.setRange(0.0001, 50000.0)
-        self.sb_rm.setDecimals(4)
-        self.sb_rm.setSingleStep(0.1)
+        self.sb_rm.setRange(0.00001, 50000.0)
+        self.sb_rm.setDecimals(5)
+        self.sb_rm.setSingleStep(0.0001)
         self.sb_rm.setValue(self._init_rm if self._init_rm > 0 else 10.7470)
         self.sb_rm.valueChanged.connect(self._on_rm_changed)
 
@@ -163,8 +163,8 @@ class IncomingWireDialog(QDialog):
         lbl_od.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
         self.sb_od = ClickableDoubleSpinBox()
         self.sb_od.setRange(0.012, 5.000)
-        self.sb_od.setDecimals(3)
-        self.sb_od.setSingleStep(0.001)
+        self.sb_od.setDecimals(4)
+        self.sb_od.setSingleStep(0.0005)
         self.sb_od.setValue(self._init_max_od)
         self.sb_od.valueChanged.connect(self._on_geometry_changed)
 
@@ -172,8 +172,8 @@ class IncomingWireDialog(QDialog):
         lbl_bare.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
         self.sb_bare = ClickableDoubleSpinBox()
         self.sb_bare.setRange(0.010, 4.000)
-        self.sb_bare.setDecimals(3)
-        self.sb_bare.setSingleStep(0.001)
+        self.sb_bare.setDecimals(4)
+        self.sb_bare.setSingleStep(0.0005)
         self.sb_bare.setValue(self._init_bare_dia)
         self.sb_bare.valueChanged.connect(self._on_geometry_changed)
 
@@ -378,19 +378,19 @@ class IncomingWireDialog(QDialog):
         is_en = i18n.is_english()
         if not is_en:
             text = (
-                f"• 实测米阻: {rm:.4f} Ω/m  |  千米阻值: {km_res:.1f} Ω/km\n"
+                f"• 实测米阻: {rm:.5f} Ω/m  |  千米阻值: {km_res:.1f} Ω/km\n"
                 f"• 出厂线密度: {km_kg:.3f} km/kg (每千克可绕 {km_kg * 1000:.0f} 米导体)\n"
-                f"• 依据电阻率(ρ={rho:.6f})推算等效裸径: {d_theo:.4f} mm (当前设定: {bare:.3f} mm)\n"
-                f"• 漆膜与胶层总外径增量: +{delta_thick:.3f} mm (成品外径: {od:.3f} mm)\n"
-                f"• 仿真求解保障: 阻抗直接采用 L × {rm:.4f}Ω/m，导体重量直接采用 L / {km_kg:.3f}km/kg 100% 实测直接闭环！"
+                f"• 依据电阻率(ρ={rho:.6f})推算等效裸径: {d_theo:.4f} mm (当前设定: {bare:.4f} mm)\n"
+                f"• 漆膜与胶层总外径增量: +{delta_thick:.3f} mm (成品外径: {od:.4f} mm)\n"
+                f"• 仿真求解保障: 阻抗直接采用 L × {rm:.5f}Ω/m，导体重量直接采用 L / {km_kg:.3f}km/kg 100% 实测直接闭环！"
             )
         else:
             text = (
-                f"• Measured Rm: {rm:.4f} Ω/m  |  Km resistance: {km_res:.1f} Ω/km\n"
+                f"• Measured Rm: {rm:.5f} Ω/m  |  Km resistance: {km_res:.1f} Ω/km\n"
                 f"• Wire yield: {km_kg:.3f} km/kg ({km_kg * 1000:.0f} m/kg bare conductor)\n"
-                f"• Inferred bare dia: {d_theo:.4f} mm (Current setup: {bare:.3f} mm)\n"
-                f"• Total coating buildup: +{delta_thick:.3f} mm (Finished OD: {od:.3f} mm)\n"
-                f"• Solver guarantee: Resistance L * {rm:.4f}Ω/m, conductor mass L / {km_kg:.3f}km/kg."
+                f"• Inferred bare dia: {d_theo:.4f} mm (Current setup: {bare:.4f} mm)\n"
+                f"• Total coating buildup: +{delta_thick:.3f} mm (Finished OD: {od:.4f} mm)\n"
+                f"• Solver guarantee: Resistance L * {rm:.5f}Ω/m, conductor mass L / {km_kg:.3f}km/kg."
             )
         self.lbl_preview_detail.setText(text)
 

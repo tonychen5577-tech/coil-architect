@@ -311,16 +311,16 @@ class WireCatalogDialog(QDialog):
 
         for row_idx, item in enumerate(wires):
             # Col 0: 线径
-            c0 = QTableWidgetItem(f"{item.diameter:.3f}")
+            c0 = QTableWidgetItem(f"{item.diameter:.4f}")
             c0.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             c0.setData(Qt.ItemDataRole.UserRole, item)
 
             # Col 1: 最大外径
-            c1 = QTableWidgetItem(f"{item.max_outer_dia:.3f}")
+            c1 = QTableWidgetItem(f"{item.max_outer_dia:.4f}")
             c1.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
             # Col 2: 20℃出厂阻值 (Ω/m · 国标米阻)
-            c2 = QTableWidgetItem(f"{item.meter_resistance_ohm:.4f}")
+            c2 = QTableWidgetItem(f"{item.meter_resistance_ohm:.5f}")
             c2.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             c2.setToolTip(f"20℃国标米阻: {item.meter_resistance_ohm:.6f} Ω/m\n等效千米阻值: {item.km_resistance_ohm:.1f} Ω/km")
 

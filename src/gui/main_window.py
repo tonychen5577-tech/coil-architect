@@ -1947,8 +1947,8 @@ class MainWindow(QMainWindow):
         layout_rw.setContentsMargins(0, 0, 0, 0)
         layout_rw.setSpacing(6)
 
-        self.sb_bare_dia = FloatSliderBox("铜线裸径 (d)", "mm", 0.010, 3.500, 0.075, 0.001)
-        self.sb_max_od = FloatSliderBox("漆包外径 (D)", "mm", 0.012, 4.000, 0.085, 0.001)
+        self.sb_bare_dia = FloatSliderBox("铜线裸径 (d)", "mm", 0.010, 3.500, 0.075, 0.0005, decimals=4)
+        self.sb_max_od = FloatSliderBox("漆包外径 (D)", "mm", 0.012, 4.000, 0.085, 0.0005, decimals=4)
         layout_rw.addWidget(self.sb_bare_dia)
         layout_rw.addWidget(self.sb_max_od)
         layout_wire.addWidget(self.container_round_wire)
@@ -1960,11 +1960,11 @@ class MainWindow(QMainWindow):
         layout_fw.setContentsMargins(0, 0, 0, 0)
         layout_fw.setSpacing(6)
 
-        self.sb_flat_w = FloatSliderBox("宽边宽度 (W)", "mm", 0.010, 15.000, 0.800, 0.001)
-        self.sb_flat_h = FloatSliderBox("高边厚度 (H)", "mm", 0.010, 10.000, 0.350, 0.001)
-        self.sb_flat_max_w = FloatSliderBox("带漆外宽 (W_out)", "mm", 0.010, 16.000, 0.810, 0.001)
-        self.sb_flat_max_h = FloatSliderBox("带漆外厚 (H_out)", "mm", 0.010, 11.000, 0.360, 0.001)
-        self.sb_flat_r = FloatSliderBox("倒圆角半径 (r)", "mm", 0.000, 5.000, 0.080, 0.001)
+        self.sb_flat_w = FloatSliderBox("宽边宽度 (W)", "mm", 0.010, 15.000, 0.800, 0.0005, decimals=4)
+        self.sb_flat_h = FloatSliderBox("高边厚度 (H)", "mm", 0.010, 10.000, 0.350, 0.0005, decimals=4)
+        self.sb_flat_max_w = FloatSliderBox("带漆外宽 (W_out)", "mm", 0.010, 16.000, 0.810, 0.0005, decimals=4)
+        self.sb_flat_max_h = FloatSliderBox("带漆外厚 (H_out)", "mm", 0.010, 11.000, 0.360, 0.0005, decimals=4)
+        self.sb_flat_r = FloatSliderBox("倒圆角半径 (r)", "mm", 0.000, 5.000, 0.080, 0.0005, decimals=4)
         self.sb_flat_w.valueChanged.connect(self._on_flat_dim_changed)
         self.sb_flat_h.valueChanged.connect(self._on_flat_dim_changed)
         self.sb_flat_max_w.valueChanged.connect(self._on_flat_max_dim_changed)
@@ -2608,9 +2608,9 @@ class MainWindow(QMainWindow):
 
         # 锁定裸径、外径与电阻率
         self.sb_bare_dia.setEnabled(False)
-        self.sb_bare_dia.setToolTip(f"已锁定自定义线径: {item.bare_dia:.3f} mm ({item.vendor} {item.model})")
+        self.sb_bare_dia.setToolTip(f"已锁定自定义线径: {item.bare_dia:.4f} mm ({item.vendor} {item.model})")
         self.sb_max_od.setEnabled(False)
-        self.sb_max_od.setToolTip(f"已锁定自定义出厂最大外径: {item.max_od:.3f} mm")
+        self.sb_max_od.setToolTip(f"已锁定自定义出厂最大外径: {item.max_od:.4f} mm")
         self.sb_copper_rho.setEnabled(False)
         self.sb_copper_rho.setToolTip(f"已锁定电阻率: {item.resistivity:.8f} Ω·mm²/m ({item.copper_conductivity_iacs:.1f}% IACS)")
 
@@ -2618,7 +2618,7 @@ class MainWindow(QMainWindow):
             self.btn_reset_wire.setVisible(True)
 
         self.lbl_catalog_selected.setText(
-            f"已锁定: 【{item.vendor}】{item.model} {item.bare_dia:.3f}mm | {item.meter_resistance_ohm:.4f}Ω/m | {item.weight_m_per_kg:.1f}m/kg | 耐压{item.breakdown_voltage:.0f}V"
+            f"已锁定: 【{item.vendor}】{item.model} {item.bare_dia:.4f}mm | {item.meter_resistance_ohm:.5f}Ω/m | {item.weight_m_per_kg:.1f}m/kg | 耐压{item.breakdown_voltage:.0f}V"
         )
         self.lbl_catalog_selected.setStyleSheet("""
             QLabel {
@@ -2696,11 +2696,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, "sb_bare_dia"):
             self.sb_bare_dia.setValue(params.bare_dia)
             self.sb_bare_dia.setEnabled(False)
-            self.sb_bare_dia.setToolTip(f"已锁定来料裸径: {params.bare_dia:.3f} mm")
+            self.sb_bare_dia.setToolTip(f"已锁定来料裸径: {params.bare_dia:.4f} mm")
         if hasattr(self, "sb_max_od"):
             self.sb_max_od.setValue(params.max_outer_dia)
             self.sb_max_od.setEnabled(False)
-            self.sb_max_od.setToolTip(f"已锁定来料成品外径: {params.max_outer_dia:.3f} mm")
+            self.sb_max_od.setToolTip(f"已锁定来料成品外径: {params.max_outer_dia:.4f} mm")
         if hasattr(self, "sb_copper_rho"):
             self.sb_copper_rho.setValue(params.resistivity)
             self.sb_copper_rho.setEnabled(False)
@@ -2721,7 +2721,7 @@ class MainWindow(QMainWindow):
             self.btn_reset_wire.setVisible(True)
 
         self.lbl_catalog_selected.setText(
-            f"已锁定: 【来料实测】{params.meter_resistance_ohm:.3f}Ω/m | {params.km_per_kg:.2f}km/kg | 外径 {params.max_outer_dia:.3f}mm"
+            f"已锁定: 【来料实测】{params.bare_dia:.4f}mm (外径 {params.max_outer_dia:.4f}mm | {params.meter_resistance_ohm:.5f}Ω/m | {params.km_per_kg:.2f}km/kg)"
         )
         self.lbl_catalog_selected.setStyleSheet("""
             QLabel {
@@ -2776,7 +2776,7 @@ class MainWindow(QMainWindow):
 
         # 锁定裸径与外径，杜绝手动微调导致与出厂规格冲突
         self.sb_bare_dia.setEnabled(False)
-        self.sb_bare_dia.setToolTip(f"已锁定华冶标准裸径 {item.diameter:.3f} mm")
+        self.sb_bare_dia.setToolTip(f"已锁定华冶标准裸径 {item.diameter:.4f} mm")
         self.sb_max_od.setEnabled(False)
         self.sb_max_od.setToolTip(f"已锁定华冶外径 {'(1UEW-SB 含自粘胶)' if is_sb else '(1UEW 标准出厂)'} {eff_od:.3f} mm")
 
@@ -2815,7 +2815,7 @@ class MainWindow(QMainWindow):
 
         mat_short = "CCAW" if is_ccaw else ("无氧纯铜" if is_ofc else "纯铜")
         sb_tag = " 1UEW-SB" if is_sb else " 1UEW"
-        info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
+        info_text = f"已锁定: 【{mat_short}】 {item.diameter:.4f}mm (外径 {eff_od:.4f}mm{sb_tag} | {item.meter_resistance_ohm:.5f}Ω/m | 裸铜 {item.km_per_kg:.2f}km/kg)"
         self.lbl_catalog_selected.setText(info_text)
         self.lbl_catalog_selected.setStyleSheet("""
             QLabel {
@@ -2835,7 +2835,7 @@ class MainWindow(QMainWindow):
             f"材质: {item.material_name}\n"
             f"公称裸径: {item.diameter:.3f} mm\n"
             f"基准外径: {item.max_outer_dia:.3f} mm (1UEW 标准)\n"
-            f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
+            f"当前外径: {eff_od:.4f} mm{sb_tag}\n"
             f"出厂KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
             f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg (裸导体米重: {1000.0/item.km_per_kg:.5f} g/m)\n"
             f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG直接核算) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
@@ -2912,7 +2912,7 @@ class MainWindow(QMainWindow):
             is_ofc = getattr(self, "_is_current_wire_ofc", False)
             mat_short = "CCAW" if is_ccaw else ("无氧纯铜" if is_ofc else "纯铜")
             sb_tag = " 1UEW-SB" if checked else " 1UEW"
-            info_text = f"已锁定: 【{mat_short}】 {item.diameter:.3f}mm (外径 {eff_od:.3f}mm{sb_tag} | {item.km_resistance_ohm:.1f}Ω/km | 裸铜 {item.km_per_kg:.2f}km/kg)"
+            info_text = f"已锁定: 【{mat_short}】 {item.diameter:.4f}mm (外径 {eff_od:.4f}mm{sb_tag} | {item.meter_resistance_ohm:.5f}Ω/m | 裸铜 {item.km_per_kg:.2f}km/kg)"
             self.lbl_catalog_selected.setText(info_text)
             self.lbl_catalog_selected.setStyleSheet("""
                 QLabel {
@@ -2932,7 +2932,7 @@ class MainWindow(QMainWindow):
                 f"材质: {item.material_name}\n"
                 f"公称裸径: {item.diameter:.3f} mm\n"
                 f"基准外径: {item.max_outer_dia:.3f} mm (1UEW 标准)\n"
-                f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
+                f"当前外径: {eff_od:.4f} mm{sb_tag}\n"
                 f"出厂KM阻值: {item.km_resistance_ohm:.1f} Ω/km\n"
                 f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg (裸导体米重: {1000.0/item.km_per_kg:.5f} g/m)\n"
                 f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG直接核算) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"
@@ -3113,7 +3113,7 @@ class MainWindow(QMainWindow):
                     self.lbl_catalog_selected.setToolTip(
                         f"【华冶线材出厂规格 · {mat_short}】\n"
                         f"公称裸径: {item.diameter:.3f} mm\n"
-                        f"当前外径: {eff_od:.3f} mm{sb_tag}\n"
+                        f"当前外径: {eff_od:.4f} mm{sb_tag}\n"
                         f"当前KM阻值: {km_res:.1f} Ω/km (基准ρ={rho_val:.8f})\n"
                         f"裸导体KM/KG: {item.km_per_kg:.3f} km/kg (裸导体米重: {1000.0/item.km_per_kg:.5f} g/m)\n"
                         f"重量计算模型: 裸导体重(按华冶出厂标称KM/KG直接核算) + 固化漆膜/胶重(按华冶实测UEW 1.27/SB 1.07体积积分)\n"

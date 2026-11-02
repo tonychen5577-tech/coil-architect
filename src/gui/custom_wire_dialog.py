@@ -112,7 +112,7 @@ class CustomWireEditorDialog(QDialog):
         self.sb_bare_dia = ClickableDoubleSpinBox()
         self.sb_bare_dia.setRange(0.010, 5.000)
         self.sb_bare_dia.setDecimals(4)
-        self.sb_bare_dia.setSingleStep(0.005)
+        self.sb_bare_dia.setSingleStep(0.0005)
         self.sb_bare_dia.setValue(0.080)
         self.sb_bare_dia.setStyleSheet(self._input_field_qss())
         self.sb_bare_dia.valueChanged.connect(self._on_bare_dia_changed)
@@ -121,7 +121,7 @@ class CustomWireEditorDialog(QDialog):
         self.sb_max_od = ClickableDoubleSpinBox()
         self.sb_max_od.setRange(0.012, 6.000)
         self.sb_max_od.setDecimals(4)
-        self.sb_max_od.setSingleStep(0.005)
+        self.sb_max_od.setSingleStep(0.0005)
         self.sb_max_od.setValue(0.089)
         self.sb_max_od.setStyleSheet(self._input_field_qss())
 
@@ -191,9 +191,9 @@ class CustomWireEditorDialog(QDialog):
         lbl_rm = QLabel("20℃ 出厂米阻 (Ω/m):" if not is_en else "20℃ Res (Ω/m):")
         lbl_rm.setStyleSheet("font-size: 11px; font-weight: 600; color: #1E293B;")
         self.sb_rm = ClickableDoubleSpinBox()
-        self.sb_rm.setRange(0.0001, 20000.0)
+        self.sb_rm.setRange(0.00001, 20000.0)
         self.sb_rm.setDecimals(5)
-        self.sb_rm.setSingleStep(0.05)
+        self.sb_rm.setSingleStep(0.0001)
         self.sb_rm.setValue(3.4007)
         self.sb_rm.setStyleSheet(self._input_field_qss())
         self.sb_rm.valueChanged.connect(self._on_rm_spin_changed)
@@ -813,13 +813,13 @@ class CustomWireLibraryDialog(QDialog):
             c0.setData(Qt.ItemDataRole.UserRole, it)
 
             c1 = QTableWidgetItem(f"{it.model} ({it.spec_name})")
-            c2 = QTableWidgetItem(f"{it.bare_dia:.3f}")
+            c2 = QTableWidgetItem(f"{it.bare_dia:.4f}")
             c2.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            c3 = QTableWidgetItem(f"{it.max_od:.3f}")
+            c3 = QTableWidgetItem(f"{it.max_od:.4f}")
             c3.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            c4 = QTableWidgetItem(f"{it.meter_resistance_ohm:.4f}")
+            c4 = QTableWidgetItem(f"{it.meter_resistance_ohm:.5f}")
             c4.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             c4.setToolTip(f"国标米阻: {it.meter_resistance_ohm:.6f} Ω/m\n千米阻值: {it.km_resistance_ohm:.1f} Ω/km")
 
