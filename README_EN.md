@@ -65,8 +65,8 @@ Clicking **[💾 Save Case]** packages all current workstation state parameters 
 - **Project Code & Name** (e.g., `Coli-Architect` or custom enterprise case numbers);
 - **Coil Topology Selection** (Octagonal, Racetrack, Circular Ring, Arbitrary Contour);
 - **Complete Geometric Dimension Chains** (Inner Length, Inner Width, Flat/Corner Spans, Corner Fillet Radii, Expanded Perimeter);
-- **Winding Process Parameters** (Bare Conductor Diameter $d$, Insulated Outer Diameter $D$, Radial Layer Count $I$, Turns per Layer $J$, HCP vs. Square packing, tension elongation coefficient $\eta$, copper grade conductivity);
-- **Operating & Ambient Conditions** (Ambient temperature $T_{\text{amb}}$, test drive current $I_{\text{drive}}$, convective heat transfer coefficient $h$);
+- **Winding Process Parameters** (Bare Conductor Diameter d, Insulated Outer Diameter D, Radial Layer Count I, Turns per Layer J, HCP vs. Square packing, tension elongation coefficient η, copper grade conductivity);
+- **Operating & Ambient Conditions** (Ambient temperature T_amb, test drive current I_drive, convective heat transfer coefficient h);
 - **DFM Clearances & Safety Limits** (Envelope max length, width, height, terminal voltage cap, insulation thermal class).
 
 ### 2. Instant Case Recall & Backward Compatibility
@@ -86,12 +86,12 @@ Instead of ambiguous screenshots, teams share compact `.ansvcoil` project files 
 ## ⚡ Key Features
 
 ### 1. Millisecond Closed-Form Analytical Inverse Solver
-The solver kernel is built upon closed-form analytical geometric integration and multi-physics equilibrium equations, bypassing time-consuming 3D finite element mesh generation. Modifying conductor wire gauge, layer counts, or tension coefficients updates all outputs (effective turns $N$, 3D bounding envelope, cold resistance $R_{20}$, hot steady-state resistance, Wheeler hollow-core inductance, and Joule heating power) in **under 5 milliseconds**.
+The solver kernel is built upon closed-form analytical geometric integration and multi-physics equilibrium equations, bypassing time-consuming 3D finite element mesh generation. Modifying conductor wire gauge, layer counts, or tension coefficients updates all outputs (effective turns N, 3D bounding envelope, cold resistance R₂₀, hot steady-state resistance, Wheeler hollow-core inductance, and Joule heating power) in **under 5 milliseconds**.
 
 ### 2. High-Speed Tension Thinning & Micron-Level Bond Coat Calculations
 - **Plastic Tension Necking Compensation**: High-speed automatic winding tension causes microscopic plastic draw thinning in ultra-fine magnet wire. The solver incorporates tension elongation correction, eliminating theoretical constant-diameter errors and achieving **>99.2% correlation with physical prototypes**;
 - **Microscopic Self-Bonding Fill Factor**: Accurately accounts for enamel insulation and hot-air/alcohol-activated self-bonding adhesive layers, computing Hexagonal Close-Packed (HCP) pure copper cross-sectional space factors and final build thickness;
-- **Coupled Electro-Thermal Temperature Prediction**: Evaluates temperature rise from 20°C room ambient to $70^\circ\text{C} \sim 120^\circ\text{C}$ steady-state operation, preventing thermal resistance drift, force degradation, and insulation breakdown.
+- **Coupled Electro-Thermal Temperature Prediction**: Evaluates temperature rise from 20°C room ambient to 70°C ~ 120°C steady-state operation, preventing thermal resistance drift, force degradation, and insulation breakdown.
 
 ### 3. DFM Assembly Clearances & Multi-Pole Magnet Air Gap Warnings
 - **Dynamic Air Gap Surveillance**: Computes real-time dynamic clearance between the coil outer boundary and adjacent multi-pole permanent magnets;
@@ -105,7 +105,7 @@ The solver kernel is built upon closed-form analytical geometric integration and
 </p>
 
 ### 4. Non-Coplanar Winding Physics & Real Physical Strata Cross-Section
-- **Support for Non-Coplanar & Uneven Layer Turns**: In realistic high-speed winding, wires do not strictly reside on the same layer due to lead-in/out crossovers, layer transition drops, and half-turn offsets. The software fully supports non-coplanar winding calculations to resolve true effective turns, radial wall thickness $E$, outer spans, and DC resistance;
+- **Support for Non-Coplanar & Uneven Layer Turns**: In realistic high-speed winding, wires do not strictly reside on the same layer due to lead-in/out crossovers, layer transition drops, and half-turn offsets. The software fully supports non-coplanar winding calculations to resolve true effective turns, radial wall thickness E, outer spans, and DC resistance;
 - **Real-Time Physical Cross-Section Rendering**: The 2D viewport dynamically renders actual microscopic layer strata, providing clear visualization of inner datum boundaries, outer margins, and lead crossovers.
 
 <p align="center">
@@ -116,7 +116,7 @@ The solver kernel is built upon closed-form analytical geometric integration and
 
 ### 5. Multi-Scheme Review Matrix & Adaptive Report Export
 - **Dual Drawer & Standalone Window Modes**: Operates as a collapsible bottom drawer or detaches into a resizable standalone review matrix window via **[⛶ Pop-out]**, allowing full-screen widescreen evaluation of 8 to 10 competing coil proposals;
-- **Side-by-Side Baseline Comparison**: Click **[📌 Freeze Scheme]** to capture candidate proposals into dedicated comparison columns. Supports one-click parameter recall, designating baseline schemes, and highlighting cell-by-cell delta deviations ($\Delta$);
+- **Side-by-Side Baseline Comparison**: Click **[📌 Freeze Scheme]** to capture candidate proposals into dedicated comparison columns. Supports one-click parameter recall, designating baseline schemes, and highlighting cell-by-cell delta deviations (Δ);
 - **Project Code Auto-Injection**: Project names (default `Coli-Architect`) are automatically injected into exported Excel and CSV filenames and sheet headers (e.g., `{ProjectID}_Coil_Comparison_Matrix_YYYYMMDD_HHMMSS.xlsx`);
 - **Dynamic Excel Column Widths**: Exported workbooks dynamically format column widths based on text lengths, providing ready-to-share executive reports without manual cell adjustments.
 
@@ -128,19 +128,19 @@ The solver kernel is built upon closed-form analytical geometric integration and
 
 ### 6. Huaye Industrial Wire Catalog & Oxygen-Free Copper (OFC) Customization
 To seamlessly bridge conceptual coil design with shop-floor manufacturing, Coil-Architect Pro integrates the comprehensive **Huaye Wire Catalog**, featuring a dedicated wide modal picker and synchronized parameter constraints:
-- **Comprehensive 4 Manufacturer Parameters**: Across the 920×580 modal dialog, engineers can inspect nominal bare diameter $d$ (mm), maximum finished outer diameter $D_{\max}$ (mm), 20°C DC resistance $R_{\text{km}}$ (Ω/km), and length-to-weight ratio $L_{\text{km/kg}}$ (km/kg), complete with global wheel scrolling and instant keyword filtering;
+- **Comprehensive 4 Manufacturer Parameters**: Across the 920×580 modal dialog, engineers can inspect nominal bare diameter d (mm), maximum finished outer diameter D_max (mm), 20°C DC resistance R_km (Ω/km), and length-to-weight ratio L_km/kg (km/kg), complete with global wheel scrolling and instant keyword filtering;
 - **3 Native Material Series**:
   1. **Standard Pure Copper** (69 gauges · Huaye empirical factory baseline for general electromagnetic applications);
   2. **Custom Oxygen-Free Copper (OFC)** (69 gauges · High-purity annealed state, tailored for ultra-low DCR micro actuators, reaching 101.7% IACS conductivity, reducing resistance by ~0.85% while fully preserving standard drawing dies and outer diameters);
   3. **15% Copper-Clad Aluminum (CCAW)** (79 gauges · Lightweight empirical specification, reducing moving mass by 59%);
-- **1-Click Seamless Copper Grade Comparison**: Once a Huaye copper wire is active, the conductor grade selector remains open, allowing engineers to toggle between Standard Copper and Custom OFC directly on the main window. This instantly updates coil DCR (e.g. from $7.073\ \Omega$ down to $7.013\ \Omega$) and Joule heating without tedious re-customization, backed by active guardrails against incompatible aluminum mold mixing.
+- **1-Click Seamless Copper Grade Comparison**: Once a Huaye copper wire is active, the conductor grade selector remains open, allowing engineers to toggle between Standard Copper and Custom OFC directly on the main window. This instantly updates coil DCR (e.g. from 7.073 Ω down to 7.013 Ω) and Joule heating without tedious re-customization, backed by active guardrails against incompatible aluminum mold mixing.
 
 ### 7. Decoupled Dual-Baseline Weight Model & Huaye Empirical Cured Coating Densities
-In high-precision micro-actuators and audio voice coils, micro-gram enamel film mass dictates the resonant frequency $F_0$. Coil-Architect Pro eliminates coarse heuristics with a decoupled physics engine:
+In high-precision micro-actuators and audio voice coils, micro-gram enamel film mass dictates the resonant frequency F₀. Coil-Architect Pro eliminates coarse heuristics with a decoupled physics engine:
 - **Factory Metric Audit**: Manufacturer tables (KM/KG) denote **nominal bare conductor weight**, historically omitting insulation mass;
 - **Decoupled Weight Accounting Architecture**: The physics engine computes the bare conductor mass and the micro-scale insulation/bonding coating mass via two independent volumetric integrations, eliminating weight distortions from crude single-density approximations;
 - **Proprietary Multi-Coating Baked Density Engine**: The solver embeds Huaye's empirical baked physical parameters across diverse resin systems (including polyurethane UEW, polyester PEW, polyesterimide EIW, polyamideimide AIW, polyimide PIW, and specialized thermo-bondable adhesives SB). While safeguarding proprietary manufacturing formulations, the system dynamically couples the appropriate physical coefficients to guarantee the highest industry accuracy for moving mass estimation;
-- **Weight Metric Transparency**: Hovering over the Weight card reveals exact breakdowns: Conductor Net Mass, Enamel/Bonding Net Mass, percentage ratios, and true Finished Wire Ratio ($\text{Finished } KM/KG$).
+- **Weight Metric Transparency**: Hovering over the Weight card reveals exact breakdowns: Conductor Net Mass, Enamel/Bonding Net Mass, percentage ratios, and true Finished Wire Ratio (Finished KM/KG).
 
 ### 8. 1UEW Standard vs. 1UEW-SB Self-Bonding Engineering Guide
 The workstation defaults to Composite Self-Bonding (SB) while allowing flexible toggling, answering critical industry questions regarding diameter build-up and winding methodologies:
@@ -151,13 +151,13 @@ The workstation defaults to Composite Self-Bonding (SB) while allowing flexible 
 | **Winding Process** | **Requires plastic bobbin (Bobbin-wound)**; unspools if removed from core. | **Bobbinless air-core winding (Free-standing)**; heat-gun (180 ~ 220°C) or alcohol-activated bonding cures into a rigid self-supporting coil. |
 | **Air-Gap Envelope** | Compact cross-section (e.g. Φ0.080mm -> 0.083mm OD), maximum copper fill factor. | Finished OD reaches 0.089mm, increasing wire cross-sectional area by **+15.0%**; requires DFM air-gap clearance validation. |
 | **Mass Contribution** | Thinner coating; enamel accounts for approximately ~1.0% of total coil mass. | Insulation volume nearly triples; effective composite density lifts coating mass to **3.0% ~ 5.0%** (over 10% on ultra-fine wire). |
-| **Thermal Limit** | Determined by base resin class ($155^\circ\text{C} \sim 180^\circ\text{C}$). | Governed by outer bondcoat **Re-softening Temperature (130 ~ 170°C)** to avoid delamination under overload currents. |
+| **Thermal Limit** | Determined by base resin class (155°C ~ 180°C). | Governed by outer bondcoat **Re-softening Temperature (130 ~ 170°C)** to avoid delamination under overload currents. |
 | **Applications** | Miniature relays, solenoid valves, bobbined step motors. | **VCM voice coils, haptic LRA actuators, camera OIS/AFM coils, coreless micro-motors.** |
 
 ### 9. Extended Industrial Bounds for Cross-Scale Exploration
 To support designs spanning from micro-VCMs to high-power solenoids, parameter boundaries have been significantly broadened:
-- **Axial Turns**: Expanded to **$1 \sim 3000$ turns**;
-- **Radial Layers**: Expanded to **$0.5 \sim 300$ layers** (with half-turn lead support);
+- **Axial Turns**: Expanded to **1 ~ 3000 turns**;
+- **Radial Layers**: Expanded to **0.5 ~ 300 layers** (with half-turn lead support);
 - **Bobbin Envelope**: Inner length **0.2 ~ 500 mm**, inner width **0.1 ~ 300 mm**;
 - **Conductor Sizes**: Nominal bare diameter **0.010 ~ 3.500 mm**, maximum OD **0.012 ~ 4.000 mm**;
 - **Rectangular Wire**: Cross-section width **0.020 ~ 15.000 mm**, height **0.020 ~ 10.000 mm**;
@@ -166,17 +166,19 @@ To support designs spanning from micro-VCMs to high-power solenoids, parameter b
 
 ### 10. Huaye Flat Wire & Square Wire Industrial Standards Architecture
 To meet the stringent space-filling factor demands of periscope VCMs, high-thrust voice coil actuators, and ultra-thin flat motors, the physics engine features an overhauled standard for shaped wires:
-- **Strict 2D Orthogonal Matrix Packing ($N = i \times j$)**: Replaces invalid hexagonal close-packing (HCP) assumptions for rectangular wire with strict orthogonal grid layouts across radial layers $i$ and axial turns $j$, achieving sub-micron accuracy for bobbin-less self-bonding slot fill and physical envelope predictions;
-- **Huaye Automated Tiered Corner Radius ($R$)**:
-  1. **High Aspect Ratio Thin Flat Wire** ($W/H \ge 2.5$, e.g., $0.06\times 0.25$, $0.08\times 0.35$): Narrow edge automatically designated as fully rounded ($R = H / 2$);
-  2. **Square & Standard Rectangular Wire** ($W/H < 2.5$, e.g., $0.07\times 0.07 \to R=0.020\text{ mm}$, $0.45\times 0.45 \to R=0.040\text{ mm}$): Automatically matches Huaye optimal enamelling corner radius;
+- **Strict 2D Orthogonal Matrix Packing (N = i × j)**: Replaces invalid hexagonal close-packing (HCP) assumptions for rectangular wire with strict orthogonal grid layouts across radial layers i and axial turns j, achieving sub-micron accuracy for bobbin-less self-bonding slot fill and physical envelope predictions;
+- **Huaye Automated Tiered Corner Radius (R)**:
+  1. **High Aspect Ratio Thin Flat Wire** (W/H ≥ 2.5, e.g., 0.06 × 0.25, 0.08 × 0.35): Narrow edge automatically designated as fully rounded (R = H / 2);
+  2. **Square & Standard Rectangular Wire** (W/H < 2.5, e.g., 0.07 × 0.07 → R = 0.020 mm, 0.45 × 0.45 → R = 0.040 mm): Automatically matches Huaye optimal enamelling corner radius;
 - **<0.020mm Sharp Corner Thinning (Laplace Effect) Breakdown Voltage Derating Warning**:
-  During shaped wire enamelling, when corner radius $R < 0.020\text{ mm}$, Laplace surface tension forces liquid enamel away from corners toward flat surfaces, severely thinning enamel at the 4 corners (down to only 20%~30% nominal thickness) while electric field stress peaks. The engine applies an exact physical derating law:
-  $$\text{BDV}_{\text{eff}} = \text{BDV}_{\text{nom}} \times \max\left(0.40, \left(\frac{R}{0.020}\right)^{0.6}\right)$$
+  During shaped wire enamelling, when corner radius R < 0.020 mm, Laplace surface tension forces liquid enamel away from corners toward flat surfaces, severely thinning enamel at the 4 corners (down to only 20%~30% nominal thickness) while electric field stress peaks. The engine applies an exact physical derating law:
+  $$
+\text{BDV}_{\text{eff}} = \text{BDV}_{\text{nom}} \times \max\left(0.40, \left(\frac{R}{0.020}\right)^{0.6}\right)
+$$
   and triggers an active DFM alert to prevent saltwater pinhole leakage and inter-turn dielectric breakdown during mass production;
 - **Dual Bare Core + Enamelled Outer Dimension Inputs**: Direct entry of measured enamelled dimensions with automatic sync when switching from round to square wire;
 - **Axial Solid Stack & Safe Compaction Limits**: Corrects double-height compounding bugs, providing true bare copper and thermal bonding compliance margins;
-- **Rigorous Wheeler Coil Inductance Metric Factor Conversion**: Corrects metric-to-imperial conversion constants ($\times 0.03937$) for multi-layer air-core coils, aligning with standard LCR meter measurements.
+- **Rigorous Wheeler Coil Inductance Metric Factor Conversion**: Corrects metric-to-imperial conversion constants (× 0.03937) for multi-layer air-core coils, aligning with standard LCR meter measurements.
 
 <p align="center">
   <img src="docs/images/flat_wire_huaye_standards_preview.png" alt="Huaye Flat Wire & Square Wire Standards with Corner Thinning Warning" width="95%" />
@@ -186,8 +188,8 @@ To meet the stringent space-filling factor demands of periscope VCMs, high-thrus
 
 ### 11. Multi-Vendor Custom Wire Catalog & Bi-directional Derivation
 - **Pre-seeded Top Magnet Wire Brands**: Standardized alphabetical pinyin ordering: **Hengya (恒亚电工), Elektrisola (益利素勒), Huaye (中科华冶), Jingwei (中山精微)**;
-- **Complete Factory Specifications**: Vendor, model, spec name, nominal bare diameter, maximum outer diameter, factory meter resistance ($\Omega/\text{m}$ @ 20°C), breakdown voltage (V), elongation (%), copper conductivity (% IACS), weight ratio (m/kg), density, and process notes;
-- **Bi-directional Electrical Derivation Engine**: Automatically calculates true copper conductivity (% IACS) from factory meter resistance ($\Omega/\text{m}$), and vice versa, allowing flexible input and mutual cross-validation;
+- **Complete Factory Specifications**: Vendor, model, spec name, nominal bare diameter, maximum outer diameter, factory meter resistance (Ω/m @ 20°C), breakdown voltage (V), elongation (%), copper conductivity (% IACS), weight ratio (m/kg), density, and process notes;
+- **Bi-directional Electrical Derivation Engine**: Automatically calculates true copper conductivity (% IACS) from factory meter resistance (Ω/m), and vice versa, allowing flexible input and mutual cross-validation;
 - **Full Conformity to GB Metric Standards**: Standardized units across meters (m), millimeters (mm), and kilograms (kg).
 
 <p align="center">
@@ -204,7 +206,7 @@ To meet the stringent space-filling factor demands of periscope VCMs, high-thrus
 
 ### 12. Global 4-Decimal Micron & 5-Decimal Resistance Precision Standard
 - **4-Decimal Micron Precision (0.0001 mm / 0.1 µm)**: Eliminates display rounding distortion (e.g. 0.237 mm is no longer rounded to 0.24 mm);
-- **5-Decimal Resistance Precision (0.00001 $\Omega/\text{m}$)**: Delivers micro-ohm sensitivity for micro acoustic voice coils and high-current actuators;
+- **5-Decimal Resistance Precision (0.00001 Ω/m)**: Delivers micro-ohm sensitivity for micro acoustic voice coils and high-current actuators;
 - **High-Resolution Physical Properties**: Conductivity to 0.1% IACS, length-weight ratio to 0.1 m/kg.
 
 ### 13. Fully Automated Silent Edge Cloud Backup & Cross-Device Sync (Cloudflare D1)
@@ -240,7 +242,7 @@ To facilitate global research collaboration, multinational engineering handovers
 
 ### 2. Rigorous Professional Industrial Terminology
 - English translations strictly adhere to IEEE, IEC, ASTM, and SolidWorks industrial naming conventions;
-- Standard physical symbols and subscript notations ($R_{20}$, $\mu\text{H}$, $\Omega$, $mm$, $\text{DFM}$, $\text{HCP}$, etc.) are preserved without machine translation ambiguity;
+- Standard physical symbols and subscript notations (R₂₀, µH, Ω, mm, DFM, HCP, etc.) are preserved without machine translation ambiguity;
 - Seamless linkage with licensing & international channels: switching to English automatically sets the licensing wizard to international mode with USD pricing and WhatsApp support.
 
 ### 3. Persistent Local User Preference
@@ -286,7 +288,7 @@ Coil-Architect Pro is engineered as a **completely standalone, green portable de
 > 📌 **System Requirements**:
 > - **Operating System**: Windows 10 / Windows 11 (64-bit)
 > - **Hardware**: Intel Core i3 or equivalent / 4GB RAM / 300MB available storage
-> - **Display**: Supports standard FHD ($1920 \times 1080$) and 2K/4K high-DPI displays (125%, 150%, 200% scaling adaptive with crisp vector assets)
+> - **Display**: Supports standard FHD (1920 × 1080) and 2K/4K high-DPI displays (125%, 150%, 200% scaling adaptive with crisp vector assets)
 
 ---
 
@@ -318,15 +320,15 @@ Together, we eliminate the data disconnect between electromagnetic simulation an
 Every first launch includes an automatic **7-day full-feature trial evaluation** with zero export or calculation restrictions. For ongoing R&D and production deployment, the following subscription and perpetual tiers are available:
 
 > 🔥 **Limited-Time 20% OFF Launch Promotion**:  
-> Contact our engineering team today to receive an immediate **20% direct discount** on all commercial tiers (Annual Commercial Tier saves $180, available at **$719 / ¥4,680**)!
+> Contact our engineering team today to receive an immediate **20% direct discount** on all commercial tiers (Annual Commercial Tier saves USD 180, available at **USD 719 / ¥4,680**)!
 
 | Licensing Tier | Term / Mode | Official Standard | 🔥 Limited-Time 20% OFF | Target Applications & Included Benefits |
 | :--- | :--- | :--- | :--- | :--- |
 | 🆓 **Evaluation Trial** | 7 Days (Auto-activated) | **Free** | **Free** | Zero-barrier evaluation of physics accuracy and export capabilities |
-| ⚡ **Quarterly Tier** | 3 Months (90 Days) | $349 (¥2,180) | **$279** / seat `(¥1,744)` | **Short-term R&D sprints / EVT-DVT prototyping**<br>Consulting support, single-project bidding, and rapid verification |
-| 🌟 **Annual Commercial**<br>*(Most Popular)* | 1 Year (365 Days) | $899 (¥5,800) | **$719** / seat `(¥4,680)`<br>*(Save $180)* | **R&D departments & actuator engineering teams**<br>Full multi-physics suite, priority 1-on-1 support, free OTA updates |
-| 🛡️ **Perpetual Offline** | Perpetual (Lifetime) | $2,699 (¥16,800) | **$2,159** / seat `(¥13,440)`<br>*(Save $540)* | **Confidential labs / secure intranet workstations**<br>Perpetual offline node-locked license, includes 1-year maintenance |
-| 🌐 **Enterprise Multi-Seat** | 3~5 Floating Nodes | From $4,500/yr | **Custom Negotiation** | **Team collaboration / Multi-site production line linkage**<br>Private server synchronization, benchmark database, custom training |
+| ⚡ **Quarterly Tier** | 3 Months (90 Days) | USD 349 (¥2,180) | **USD 279** / seat (¥1,744) | **Short-term R&D sprints / EVT-DVT prototyping**<br>Consulting support, single-project bidding, and rapid verification |
+| 🌟 **Annual Commercial**<br>*(Most Popular)* | 1 Year (365 Days) | USD 899 (¥5,800) | **USD 719** / seat (¥4,680)<br>*(Save USD 180)* | **R&D departments & actuator engineering teams**<br>Full multi-physics suite, priority 1-on-1 support, free OTA updates |
+| 🛡️ **Perpetual Offline** | Perpetual (Lifetime) | USD 2,699 (¥16,800) | **USD 2,159** / seat (¥13,440)<br>*(Save USD 540)* | **Confidential labs / secure intranet workstations**<br>Perpetual offline node-locked license, includes 1-year maintenance |
+| 🌐 **Enterprise Multi-Seat** | 3~5 Floating Nodes | From USD 4,500/yr | **Custom Negotiation** | **Team collaboration / Multi-site production line linkage**<br>Private server synchronization, benchmark database, custom training |
 
 ---
 

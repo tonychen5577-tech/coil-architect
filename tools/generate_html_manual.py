@@ -606,7 +606,10 @@ def build_html_manual(
 
 
 
-    # 3.2 将 <div align="center"> 转换为带有 markdown="1" 的响应式居中容器，支持内部表格解析
+    # 3.2 净化可能遗留的转义符号 (如 \% 与 \sim)
+    md_content = md_content.replace(r'\%', '%').replace(r'\sim', '~')
+
+    # 3.3 将 <div align="center"> 转换为带有 markdown="1" 的响应式居中容器，支持内部表格解析
 
 
 
@@ -2111,95 +2114,28 @@ def build_html_manual(
 
 
         .math-block {{
-text-align: center;
-
-
-
-            margin: 16px 0;
-
-
-
-            padding: 12px 18px;
-
-
-
+            text-align: center;
+            margin: 18px 0;
+            padding: 14px 20px;
             background: #F8FAFC;
-
-
-
-            border: 1px solid #E2E8F0;
-
-
-
+            border: 1px solid #CBD5E1;
+            border-left: 4px solid var(--primary);
             border-radius: 6px;
-
-
-
-            font-family: "Cambria Math", "Latin Modern Math", KaTeX_Math, "Times New Roman", serif;
-
-
-
+            font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
             font-size: 15px;
-
-
-
+            font-weight: 500;
             color: #0F172A;
-
-
-
             overflow-x: auto;
         }}
 
-
-
-
-
-
-
         /* 数学公式内联修饰 */
-
-
-
         .math-tex {{
-
-
-
-            font-family: "Cambria Math", "Latin Modern Math", KaTeX_Math, "Times New Roman", serif;
-
-
-
-            font-style: italic;
-
-
-
-            background: #F1F5F9;
-
-
-
-            padding: 1px 6px;
-
-
-
-            border-radius: 3px;
-
-
-
-            color: #0F172A;
-
-
-
-            font-size: 14px;
-
-
-
-            margin: 0 2px;
-
-
-
-            border: 1px solid #E2E8F0;
-
-
-
+            font-family: inherit;
+            background: transparent;
+            padding: 0 1px;
+            border: none;
+            color: inherit;
+            font-size: inherit;
         }}
 
 
