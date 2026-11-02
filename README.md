@@ -9,9 +9,9 @@
 <img src="docs/images/ansv_logo.png" alt="ANSV Official Logo" width="128" />
 
 # ⚡ ANSV Coil-Architect Pro | Micro Coil Design & Simulation Workstation
-### Specialized Micro Coil Geometry Design, Electro-Thermal Simulation & DFM Verification Workstation for Micro Actuators, VCM, LRA & Precision Solenoids (v1.1.0)
+### Specialized Micro Coil Geometry Design, Electro-Thermal Simulation & DFM Verification Workstation for Micro Actuators, VCM, LRA & Precision Solenoids (2027 · Build 20261102B1)
 
-[![Release](https://img.shields.io/badge/Release-v1.1.0-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
+[![Release](https://img.shields.io/badge/Release-2027--20261102B1-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20(64--bit)-0284C7?style=flat-square&logo=windows)](https://github.com/tonychen5577-tech/coil-architect)
 [![License](https://img.shields.io/badge/License-Commercial%20%2F%20Free%20Evaluation-059669?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
 [![Core](https://img.shields.io/badge/Core-C%2B%2B%20%2F%20Cython%20Native-334155?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
@@ -164,7 +164,64 @@ To support designs spanning from micro-VCMs to high-power solenoids, parameter b
 - **Drive Capabilities**: Current up to **$20,000\text{ mA}$ ($20\text{A}$)**, voltage limit **$0.1 \sim 120\text{V}$**;
 - **UI Ergonomics**: Slider spinbox widths enlarged to comfortably host 4-5 digit turns and high-precision micro-inch decimals without clipping.
 
+### 10. Huaye Flat Wire & Square Wire Industrial Standards Architecture
+To meet the stringent space-filling factor demands of periscope VCMs, high-thrust voice coil actuators, and ultra-thin flat motors, the physics engine features an overhauled standard for shaped wires:
+- **Strict 2D Orthogonal Matrix Packing ($N = i \times j$)**: Replaces invalid hexagonal close-packing (HCP) assumptions for rectangular wire with strict orthogonal grid layouts across radial layers $i$ and axial turns $j$, achieving sub-micron accuracy for bobbin-less self-bonding slot fill and physical envelope predictions;
+- **Huaye Automated Tiered Corner Radius ($R$)**:
+  1. **High Aspect Ratio Thin Flat Wire** ($W/H \ge 2.5$, e.g., $0.06\times 0.25$, $0.08\times 0.35$): Narrow edge automatically designated as fully rounded ($R = H / 2$);
+  2. **Square & Standard Rectangular Wire** ($W/H < 2.5$, e.g., $0.07\times 0.07 \to R=0.020\text{ mm}$, $0.45\times 0.45 \to R=0.040\text{ mm}$): Automatically matches Huaye optimal enamelling corner radius;
+- **<0.020mm Sharp Corner Thinning (Laplace Effect) Breakdown Voltage Derating Warning**:
+  During shaped wire enamelling, when corner radius $R < 0.020\text{ mm}$, Laplace surface tension forces liquid enamel away from corners toward flat surfaces, severely thinning enamel at the 4 corners (down to only 20%~30% nominal thickness) while electric field stress peaks. The engine applies an exact physical derating law:
+  $$\text{BDV}_{\text{eff}} = \text{BDV}_{\text{nom}} \times \max\left(0.40, \left(\frac{R}{0.020}\right)^{0.6}\right)$$
+  and triggers an active DFM alert to prevent saltwater pinhole leakage and inter-turn dielectric breakdown during mass production;
+- **Dual Bare Core + Enamelled Outer Dimension Inputs**: Direct entry of measured enamelled dimensions with automatic sync when switching from round to square wire;
+- **Axial Solid Stack & Safe Compaction Limits**: Corrects double-height compounding bugs, providing true bare copper and thermal bonding compliance margins;
+- **Rigorous Wheeler Coil Inductance Metric Factor Conversion**: Corrects metric-to-imperial conversion constants ($\times 0.03937$) for multi-layer air-core coils, aligning with standard LCR meter measurements.
+
+<p align="center">
+  <img src="docs/images/flat_wire_huaye_standards_preview.png" alt="Huaye Flat Wire & Square Wire Standards with Corner Thinning Warning" width="95%" />
+  <br>
+  <em>Figure 6: Huaye Shaped Wire Industrial Standards — Orthogonal matrix packing, dual dimension inputs, and active <0.020mm sharp corner thinning breakdown voltage derating warning</em>
+</p>
+
+### 11. Multi-Vendor Custom Wire Catalog & Bi-directional Derivation
+- **Pre-seeded Top Magnet Wire Brands**: Standardized alphabetical pinyin ordering: **Hengya (恒亚电工), Elektrisola (益利素勒), Huaye (中科华冶), Jingwei (中山精微)**;
+- **Complete Factory Specifications**: Vendor, model, spec name, nominal bare diameter, maximum outer diameter, factory meter resistance ($\Omega/\text{m}$ @ 20°C), breakdown voltage (V), elongation (%), copper conductivity (% IACS), weight ratio (m/kg), density, and process notes;
+- **Bi-directional Electrical Derivation Engine**: Automatically calculates true copper conductivity (% IACS) from factory meter resistance ($\Omega/\text{m}$), and vice versa, allowing flexible input and mutual cross-validation;
+- **Full Conformity to GB Metric Standards**: Standardized units across meters (m), millimeters (mm), and kilograms (kg).
+
+<p align="center">
+  <img src="docs/images/custom_wire_catalog_dialog.png" alt="Custom Wire Vendor Catalog Manager" width="95%" />
+  <br>
+  <em>Figure 7: Custom Wire Vendor Catalog Manager — Multi-vendor presets, pinyin indexing, 4-decimal micron precision, and real-time edge cloud sync</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/custom_wire_editor_dialog.png" alt="Custom Wire Editor Dialog" width="60%" />
+  <br>
+  <em>Figure 8: Custom Wire Specification Editor — Metric engineering units and bi-directional derivation between copper conductivity and 5-decimal high-precision meter resistance</em>
+</p>
+
+### 12. Global 4-Decimal Micron & 5-Decimal Resistance Precision Standard
+- **4-Decimal Micron Precision (0.0001 mm / $0.1\,\mu\text{m}$)**: Eliminates display rounding distortion (e.g. $0.237\text{ mm}$ is no longer rounded to $0.24\text{ mm}$);
+- **5-Decimal Resistance Precision (0.00001 $\Omega/\text{m}$)**: Delivers micro-ohm sensitivity for micro acoustic voice coils and high-current actuators;
+- **High-Resolution Physical Properties**: Conductivity to 0.1% IACS, length-weight ratio to 0.1 m/kg.
+
+### 13. Fully Automated Silent Edge Cloud Backup & Cross-Device Sync (Cloudflare D1)
+- **Zero-Click Silent Auto-Backup**: Any addition, modification, clone, import, or deletion automatically triggers a background asynchronous thread syncing to Cloudflare D1 distributed edge database with zero UI latency or blocking;
+- **Startup Auto-Sync & Self-Healing**: Automatically ensures cloud and local libraries are synchronized upon launch;
+- **Dual Protection**: Local snapshot (`cloud_wire_backup.snapshot`) + Cloudflare D1 global edge sync;
+- **100% Tenant Isolation**: Strict isolation by hardware Machine ID and license token (`user_key`);
+- **Web Admin Management Dashboard (`/admin`)**: Real-time KPI cards and interactive modal inspection of each client's customized wire libraries.
+
+<p align="center">
+  <img src="docs/images/cloud_wire_sync_dialog.png" alt="Cloud Wire Sync & Local Snapshot Dialog" width="60%" />
+  <br>
+  <em>Figure 9: Cloud Disaster Recovery Sync Console — Hardware MID binding, AES-256 transmission encryption, and 1-click cross-computer recovery</em>
+</p>
+
 ---
+
 
 ## 🌐 Bilingual Switcher (Chinese / English)
 
@@ -173,7 +230,7 @@ To facilitate global research collaboration, multinational engineering handovers
 <p align="center">
   <img src="docs/images/verify_main_window_en.png" alt="Coil-Architect Pro English Workstation Interface" width="95%" />
   <br>
-  <em>Figure 6: ANSV Coil-Architect Pro Full English Workstation — Standardized industrial terminology, 16 KPI metric cards, and English engineering report export</em>
+  <em>Figure 10: ANSV Coil-Architect Pro Full English Workstation — Standardized industrial terminology, 16 KPI metric cards, and English engineering report export</em>
 </p>
 
 ### 1. Intuitive Top Toolbar Language Toggle

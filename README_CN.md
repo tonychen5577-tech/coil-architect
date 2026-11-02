@@ -9,9 +9,9 @@
 <img src="docs/images/ansv_logo.png" alt="ANSV Official Logo" width="128" />
 
 # ⚡ ANSV Coil-Architect Pro | 微型线圈设计与电热仿真工作站
-### 针对微型执行器、潜望马达 (VCM)、触觉振动 (LRA) 与精密电磁阀的专用线圈设计与 DFM 制造验证软件 (v1.1.0)
+### 针对微型执行器、潜望马达 (VCM)、触觉振动 (LRA) 与精密电磁阀的专用线圈设计与 DFM 制造验证软件 (2027版 · Build 20261102B1)
 
-[![Release](https://img.shields.io/badge/Release-v1.1.0-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
+[![Release](https://img.shields.io/badge/Release-2027--20261102B1-0284C7?style=flat-square&logo=github)](https://github.com/tonychen5577-tech/coil-architect/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20(64--bit)-0284C7?style=flat-square&logo=windows)](https://github.com/tonychen5577-tech/coil-architect)
 [![License](https://img.shields.io/badge/License-Commercial%20%2F%20Free%20Evaluation-059669?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
 [![Core](https://img.shields.io/badge/Core-C%2B%2B%20%2F%20Cython%20Native-334155?style=flat-square)](https://github.com/tonychen5577-tech/coil-architect)
@@ -165,7 +165,67 @@
 - **电热驱动能力**：驱动电流支持 **$0 \sim 20,000\text{ mA}$ ($20\text{A}$)**，电压限值 **$0.1 \sim 120\text{V}$**；
 - **数字控件防遮挡优化**：滑动数值微调输入框宽度加宽自适应，确保 4~5 位超大匝数与极小微米小数清晰完整展示。
 
+### 10. 华冶异形扁线与方线（Flat Wire & Square Wire）全套工业标准重构
+针对潜望式 VCM、大推力音圈执行器与超薄扁平马达对高槽满率异形导线的严苛需求，物理引擎全面完成了异形线的工艺标准重构：
+- **严格二维正交矩阵密排（Orthogonal Matrix Packing, $N = i \times j$）**：彻底纠正传统圆线六方密排误套用在矩形线上的缺陷，严格按径向层数 $i$ 与轴向高度匝数 $j$ 正交排列，无骨架自粘线圈槽满率与物理占空比预测精度提升至微米级；
+- **华冶标准全自动分级 R 角体系**：
+  1. **大宽厚比超薄扁线**（$W/H \ge 2.5$，如 $0.06\times 0.25$、$0.08\times 0.35$）：窄边自动判定为全圆边，取 $R = H / 2$；
+  2. **方线与常规扁线**（$W/H < 2.5$，如 $0.07\times 0.07$ 取 $0.020\text{ mm}$，$0.45\times 0.45$ 取 $0.040\text{ mm}$）：自动匹配华冶最佳涂漆流平圆角；
+- **<0.020mm 尖角缩漆（Corner Thinning）耐压折减物理风险预警**：
+  在微细扁线涂漆过程中，当倒角 $R < 0.020\text{ mm}$ 时，拉普拉斯（Laplace）界面表面张力会迫使液态漆液向平直面流平，导致四个尖角处极度缩漆变薄（甚至仅剩标称漆厚的 $20\%\sim 30\%$），同时尖端电场极化集中。软件引入物理折减模型：
+  $$\text{BDV}_{\text{eff}} = \text{BDV}_{\text{nom}} \times \max\left(0.40, \left(\frac{R}{0.020}\right)^{0.6}\right)$$
+  并在 DFM 卡片中实时弹出醒目的【尖角缩漆预警】，严密预防量产时发生盐水针孔超标与层间瞬态击穿短路；
+- **裸铜芯径 + 带漆外径双输入支持**：支持用户直接录入或由漆膜等级自动推算外宽外厚；圆线切换为方线时，自动继承芯径与带漆外径，毫秒级直接对比同尺寸圆线与方线的截面占空比与直流电阻；
+- **扁线轴向压死与安全压实极限精算**：彻底纠正传统多物理场软件将单匝轴向高度翻倍算入压实的 Bug，引入真实单匝裸铜与热态胶层变形余量；
+- **惠勒（Wheeler）空心电感度量因子严谨转换**：在多层空心线圈电感公式中修正了公制毫米转英制英寸的常数系数（$\times 0.03937$），电感仿真精度全面对齐行业标准测试仪。
+
+<p align="center">
+  <img src="docs/images/flat_wire_huaye_standards_preview.png" alt="华冶异形扁线/方线工艺标准与尖角缩漆耐压预警" width="95%" />
+  <br>
+  <em>图 6：华冶异形扁线/方线工业标准实测 —— 正交矩阵密排、双输入外径公差与尖角缩漆（<0.020mm）耐压折减主动预警</em>
+</p>
+
+### 11. 多厂商自定义线材库与国标双向推导（Custom Wire Vendor Catalog）
+打破单一固定材质库限制，新增全功能多厂商自定义线规数据库中心与独立参数录入工作台：
+- **四大标杆线材供应商预设库**：预置工业界公认的顶级电磁线品牌，严格按中文拼音字母序标准化排序：**恒亚电工（Hengya）、益利素勒（Elektrisola）、中科华冶（Huaye）、中山精微（Jingwei）**，一键检索调入；
+- **完整出厂核心物理参数定义**：自定义厂商、型号、规格名称、工称裸线径、出厂最大外径、出厂标称米阻（$\Omega/\text{m}$ 20℃）、击穿电压（V）、断裂伸长率（%）、铜导率（% IACS）、出厂单位长度重量比（m/kg）、密度与工艺备注；
+- **铜导率与米阻全自动双向推导模型**：输入出厂米阻自动反算铜材质真实退火导电率（% IACS），反之输入电导率即刻反演理论极限米阻，二选一灵活输入，智能纠偏互验；
+- **全面统一国标（GB）工程量纲**：长度统一为米（m）、截面尺寸统一为毫米（mm）、重量统一为千克（kg），彻底杜绝跨国公英制单位换算失误。
+
+<p align="center">
+  <img src="docs/images/custom_wire_catalog_dialog.png" alt="多厂商自定义线材库与规格选型管理器" width="95%" />
+  <br>
+  <em>图 7：多厂商自定义线材库管理器 —— 四大品牌预设、拼音首字母索引、微米级四位小数与边缘云端实时自动同步</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/custom_wire_editor_dialog.png" alt="自定义线材规格编辑器与米阻/铜导率双向推导" width="60%" />
+  <br>
+  <em>图 8：自定义线材规格参数设定窗口 —— 国标量纲体系、铜导率与出厂米阻（5位高灵敏精度）双向智能推导</em>
+</p>
+
+### 12. 全局微米级几何尺寸与 5 位高灵敏米阻精度标准（Global Precision Upgrade）
+针对高端声学微特音圈、超薄防抖马达对超微细铜线的极限公差考量，软件全面重构了全链路数据精度架构：
+- **几何尺寸提升至 4 位微米级小数（0.0001 mm / $0.1\,\mu\text{m}$）**：彻底解决如 $0.237\text{ mm}$ 精细线径在传统界面中被粗暴四舍五入为 $0.24\text{ mm}$ 的显示失真，在微调滑块、卡片、报表与工程导出中全程维持 $0.1\,\mu\text{m}$ 精度；
+- **出厂米阻提升至 5 位高灵敏小数（0.00001 $\Omega/\text{m}$）**：精准满足微欧/毫欧级超微线圈及粗线大电流执行器的微阻抗仿真；
+- **材料与物理特性标准化精细展示**：铜导率保留 1 位小数（0.1% IACS），线重比保留 1 位小数（0.1 m/kg）。
+
+### 13. 全链路全自动边缘云端静默防灾备份（Cloudflare D1 Edge Sync）
+为保障工程研发核心资产与定制线规绝对不丢失，系统全面集成了基于 Cloudflare D1 分布式边缘数据库的零感知自动备份同步网络：
+- **全自动实时静默同步（免手动点击）**：工程师在自定义线规库中进行的任何操作（新增线规、编辑参数、克隆规格、批量导入或删除），底层管理器均会在保存本地的同时，**自动于后台守护线程启动异步毫秒级云端静默同步**，零弹窗、零打扰、零界面阻塞；
+- **开机自愈静默核验**：软件每次启动时，后台自动检测并静默拉齐本地与云端备份，即使工程师从未手动打开过备份面板，资产依然 100% 实时漫游受保护；
+- **本地加密镜像快照 + 边缘云端物理双保险**：本地生成独立的 `cloud_wire_backup.snapshot` 离线容灾镜像，断网脱机也能完整备份；连网瞬间自动补传至全球边缘节点；
+- **基于机器码 / 商业许可密钥的 100% 租户级物理隔离**：云端以客户端独立哈希识别码（`user_key`）作为唯一主键，不同客户、不同机台之间数据严格物理隔离，绝不发生交叉覆盖或串读；
+- **可视化网页管理控制大屏（`/admin`）**：管理员可在后台仪表盘直接查验全网客户端已备份的线材库全景统计指标，支持按客户/设备号随时展开查阅每一档自定线规的详细物理参数。
+
+<p align="center">
+  <img src="docs/images/cloud_wire_sync_dialog.png" alt="云端防丢失同步与本地镜像双保险面板" width="60%" />
+  <br>
+  <em>图 9：云端防丢失同步与本地镜像双保险控制台 —— 设备机器码绑定、AES-256 传输加密与一键跨机恢复</em>
+</p>
+
 ---
+
 
 ## 🌐 全球工业级中英双语无缝即时自由切换（Bilingual Switcher）
 
@@ -174,7 +234,7 @@
 <p align="center">
   <img src="docs/images/verify_main_window_en.png" alt="Coil-Architect Pro 英文工作站全景" width="95%" />
   <br>
-  <em>图 6：ANSV Coil-Architect Pro 全英文工作站 —— 国际化工业术语、16 宫格仿真指标卡与英文工程报表支持</em>
+  <em>图 10：ANSV Coil-Architect Pro 全英文工作站 —— 国际化工业术语、16 宫格仿真指标卡与英文工程报表支持</em>
 </p>
 
 ### 1. 顶部全局导航栏直观切换
@@ -197,7 +257,7 @@
 <p align="center">
   <img src="docs/images/coil_topologies_overview.png" alt="四大微型线圈拓扑全景" width="95%" />
   <br>
-  <em>图 6：原生支持的 4 大主流微型电磁线圈工业形态</em>
+  <em>图 11：原生支持的 4 大主流微型电磁线圈工业形态</em>
 </p>
 
 <br>
