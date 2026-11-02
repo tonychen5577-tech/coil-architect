@@ -91,7 +91,7 @@ The solver kernel is built upon closed-form analytical geometric integration and
 ### 2. High-Speed Tension Thinning & Micron-Level Bond Coat Calculations
 - **Plastic Tension Necking Compensation**: High-speed automatic winding tension causes microscopic plastic draw thinning in ultra-fine magnet wire. The solver incorporates tension elongation correction, eliminating theoretical constant-diameter errors and achieving **>99.2% correlation with physical prototypes**;
 - **Microscopic Self-Bonding Fill Factor**: Accurately accounts for enamel insulation and hot-air/alcohol-activated self-bonding adhesive layers, computing Hexagonal Close-Packed (HCP) pure copper cross-sectional space factors and final build thickness;
-- **Coupled Electro-Thermal Temperature Prediction**: Evaluates temperature rise from $20^\circ\text{C}$ room ambient to $70^\circ\text{C} \sim 120^\circ\text{C}$ steady-state operation, preventing thermal resistance drift, force degradation, and insulation breakdown.
+- **Coupled Electro-Thermal Temperature Prediction**: Evaluates temperature rise from 20°C room ambient to $70^\circ\text{C} \sim 120^\circ\text{C}$ steady-state operation, preventing thermal resistance drift, force degradation, and insulation breakdown.
 
 ### 3. DFM Assembly Clearances & Multi-Pole Magnet Air Gap Warnings
 - **Dynamic Air Gap Surveillance**: Computes real-time dynamic clearance between the coil outer boundary and adjacent multi-pole permanent magnets;
@@ -131,7 +131,7 @@ To seamlessly bridge conceptual coil design with shop-floor manufacturing, Coil-
 - **Comprehensive 4 Manufacturer Parameters**: Across the 920×580 modal dialog, engineers can inspect nominal bare diameter $d$ (mm), maximum finished outer diameter $D_{\max}$ (mm), 20°C DC resistance $R_{\text{km}}$ (Ω/km), and length-to-weight ratio $L_{\text{km/kg}}$ (km/kg), complete with global wheel scrolling and instant keyword filtering;
 - **3 Native Material Series**:
   1. **Standard Pure Copper** (69 gauges · Huaye empirical factory baseline for general electromagnetic applications);
-  2. **Custom Oxygen-Free Copper (OFC)** (69 gauges · High-purity annealed state, tailored for ultra-low DCR micro actuators, reaching $101.7\%\text{ IACS}$ conductivity, reducing resistance by ~0.85% while fully preserving standard drawing dies and outer diameters);
+  2. **Custom Oxygen-Free Copper (OFC)** (69 gauges · High-purity annealed state, tailored for ultra-low DCR micro actuators, reaching 101.7% IACS conductivity, reducing resistance by ~0.85% while fully preserving standard drawing dies and outer diameters);
   3. **15% Copper-Clad Aluminum (CCAW)** (79 gauges · Lightweight empirical specification, reducing moving mass by 59%);
 - **1-Click Seamless Copper Grade Comparison**: Once a Huaye copper wire is active, the conductor grade selector remains open, allowing engineers to toggle between Standard Copper and Custom OFC directly on the main window. This instantly updates coil DCR (e.g. from $7.073\ \Omega$ down to $7.013\ \Omega$) and Joule heating without tedious re-customization, backed by active guardrails against incompatible aluminum mold mixing.
 
@@ -148,20 +148,20 @@ The workstation defaults to Composite Self-Bonding (SB) while allowing flexible 
 | Parameter | 1UEW Standard (+0.003mm OD Build-up) | 1UEW-SB Composite (+0.009mm OD Build-up) |
 | :--- | :--- | :--- |
 | **Micro-Structure** | **Single cross-linked polyurethane enamel (UEW)**, ~1.5μm single-side, smooth and non-sticky. | **Bi-layer concentric composite**: Inner 0.003mm UEW insulation + Outer 0.006mm SB thermo-bondable topcoat. |
-| **Winding Process** | **Requires plastic bobbin (Bobbin-wound)**; unspools if removed from core. | **Bobbinless air-core winding (Free-standing)**; heat-gun ($180\sim 220^\circ\text{C}$) or alcohol-activated bonding cures into a rigid self-supporting coil. |
+| **Winding Process** | **Requires plastic bobbin (Bobbin-wound)**; unspools if removed from core. | **Bobbinless air-core winding (Free-standing)**; heat-gun (180 ~ 220°C) or alcohol-activated bonding cures into a rigid self-supporting coil. |
 | **Air-Gap Envelope** | Compact cross-section (e.g. Φ0.080mm -> 0.083mm OD), maximum copper fill factor. | Finished OD reaches 0.089mm, increasing wire cross-sectional area by **+15.0%**; requires DFM air-gap clearance validation. |
 | **Mass Contribution** | Thinner coating; enamel accounts for approximately ~1.0% of total coil mass. | Insulation volume nearly triples; effective composite density lifts coating mass to **3.0% ~ 5.0%** (over 10% on ultra-fine wire). |
-| **Thermal Limit** | Determined by base resin class ($155^\circ\text{C} \sim 180^\circ\text{C}$). | Governed by outer bondcoat **Re-softening Temperature ($130\sim 170^\circ\text{C}$)** to avoid delamination under overload currents. |
+| **Thermal Limit** | Determined by base resin class ($155^\circ\text{C} \sim 180^\circ\text{C}$). | Governed by outer bondcoat **Re-softening Temperature (130 ~ 170°C)** to avoid delamination under overload currents. |
 | **Applications** | Miniature relays, solenoid valves, bobbined step motors. | **VCM voice coils, haptic LRA actuators, camera OIS/AFM coils, coreless micro-motors.** |
 
 ### 9. Extended Industrial Bounds for Cross-Scale Exploration
 To support designs spanning from micro-VCMs to high-power solenoids, parameter boundaries have been significantly broadened:
 - **Axial Turns**: Expanded to **$1 \sim 3000$ turns**;
 - **Radial Layers**: Expanded to **$0.5 \sim 300$ layers** (with half-turn lead support);
-- **Bobbin Envelope**: Inner length **$0.2 \sim 500\text{ mm}$**, inner width **$0.1 \sim 300\text{ mm}$**;
-- **Conductor Sizes**: Nominal bare diameter **$0.010 \sim 3.500\text{ mm}$**, maximum OD **$0.012 \sim 4.000\text{ mm}$**;
-- **Rectangular Wire**: Cross-section width **$0.020 \sim 15.000\text{ mm}$**, height **$0.020 \sim 10.000\text{ mm}$**;
-- **Drive Capabilities**: Current up to **$20,000\text{ mA}$ ($20\text{A}$)**, voltage limit **$0.1 \sim 120\text{V}$**;
+- **Bobbin Envelope**: Inner length **0.2 ~ 500 mm**, inner width **0.1 ~ 300 mm**;
+- **Conductor Sizes**: Nominal bare diameter **0.010 ~ 3.500 mm**, maximum OD **0.012 ~ 4.000 mm**;
+- **Rectangular Wire**: Cross-section width **0.020 ~ 15.000 mm**, height **0.020 ~ 10.000 mm**;
+- **Drive Capabilities**: Current up to **20,000 mA (20 A)**, voltage limit **0.1 ~ 120 V**;
 - **UI Ergonomics**: Slider spinbox widths enlarged to comfortably host 4-5 digit turns and high-precision micro-inch decimals without clipping.
 
 ### 10. Huaye Flat Wire & Square Wire Industrial Standards Architecture
@@ -203,7 +203,7 @@ To meet the stringent space-filling factor demands of periscope VCMs, high-thrus
 </p>
 
 ### 12. Global 4-Decimal Micron & 5-Decimal Resistance Precision Standard
-- **4-Decimal Micron Precision (0.0001 mm / $0.1\,\mu\text{m}$)**: Eliminates display rounding distortion (e.g. $0.237\text{ mm}$ is no longer rounded to $0.24\text{ mm}$);
+- **4-Decimal Micron Precision (0.0001 mm / 0.1 µm)**: Eliminates display rounding distortion (e.g. 0.237 mm is no longer rounded to 0.24 mm);
 - **5-Decimal Resistance Precision (0.00001 $\Omega/\text{m}$)**: Delivers micro-ohm sensitivity for micro acoustic voice coils and high-current actuators;
 - **High-Resolution Physical Properties**: Conductivity to 0.1% IACS, length-weight ratio to 0.1 m/kg.
 
