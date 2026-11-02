@@ -209,10 +209,10 @@ $$
 - **5-Decimal Resistance Precision (0.00001 Ω/m)**: Delivers micro-ohm sensitivity for micro acoustic voice coils and high-current actuators;
 - **High-Resolution Physical Properties**: Conductivity to 0.1% IACS, length-weight ratio to 0.1 m/kg.
 
-### 13. Fully Automated Silent Edge Cloud Backup & Cross-Device Sync (Cloudflare D1)
-- **Zero-Click Silent Auto-Backup**: Any addition, modification, clone, import, or deletion automatically triggers a background asynchronous thread syncing to Cloudflare D1 distributed edge database with zero UI latency or blocking;
+### 13. Free Automated Silent Cloud Disaster Recovery Backup & Cross-Device Sync
+- **Zero-Click Silent Auto-Backup**: To protect engineering assets, the software **provides free cloud disaster recovery backup out of the box**. Any addition, modification, clone, import, or deletion automatically triggers a background asynchronous thread syncing to high-availability cloud storage with zero UI latency or blocking;
 - **Startup Auto-Sync & Self-Healing**: Automatically ensures cloud and local libraries are synchronized upon launch;
-- **Dual Protection**: Local snapshot (`cloud_wire_backup.snapshot`) + Cloudflare D1 global edge sync;
+- **Dual Protection**: Local snapshot (`cloud_wire_backup.snapshot`) + free secure cloud storage redundancy;
 - **100% Tenant Isolation**: Strict isolation by hardware Machine ID and license token (`user_key`);
 - **Web Admin Management Dashboard (`/admin`)**: Real-time KPI cards and interactive modal inspection of each client's customized wire libraries.
 

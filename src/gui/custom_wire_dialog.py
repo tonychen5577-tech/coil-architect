@@ -229,7 +229,7 @@ class CloudWireSyncDialog(QDialog):
                 cloud_msg = f"本地快照已建立 ({ce})"
 
             if cloud_ok:
-                sync_dest = "Cloudflare 全球边缘云 (D1 数据库) 与 本地快照"
+                sync_dest = "免费安全云端备份 与 本地快照"
                 status_note = f"云端通信: {cloud_msg}"
                 QMessageBox.information(
                     self,
@@ -268,7 +268,7 @@ class CloudWireSyncDialog(QDialog):
             pass
 
         wires_raw = []
-        source_name = "Cloudflare 云端数据库"
+        source_name = "云端备份数据库"
         if cloud_ok and len(cloud_wires) > 0:
             wires_raw = cloud_wires
         else:
