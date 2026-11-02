@@ -1,22 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-Coil-Architect Pro - 华冶线材出厂标准数据库 (Huaye Wire Vendor Catalog)
-数据来源于供应商出厂技术规格书：
-1. 规格表-纯铜.xlsx (0.07mm ~ 0.75mm, 69 档)
-   - 电阻率基准: 1/58.5 = 0.01709402 Ω·mm²/m
-   - 铜密度: 8.90 g/cm³
-2. 规格表-15%铜包铝.xlsx (0.07mm ~ 0.85mm, 79 档)
-   - 电阻率基准: 0.02525 Ω·mm²/m
-   - 密度: 3.63 g/cm³
+Coil-Architect Pro - 华冶线材出厂标准数据库与自定义线材库 (Wire Vendor & Custom Catalog)
+1. 华冶供应商出厂技术规格书 (国标 GB/T 6109 / GB/T 4074 基准)：
+   - 规格表-纯铜.xlsx (0.07mm ~ 0.75mm, 69 档) · 1/58.5 = 0.01709402 Ω·mm²/m · 8.90 g/cm³
+   - 规格表-15%铜包铝.xlsx (0.07mm ~ 0.85mm, 79 档) · 0.02525 Ω·mm²/m · 3.63 g/cm³
+2. 自定义线材库 (Custom Wire Catalog)：
+   - 自定义厂商、型号、规格名称、公称裸径、出厂最大外径、出厂阻值(Ω/m 20℃)、击穿电压、伸长率
+   - 铜导率(% IACS) 与 出厂米阻(Ω/m) 双向推导与联动
+   - 出厂重量 (m/kg 国标单位) 与 理论推荐值
+   - JSON 本地原子持久化存储与导出/导入
 """
 
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+import os
+import math
+import json
+import uuid
+from datetime import datetime
+from pathlib import Path
+from dataclasses import dataclass, field, asdict
+from typing import List, Optional, Tuple, Dict, Any
 
 
 @dataclass(frozen=True)
 class WireCatalogItem:
-    """出厂线材规格条目"""
+    """出厂线材规格条目 (全面支持中国国家标准 GB 单位)"""
     diameter: float          # d: 裸铜/导体公称直径 (mm)
     max_outer_dia: float     # D_max: 出厂保证最大外径 (mm)
     km_resistance_ohm: float # R_km: 20℃千米电阻 (Ω/km)
@@ -26,13 +33,32 @@ class WireCatalogItem:
     density: float           # 密度 (g/cm³)
 
     @property
+    def meter_resistance_ohm(self) -> float:
+        """20℃ 国标米阻 (Ω/m)"""
+        return self.km_resistance_ohm / 1000.0
+
+    @property
+    def m_per_kg(self) -> float:
+        """出厂国标重量比 (m/kg · 一公斤多少米)"""
+        return self.km_per_kg * 1000.0
+
+    @property
+    def copper_conductivity_iacs(self) -> float:
+        """等效退火铜导率 (% IACS)"""
+        if self.resistivity > 0:
+            return (0.017241 / self.resistivity) * 100.0
+        return 100.0
+
+    @property
     def display_label(self) -> str:
-        """下拉列表显示文本"""
-        return f"{self.diameter:.3f} mm (外径: {self.max_outer_dia:.3f}mm | {self.km_resistance_ohm:.1f}Ω/km)"
+        """下拉列表显示文本 (国标单位: mm | Ω/m | m/kg)"""
+        return f"{self.diameter:.3f} mm (外径: {self.max_outer_dia:.3f}mm | {self.meter_resistance_ohm:.4f}Ω/m | {self.m_per_kg:.1f}m/kg)"
 
 
+# =========================================================================
 # 华冶纯铜出厂线规表 (69 档)
 # (d, max_od, km_res, km_kg)
+# =========================================================================
 _HUAYE_COPPER_RAW: List[Tuple[float, float, float, float]] = [
     (0.0700, 0.0730, 4441.7923, 29.1960),
     (0.0800, 0.0830, 3400.7472, 22.3532),
@@ -91,6 +117,7 @@ _HUAYE_COPPER_RAW: List[Tuple[float, float, float, float]] = [
     (0.6100, 0.6130, 58.4918, 0.3845),
     (0.6200, 0.6230, 56.6201, 0.3722),
     (0.6300, 0.6330, 54.8369, 0.3604),
+    (0.6400, 0.6430, 78.4895, 0.8563), # placeholder
     (0.6400, 0.6430, 53.1367, 0.3493),
     (0.6500, 0.6530, 51.5143, 0.3386),
     (0.6600, 0.6630, 49.9651, 0.3284),
@@ -104,8 +131,12 @@ _HUAYE_COPPER_RAW: List[Tuple[float, float, float, float]] = [
     (0.7400, 0.7430, 39.7458, 0.2613),
     (0.7500, 0.7530, 38.6929, 0.2543),
 ]
+# Deduplicate 0.6400
+_HUAYE_COPPER_RAW = [x for i, x in enumerate(_HUAYE_COPPER_RAW) if not (x[0] == 0.64 and x[2] > 70.0)]
 
+# =========================================================================
 # 华冶 15% 铜包铝出厂线规表 (79 档)
+# =========================================================================
 _HUAYE_CCAW_RAW: List[Tuple[float, float, float, float]] = [
     (0.0700, 0.0730, 6561.0813, 71.5826),
     (0.0800, 0.0830, 5023.3279, 54.8054),
@@ -245,10 +276,7 @@ def get_huaye_ccaw_wires() -> List[WireCatalogItem]:
 
 
 def find_wire_by_diameter(diameter: float, catalog_type: int = 1) -> Optional[WireCatalogItem]:
-    """
-    按线径查找最匹配的线材规格条目
-    catalog_type: 1 为纯铜 (华冶实测经验 1/58.5), 2 为铜包铝 (15% CCAW), 3 为无氧纯铜 (高纯退火态 1/59.0 OFC)
-    """
+    """按线径查找最匹配的线材规格条目"""
     if catalog_type == 1:
         catalog = HUAYE_COPPER_CATALOG
     elif catalog_type == 2:
@@ -257,9 +285,410 @@ def find_wire_by_diameter(diameter: float, catalog_type: int = 1) -> Optional[Wi
         catalog = HUAYE_OFC_COPPER_CATALOG
     else:
         catalog = HUAYE_COPPER_CATALOG
-    # 优先精确匹配
     for item in catalog:
         if abs(item.diameter - diameter) < 1e-5:
             return item
-    # 否则找最接近项
     return min(catalog, key=lambda item: abs(item.diameter - diameter), default=None)
+
+
+# =========================================================================
+# 物理数学互推公式体系 (GB/T 3953 / IEC 60028 标准退火铜)
+# =========================================================================
+
+def calculate_rm_from_iacs(bare_dia_mm: float, iacs_pct: float) -> Tuple[float, float]:
+    """
+    根据裸铜直径与铜导率 (% IACS) 计算常温米阻 (Ω/m) 与 电阻率 (Ω·mm²/m)
+    基准: 100% IACS = 0.017241 Ω·mm²/m (20℃, IEC 60028 / GB/T 3953)
+    公式:
+      rho = 0.017241 / (iacs_pct / 100.0)
+      A_cu = (pi / 4) * d^2
+      R_m = rho / A_cu
+    """
+    if bare_dia_mm <= 0 or iacs_pct <= 0:
+        return 0.0, 0.017241
+    rho = 0.017241 / (iacs_pct / 100.0)
+    area = math.pi * (bare_dia_mm ** 2) / 4.0
+    rm = rho / area
+    return rm, rho
+
+
+def calculate_iacs_from_rm(bare_dia_mm: float, meter_res_ohm: float) -> Tuple[float, float]:
+    """
+    根据裸铜直径与出厂实测米阻 (Ω/m) 反推铜导率 (% IACS) 与 电阻率 (Ω·mm²/m)
+    公式:
+      A_cu = (pi / 4) * d^2
+      rho = R_m * A_cu
+      iacs_pct = (0.017241 / rho) * 100.0
+    """
+    if bare_dia_mm <= 0 or meter_res_ohm <= 0:
+        return 100.0, 0.017241
+    area = math.pi * (bare_dia_mm ** 2) / 4.0
+    rho = meter_res_ohm * area
+    if rho <= 0:
+        return 100.0, 0.017241
+    iacs = (0.017241 / rho) * 100.0
+    return iacs, rho
+
+
+def calculate_theoretical_m_per_kg(bare_dia_mm: float, density_g_cm3: float = 8.90) -> float:
+    """
+    根据裸铜直径与密度计算理论米重比 (m/kg · 国标一公斤多少米)
+    公式:
+      A_cu = (pi / 4) * d^2  (mm²)
+      1米体积 = A_cu * 1000 mm³ = A_cu cm³
+      1米质量 (克) = A_cu * density (g/m)
+      m_per_kg = 1000.0 / (A_cu * density)  (m/kg)
+    """
+    if bare_dia_mm <= 0 or density_g_cm3 <= 0:
+        return 0.0
+    area_mm2 = math.pi * (bare_dia_mm ** 2) / 4.0
+    mass_g_per_m = area_mm2 * density_g_cm3
+    if mass_g_per_m <= 0:
+        return 0.0
+    return 1000.0 / mass_g_per_m
+
+# =========================================================================
+# 自定义厂商线材规格条目模型 (CustomWireItem)
+# =========================================================================
+
+@dataclass
+class CustomWireItem:
+    """
+    自定义厂商线材规格条目
+    涵盖：
+    1. 线材厂商 (vendor)
+    2. 型号 (model)
+    3. 规格名称 (spec_name)
+    4. 公称裸线径 (bare_dia, mm)
+    5. 出厂最大外径 (max_od, mm)
+    6. 出厂阻值 (meter_resistance_ohm, Ω/m 20℃ 国标)
+    7. 击穿电压 (breakdown_voltage, V)
+    8. 伸长率 (elongation_pct, %)
+    9. 铜导率 (copper_conductivity_iacs, % IACS) 与 电阻率 (resistivity, Ω·mm²/m)
+    10. 出厂重量 (weight_m_per_kg, m/kg 国标米重比)
+    11. 材料密度 (density, g/cm³)
+    12. 备注与审计时间戳
+    """
+    id: str                                  # 唯一识别 ID
+    vendor: str                              # 线材厂商 (如 华冶, 益达, 胜牌, 金杯等)
+    model: str                               # 型号/品名 (如 1UEW-SB, 2PEW, 0UEW, 180级等)
+    spec_name: str                           # 规格名称 (如 0.080mm)
+    bare_dia: float                          # 公称裸导体直径 (mm)
+    max_od: float                            # 出厂最大外径 (mm)
+    meter_resistance_ohm: float              # 20℃ 出厂阻值 (Ω/m)
+    breakdown_voltage: float = 1800.0        # 击穿电压 BDV (V)
+    elongation_pct: float = 15.0             # 伸长率 (%)
+    copper_conductivity_iacs: float = 100.0  # 铜导率 (% IACS)
+    resistivity: float = 0.017241            # 电阻率 (Ω·mm²/m)
+    weight_m_per_kg: float = 22353.2         # 出厂重量 / 长度米重比 (m/kg)
+    density: float = 8.90                    # 材料密度 (g/cm³)
+    note: str = ""                           # 备注说明
+    created_at: str = ""                     # 创建时间
+    updated_at: str = ""                     # 修改时间
+
+    @property
+    def km_resistance_ohm(self) -> float:
+        """等效千米阻值 (Ω/km)"""
+        return self.meter_resistance_ohm * 1000.0
+
+    @property
+    def km_per_kg(self) -> float:
+        """等效千米/公斤 (km/kg)"""
+        return self.weight_m_per_kg / 1000.0
+
+    def to_wire_catalog_item(self) -> WireCatalogItem:
+        """转换为仿真引擎兼容的 WireCatalogItem"""
+        return WireCatalogItem(
+            diameter=self.bare_dia,
+            max_outer_dia=self.max_od,
+            km_resistance_ohm=self.km_resistance_ohm,
+            km_per_kg=self.km_per_kg,
+            material_name=f"{self.vendor} {self.model} ({self.copper_conductivity_iacs:.1f}% IACS)",
+            resistivity=self.resistivity,
+            density=self.density
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """序列化字典"""
+        return {
+            "id": self.id,
+            "vendor": self.vendor,
+            "model": self.model,
+            "spec_name": self.spec_name,
+            "bare_dia": round(self.bare_dia, 4),
+            "max_od": round(self.max_od, 4),
+            "meter_resistance_ohm": round(self.meter_resistance_ohm, 6),
+            "breakdown_voltage": round(self.breakdown_voltage, 1),
+            "elongation_pct": round(self.elongation_pct, 2),
+            "copper_conductivity_iacs": round(self.copper_conductivity_iacs, 2),
+            "resistivity": round(self.resistivity, 8),
+            "weight_m_per_kg": round(self.weight_m_per_kg, 2),
+            "density": round(self.density, 3),
+            "note": self.note,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CustomWireItem":
+        """从字典反序列化"""
+        return cls(
+            id=str(data.get("id", str(uuid.uuid4()))),
+            vendor=str(data.get("vendor", "自定义厂商")),
+            model=str(data.get("model", "标准漆包线")),
+            spec_name=str(data.get("spec_name", f"{float(data.get('bare_dia', 0.08)):.3f}mm")),
+            bare_dia=float(data.get("bare_dia", 0.080)),
+            max_od=float(data.get("max_od", 0.089)),
+            meter_resistance_ohm=float(data.get("meter_resistance_ohm", 3.4299)),
+            breakdown_voltage=float(data.get("breakdown_voltage", 1800.0)),
+            elongation_pct=float(data.get("elongation_pct", 15.0)),
+            copper_conductivity_iacs=float(data.get("copper_conductivity_iacs", 100.0)),
+            resistivity=float(data.get("resistivity", 0.017241)),
+            weight_m_per_kg=float(data.get("weight_m_per_kg", 22353.2)),
+            density=float(data.get("density", 8.90)),
+            note=str(data.get("note", "")),
+            created_at=str(data.get("created_at", "")),
+            updated_at=str(data.get("updated_at", ""))
+        )
+
+
+# =========================================================================
+# 自定义线材库管理器 (持久化存储与 CRUD)
+# =========================================================================
+
+class CustomWireManager:
+    """
+    自定义厂商线材库管理器 (JSON 原子持久化存储)
+    默认存储位置: config/custom_wires.json
+    """
+
+    DEFAULT_PRESETS: List[Dict[str, Any]] = [
+        {
+            "id": "preset_huaye_0080_sb",
+            "vendor": "华冶精工",
+            "model": "1UEW-SB 复合自粘线",
+            "spec_name": "0.080mm",
+            "bare_dia": 0.080,
+            "max_od": 0.089,
+            "meter_resistance_ohm": 3.4007,
+            "breakdown_voltage": 1800.0,
+            "elongation_pct": 16.0,
+            "copper_conductivity_iacs": 100.86,
+            "resistivity": 0.01709402,
+            "weight_m_per_kg": 22353.2,
+            "density": 8.90,
+            "note": "华冶自粘线标杆规格，出厂 1/58.5 高导退火铜",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        },
+        {
+            "id": "preset_huaye_0120_sb",
+            "vendor": "华冶精工",
+            "model": "1UEW-SB 复合自粘线",
+            "spec_name": "0.120mm",
+            "bare_dia": 0.120,
+            "max_od": 0.133,
+            "meter_resistance_ohm": 1.5114,
+            "breakdown_voltage": 2100.0,
+            "elongation_pct": 20.0,
+            "copper_conductivity_iacs": 100.86,
+            "resistivity": 0.01709402,
+            "weight_m_per_kg": 9934.8,
+            "density": 8.90,
+            "note": "华冶音圈经典出厂规格",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        },
+        {
+            "id": "preset_yida_0050",
+            "vendor": "益达微电",
+            "model": "2UEW 超微细线",
+            "spec_name": "0.050mm",
+            "bare_dia": 0.050,
+            "max_od": 0.058,
+            "meter_resistance_ohm": 8.7808,
+            "breakdown_voltage": 1500.0,
+            "elongation_pct": 12.0,
+            "copper_conductivity_iacs": 100.0,
+            "resistivity": 0.017241,
+            "weight_m_per_kg": 57224.2,
+            "density": 8.90,
+            "note": "微特传感器微细线",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        },
+        {
+            "id": "preset_shengpai_0100",
+            "vendor": "胜牌电气",
+            "model": "0UEW 厚漆膜绝缘线",
+            "spec_name": "0.100mm",
+            "bare_dia": 0.100,
+            "max_od": 0.116,
+            "meter_resistance_ohm": 2.1952,
+            "breakdown_voltage": 2800.0,
+            "elongation_pct": 18.0,
+            "copper_conductivity_iacs": 100.0,
+            "resistivity": 0.017241,
+            "weight_m_per_kg": 14306.1,
+            "density": 8.90,
+            "note": "高耐压电机出厂标准线",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        },
+        {
+            "id": "preset_hongtian_0100_ccaw",
+            "vendor": "宏天特种",
+            "model": "15% CCAW-1UEW 铜包铝",
+            "spec_name": "0.100mm",
+            "bare_dia": 0.100,
+            "max_od": 0.110,
+            "meter_resistance_ohm": 3.2149,
+            "breakdown_voltage": 1800.0,
+            "elongation_pct": 15.0,
+            "copper_conductivity_iacs": 68.28,
+            "resistivity": 0.02525,
+            "weight_m_per_kg": 35075.5,
+            "density": 3.63,
+            "note": "轻量化铜包铝音圈专用线材",
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00"
+        }
+    ]
+
+    def __init__(self, storage_path: Optional[Path] = None):
+        if storage_path is None:
+            # 默认存储在项目 config/ 目录下，若不可写则回退至用户 AppData
+            base_dir = Path(__file__).resolve().parent.parent.parent
+            cfg_dir = base_dir / "config"
+            self.storage_path = cfg_dir / "custom_wires.json"
+        else:
+            self.storage_path = Path(storage_path)
+        
+        self._items: List[CustomWireItem] = []
+        self._load()
+
+    def _load(self):
+        """载入自定义线材库，若不存在则初始化默认优质厂商预设"""
+        if not self.storage_path.exists():
+            self._items = [CustomWireItem.from_dict(d) for d in self.DEFAULT_PRESETS]
+            self.save()
+            return
+
+        try:
+            with open(self.storage_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    self._items = [CustomWireItem.from_dict(d) for d in data]
+                else:
+                    self._items = [CustomWireItem.from_dict(d) for d in self.DEFAULT_PRESETS]
+        except Exception as e:
+            # 回退至预设
+            self._items = [CustomWireItem.from_dict(d) for d in self.DEFAULT_PRESETS]
+
+    def save(self) -> bool:
+        """原子保存自定义线材库 (支持 Windows 文件句柄竞争自适应重试)"""
+        import time
+        try:
+            self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+            data = [item.to_dict() for item in self._items]
+            tmp_path = self.storage_path.with_suffix(f".tmp_{uuid.uuid4().hex}")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            # Windows 文件索引器/Defender 锁短暂自适应重试
+            for attempt in range(5):
+                try:
+                    tmp_path.replace(self.storage_path)
+                    return True
+                except PermissionError:
+                    if attempt < 4:
+                        time.sleep(0.03)
+                    else:
+                        # 降级直接写入
+                        with open(self.storage_path, "w", encoding="utf-8") as f_out:
+                            json.dump(data, f_out, ensure_ascii=False, indent=2)
+                        if tmp_path.exists():
+                            tmp_path.unlink(missing_ok=True)
+                        return True
+            return True
+        except Exception:
+            return False
+
+    def list_all(self) -> List[CustomWireItem]:
+        """获取所有自定义线材列表"""
+        return list(self._items)
+
+    def get_by_id(self, wire_id: str) -> Optional[CustomWireItem]:
+        """按 ID 查找"""
+        for item in self._items:
+            if item.id == wire_id:
+                return item
+        return None
+
+    def add(self, item: CustomWireItem) -> bool:
+        """新增自定义线材"""
+        if not item.id:
+            item.id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        if not item.created_at:
+            item.created_at = now
+        item.updated_at = now
+        self._items.append(item)
+        return self.save()
+
+    def update(self, item: CustomWireItem) -> bool:
+        """更新自定义线材"""
+        for i, existing in enumerate(self._items):
+            if existing.id == item.id:
+                item.updated_at = datetime.now().isoformat()
+                self._items[i] = item
+                return self.save()
+        return False
+
+    def delete(self, wire_id: str) -> bool:
+        """删除指定 ID 线材"""
+        initial_len = len(self._items)
+        self._items = [item for item in self._items if item.id != wire_id]
+        if len(self._items) != initial_len:
+            return self.save()
+        return False
+
+    def import_from_json(self, file_path: str) -> int:
+        """从外部 JSON 文件批量导入线材"""
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            raise ValueError("导入的 JSON 必须为数组格式")
+        count = 0
+        for entry in data:
+            if isinstance(entry, dict):
+                item = CustomWireItem.from_dict(entry)
+                item.id = str(uuid.uuid4())
+                item.created_at = datetime.now().isoformat()
+                item.updated_at = item.created_at
+                self._items.append(item)
+                count += 1
+        if count > 0:
+            self.save()
+        return count
+
+    def export_to_json(self, file_path: str) -> bool:
+        """导出到外部 JSON 文件"""
+        data = [item.to_dict() for item in self._items]
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+
+
+# 全局单例管理器
+_custom_wire_manager_instance: Optional[CustomWireManager] = None
+
+
+def get_custom_wire_manager() -> CustomWireManager:
+    """获取全局自定义线材管理器实例"""
+    global _custom_wire_manager_instance
+    if _custom_wire_manager_instance is None:
+        _custom_wire_manager_instance = CustomWireManager()
+    return _custom_wire_manager_instance

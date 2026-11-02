@@ -161,6 +161,27 @@ class WireCatalogDialog(QDialog):
         self.lbl_count.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B; padding-left: 8px;")
         search_box.addWidget(self.lbl_count)
 
+        self.btn_open_custom = QPushButton("📚 自定义厂商线材库..." if not i18n.is_english() else "📚 Custom Catalog...")
+        self.btn_open_custom.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_open_custom.setStyleSheet("""
+            QPushButton {
+                background-color: #FDF4FF;
+                border: 1px solid #C084FC;
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 11px;
+                font-weight: 700;
+                color: #9333EA;
+            }
+            QPushButton:hover {
+                background-color: #F3E8FF;
+                border-color: #A855F7;
+                color: #7E22CE;
+            }
+        """)
+        self.btn_open_custom.clicked.connect(self._open_custom_catalog)
+        search_box.addWidget(self.btn_open_custom)
+
         layout.addLayout(search_box)
 
         # 3. 核心 4 列数据表格 (线径, 最大外径, KM阻值, KM/KG)
@@ -169,8 +190,8 @@ class WireCatalogDialog(QDialog):
         self.table.setHorizontalHeaderLabels([
             "公称裸线径 (mm)",
             "出厂最大外径 (mm · 1UEW)",
-            "出厂 KM 阻值 (Ω/km · 20℃)",
-            "出厂 KM/KG (km/kg · 裸铜米重)"
+            "20℃出厂阻值 (Ω/m · 国标米阻)",
+            "出厂重量比 (m/kg · 国标米重)"
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -298,13 +319,15 @@ class WireCatalogDialog(QDialog):
             c1 = QTableWidgetItem(f"{item.max_outer_dia:.3f}")
             c1.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            # Col 2: KM 阻值 (Ω/km)
-            c2 = QTableWidgetItem(f"{item.km_resistance_ohm:.1f}")
+            # Col 2: 20℃出厂阻值 (Ω/m · 国标米阻)
+            c2 = QTableWidgetItem(f"{item.meter_resistance_ohm:.4f}")
             c2.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            c2.setToolTip(f"20℃国标米阻: {item.meter_resistance_ohm:.6f} Ω/m\n等效千米阻值: {item.km_resistance_ohm:.1f} Ω/km")
 
-            # Col 3: KM/KG (km/kg)
-            c3 = QTableWidgetItem(f"{item.km_per_kg:.3f}")
+            # Col 3: 出厂重量比 (m/kg · 国标一公斤多少米)
+            c3 = QTableWidgetItem(f"{item.m_per_kg:.1f}")
             c3.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            c3.setToolTip(f"国标出厂米重比: {item.m_per_kg:.1f} m/kg\n等效长度比: {item.km_per_kg:.3f} km/kg\n裸导体米重: {1000.0/item.km_per_kg:.4f} g/m")
 
             self.table.setItem(row_idx, 0, c0)
             self.table.setItem(row_idx, 1, c1)
@@ -364,9 +387,9 @@ class WireCatalogDialog(QDialog):
         mat_title = "15% 铜包铝" if catalog_item.density < 4.0 else "华冶纯铜"
         info = (
             f"已选定: 【{mat_title}】 线径 {catalog_item.diameter:.3f} mm  |  "
-            f"出厂基准外径 {catalog_item.max_outer_dia:.3f} mm  |  "
-            f"KM阻值 {catalog_item.km_resistance_ohm:.1f} Ω/km  |  "
-            f"裸铜 {catalog_item.km_per_kg:.3f} km/kg"
+            f"基准外径 {catalog_item.max_outer_dia:.3f} mm  |  "
+            f"20℃阻值 {catalog_item.meter_resistance_ohm:.4f} Ω/m ({catalog_item.km_resistance_ohm:.1f} Ω/km)  |  "
+            f"出厂重量 {catalog_item.m_per_kg:.1f} m/kg"
         )
         self.lbl_selected_info.setText(info)
         self.btn_confirm.setEnabled(True)
@@ -375,6 +398,16 @@ class WireCatalogDialog(QDialog):
         self._on_table_selection_changed()
         if self.selected_item is not None:
             self._on_confirm_clicked()
+
+    def _open_custom_catalog(self):
+        """打开自定义厂商线材库对话框"""
+        from .custom_wire_dialog import CustomWireLibraryDialog
+        dlg = CustomWireLibraryDialog(current_diameter=self._initial_diameter, parent=self)
+        if dlg.exec():
+            if dlg.selected_item is not None:
+                self.selected_item = dlg.selected_item.to_wire_catalog_item()
+                self.wire_selected.emit(self.selected_item)
+                self.accept()
 
     def _on_confirm_clicked(self):
         if self.selected_item is not None:

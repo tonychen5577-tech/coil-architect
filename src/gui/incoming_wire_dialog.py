@@ -84,9 +84,9 @@ class IncomingWireDialog(QDialog):
         self.lbl_title = QLabel("⚡ 线材来料实测参数设定 (供应商进料指标直接导入)")
         self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1E3A8A;")
         self.lbl_sub = QLabel(
-            "直接输入供应商出厂检验单或实验室实测的【米阻】与【一公斤多少米】，求解器将直接调用该物理参数核算阻抗与重量。"
+            "直接输入供应商出厂检验单或实验室实测的【常温米阻 (Ω/m)】与【一公斤多少米 (m/kg)】，符合国家标准 GB/T 6109 计量基准。"
             if not is_en else
-            "Enter incoming test report parameters (Ohm/m and km/kg). Physics engine calculates resistance and weight directly."
+            "Enter incoming test report parameters (Ohm/m and m/kg, GB standard). Physics engine calculates resistance and weight directly."
         )
         self.lbl_sub.setStyleSheet("font-size: 11px; color: #64748B;")
         top_box.addWidget(self.lbl_title)
@@ -142,7 +142,7 @@ class IncomingWireDialog(QDialog):
         grid.addWidget(self.sb_km_res, 0, 3)
 
         # 2.2 一公斤多少米 (km/kg) 与 米重 (g/m)
-        lbl_km_kg = QLabel("一公斤多少米 (km/kg):" if not is_en else "Wire Yield (km/kg):")
+        lbl_km_kg = QLabel("一公斤多少米 (m/kg · 国标):" if not is_en else "Wire Yield (m/kg GB):")
         lbl_km_kg.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
         self.sb_km_kg = ClickableDoubleSpinBox()
         self.sb_km_kg.setRange(0.01, 20000.0)

@@ -39,6 +39,7 @@ class WireCatalogType(IntEnum):
     HUAYE_COPPER = 1      # 华冶线材 · 纯铜标准系列 (69档, 0.07~0.75mm, 1/58.5)
     HUAYE_CCAW = 2        # 华冶线材 · 15% 铜包铝系列 (79档, 0.07~0.85mm, 0.02525)
     INCOMING_MEASURED = 3 # 进料实测 · 来料参数直入 (实测米阻 + 一公斤多少米)
+    CUSTOM_VENDOR = 4     # 自定义厂商规格库 (自定义厂商、型号、规格、BDV、伸长率、导率/米阻、m/kg)
 
 
 class WireCategory(str, Enum):
@@ -106,6 +107,13 @@ class CoilInputs:
     enamel_type: str = "UEW"      # 默认底漆漆种 (华冶实测固化密度: UEW 1.27, PEW 1.38, EIW 1.39, AIW 1.42, PIW 1.43, SB 1.07)
     catalog_km_kg: float = 0.0    # 华冶出厂线密度或实测线密度 (km/kg, 严格对应出厂/实测裸导体标称米重)
     measured_rm: float = 0.0      # 来料实测常温米阻 (Ω/m, >0 时直接用于精确计算 R20 = L_m * measured_rm)
+    custom_wire_id: str = ""      # 自定义线材 ID
+    custom_wire_vendor: str = ""  # 自定义线材厂商
+    custom_wire_model: str = ""   # 自定义线材型号
+    custom_wire_bdv: float = 0.0  # 出厂耐压击穿电压 (V)
+    custom_wire_elongation: float = 0.0 # 出厂伸长率 (%)
+    custom_wire_iacs: float = 0.0 # 铜导率 (% IACS)
+    custom_wire_m_per_kg: float = 0.0 # 出厂重量比 (m/kg)
     wire_density: float = 8.90    # 导体密度 (纯铜 8.90, CCAW 3.63, 纯铝 2.70 g/cm³)
     insulation_density: float = 0.0 # 绝缘漆膜固化密度 (g/cm³, <=0 时由华冶固化密度算法自动精确匹配)
 

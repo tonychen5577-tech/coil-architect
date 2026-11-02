@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType, WireShape, WireCatalogType, EnamelGrade, WindingDirection
-from ..core.wire_catalog import WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
+from ..core.wire_catalog import WireCatalogItem, CustomWireItem, get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
 from ..core.physics_engine import CoilPhysicsEngine, get_enamel_thickness_and_bdv
 from .styles import LIGHT_INDUSTRIAL_QSS
 from .widgets.slider_spin_box import FloatSliderBox, IntSliderBox
@@ -1851,6 +1851,27 @@ class MainWindow(QMainWindow):
         """)
         self.btn_open_catalog.clicked.connect(self._open_wire_catalog_dialog)
 
+        self.btn_custom_wire = QPushButton("📚 自定义线库")
+        self.btn_custom_wire.setToolTip("打开自定义线材厂商数据库（自定义厂商、型号、公称裸径、外径、阻值Ω/m、击穿电压、伸长率与铜导率推导）")
+        self.btn_custom_wire.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_custom_wire.setStyleSheet("""
+            QPushButton {
+                background-color: #FDF4FF;
+                border: 1px solid #C084FC;
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 11px;
+                font-weight: 700;
+                color: #9333EA;
+            }
+            QPushButton:hover {
+                background-color: #F3E8FF;
+                border-color: #A855F7;
+                color: #7E22CE;
+            }
+        """)
+        self.btn_custom_wire.clicked.connect(self._open_custom_wire_library_dialog)
+
         self.btn_incoming_wire = QPushButton("⚡ 来料参数")
         self.btn_incoming_wire.setToolTip("直接输入线材供应商出厂检验或进料实测参数：实测米阻 (Ω/m) 与 一公斤多少米 (km/kg)")
         self.btn_incoming_wire.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1895,6 +1916,7 @@ class MainWindow(QMainWindow):
         self.btn_reset_wire.clicked.connect(self._clear_catalog_wire)
 
         wire_btn_layout.addWidget(self.btn_open_catalog)
+        wire_btn_layout.addWidget(self.btn_custom_wire)
         wire_btn_layout.addWidget(self.btn_incoming_wire)
         wire_btn_layout.addWidget(self.btn_reset_wire)
         wire_btn_layout.addStretch()
@@ -2552,6 +2574,80 @@ class MainWindow(QMainWindow):
         self._on_flat_dim_changed()
         self.run_simulation()
 
+    def _open_custom_wire_library_dialog(self):
+        """打开自定义线材厂商数据库规格管理弹窗"""
+        from .custom_wire_dialog import CustomWireLibraryDialog
+        curr_d = self.sb_bare_dia.value() if hasattr(self, "sb_bare_dia") else 0.080
+        dlg = CustomWireLibraryDialog(current_diameter=curr_d, parent=self)
+        dlg.wire_applied.connect(self._apply_custom_wire)
+        dlg.exec()
+
+    def _apply_custom_wire(self, item: CustomWireItem):
+        """将选中的自定义厂商线规调入仿真引擎，实现全参数闭环与智能锁定"""
+        self._current_catalog_item = item.to_wire_catalog_item()
+        self._custom_wire_item = item
+        self._incoming_wire_params = None
+        self._catalog_km_kg = item.weight_m_per_kg / 1000.0  # km/kg for engine weight calculation
+        self._incoming_meter_res = item.meter_resistance_ohm
+        self._current_wire_density = item.density
+        self._is_current_wire_ccaw = (item.density < 4.0)
+        self._is_current_wire_ofc = ("无氧" in item.vendor or "无氧" in item.model or item.copper_conductivity_iacs >= 101.0)
+
+        # 1. 确保导线形状为经典圆线并锁定
+        if hasattr(self, "combo_wire_shape"):
+            self.combo_wire_shape.blockSignals(True)
+            self.combo_wire_shape.setCurrentIndex(0) # 经典圆线
+            self.combo_wire_shape.setEnabled(False)
+            self.combo_wire_shape.setToolTip("当前处于自定义出厂线材模式（如需方线/扁线请点击【✕ 自定义】解除）")
+            self.combo_wire_shape.blockSignals(False)
+
+        # 2. 自动填充裸径、外径与材料电阻率
+        self.sb_bare_dia.setValue(item.bare_dia)
+        self.sb_max_od.setValue(item.max_od)
+        self.sb_copper_rho.setValue(item.resistivity)
+
+        # 锁定裸径、外径与电阻率
+        self.sb_bare_dia.setEnabled(False)
+        self.sb_bare_dia.setToolTip(f"已锁定自定义线径: {item.bare_dia:.3f} mm ({item.vendor} {item.model})")
+        self.sb_max_od.setEnabled(False)
+        self.sb_max_od.setToolTip(f"已锁定自定义出厂最大外径: {item.max_od:.3f} mm")
+        self.sb_copper_rho.setEnabled(False)
+        self.sb_copper_rho.setToolTip(f"已锁定电阻率: {item.resistivity:.8f} Ω·mm²/m ({item.copper_conductivity_iacs:.1f}% IACS)")
+
+        if hasattr(self, "btn_reset_wire"):
+            self.btn_reset_wire.setVisible(True)
+
+        self.lbl_catalog_selected.setText(
+            f"已锁定: 【{item.vendor}】{item.model} {item.bare_dia:.3f}mm | {item.meter_resistance_ohm:.4f}Ω/m | {item.weight_m_per_kg:.1f}m/kg | 耐压{item.breakdown_voltage:.0f}V"
+        )
+        self.lbl_catalog_selected.setStyleSheet("""
+            QLabel {
+                font-size: 11px;
+                font-weight: 700;
+                color: #7E22CE;
+                padding: 4px 8px;
+                background-color: #FAF5FF;
+                border: 1px solid #E9D5FF;
+                border-radius: 4px;
+                margin-top: 3px;
+                margin-bottom: 2px;
+            }
+        """)
+        self.lbl_catalog_selected.setToolTip(
+            f"【自定义厂商线材指标已全线闭环】\n"
+            f"厂商: {item.vendor} | 型号: {item.model} ({item.spec_name})\n"
+            f"公称裸径: {item.bare_dia:.3f} mm | 出厂最大外径: {item.max_od:.3f} mm\n"
+            f"出厂阻值: {item.meter_resistance_ohm:.4f} Ω/m ({item.km_resistance_ohm:.1f} Ω/km)\n"
+            f"出厂重量比: {item.weight_m_per_kg:.1f} m/kg (国标一公斤多少米)\n"
+            f"铜导率: {item.copper_conductivity_iacs:.2f}% IACS (基准ρ={item.resistivity:.8f})\n"
+            f"击穿电压: {item.breakdown_voltage:.0f} V | 伸长率: {item.elongation_pct:.1f}%\n"
+            f"备注: {item.note if item.note else '无'}"
+        )
+        self.status_bar.showMessage(
+            f"已成功调入自定义线材: {item.vendor} {item.model} {item.bare_dia:.3f}mm ({item.meter_resistance_ohm:.4f} Ω/m)", 3500
+        )
+        self.run_simulation()
+
     def _open_wire_catalog_dialog(self):
         """弹出华冶线材出厂标准数据库选型窗口"""
         from .wire_catalog_dialog import WireCatalogDialog
@@ -3147,11 +3243,20 @@ class MainWindow(QMainWindow):
             arbitrary_outer_len=self.sb_perim_outer_len.value() if hasattr(self, "sb_perim_outer_len") else 7.0,
             arbitrary_outer_wid=self.sb_perim_outer_wid.value() if hasattr(self, "sb_perim_outer_wid") else 5.0,
             wire_shape=self.combo_wire_shape.currentData() if hasattr(self, "combo_wire_shape") else WireShape.ROUND,
-            wire_catalog_type=WireCatalogType.INCOMING_MEASURED if getattr(self, "_incoming_wire_params", None) is not None else (
-                WireCatalogType.HUAYE_CCAW if getattr(self, "_is_current_wire_ccaw", False) else (
-                    WireCatalogType.HUAYE_COPPER if getattr(self, "_catalog_km_kg", 0.0) > 0 else WireCatalogType.CUSTOM
+            wire_catalog_type=WireCatalogType.CUSTOM_VENDOR if getattr(self, "_custom_wire_item", None) is not None else (
+                WireCatalogType.INCOMING_MEASURED if getattr(self, "_incoming_wire_params", None) is not None else (
+                    WireCatalogType.HUAYE_CCAW if getattr(self, "_is_current_wire_ccaw", False) else (
+                        WireCatalogType.HUAYE_COPPER if getattr(self, "_catalog_km_kg", 0.0) > 0 else WireCatalogType.CUSTOM
+                    )
                 )
             ),
+            custom_wire_id=getattr(self, "_custom_wire_item", None).id if getattr(self, "_custom_wire_item", None) else "",
+            custom_wire_vendor=getattr(self, "_custom_wire_item", None).vendor if getattr(self, "_custom_wire_item", None) else "",
+            custom_wire_model=getattr(self, "_custom_wire_item", None).model if getattr(self, "_custom_wire_item", None) else "",
+            custom_wire_bdv=getattr(self, "_custom_wire_item", None).breakdown_voltage if getattr(self, "_custom_wire_item", None) else 0.0,
+            custom_wire_elongation=getattr(self, "_custom_wire_item", None).elongation_pct if getattr(self, "_custom_wire_item", None) else 0.0,
+            custom_wire_iacs=getattr(self, "_custom_wire_item", None).copper_conductivity_iacs if getattr(self, "_custom_wire_item", None) else 0.0,
+            custom_wire_m_per_kg=getattr(self, "_custom_wire_item", None).weight_m_per_kg if getattr(self, "_custom_wire_item", None) else 0.0,
             enamel_grade=self.combo_enamel_grade.currentData() if hasattr(self, "combo_enamel_grade") else EnamelGrade.GRADE_2,
             has_self_bonding=self.chk_self_bonding.isChecked() if hasattr(self, "chk_self_bonding") else False,
             wire_density=getattr(self, "_current_wire_density", 8.90),
