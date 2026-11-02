@@ -2395,7 +2395,7 @@ async function loadDevices() {
 
         return '<tr>' +
           '<td>' + onlineHtml + '</td>' +
-          '<td><span class="mono click-copy" onclick="copyText(\\'' + dev.machine_id + '\\')">' + dev.machine_id + '</span><br><span style="color:#64748B;font-size:11px;">MAC: ' + (dev.mac_address || '-') + '</span></td>' +
+          '<td><span class="mono click-copy" data-copy="' + dev.machine_id + '" onclick="copyText(this.dataset.copy)">' + dev.machine_id + '</span><br><span style="color:#64748B;font-size:11px;">MAC: ' + (dev.mac_address || '-') + '</span></td>' +
           '<td><b>' + (dev.customer_name || '-') + '</b><br><span style="color:#64748B;font-size:11px;">操作员: ' + (dev.operator_name || '-') + ' (' + (dev.system_user || '-') + ')</span><br><span style="color:#94A3B8;font-size:10px;">' + (dev.hostname || '-') + ' (' + (dev.ip_address || '-') + ')</span></td>' +
           '<td><span class="mono">' + dev.app_version + '</span><br><span style="color:#0284C7;font-size:10px;font-family:monospace;">Build ' + (dev.app_build || '-') + '</span></td>' +
           '<td>' + statusBadge + '</td>' +
@@ -3113,7 +3113,7 @@ function renderWireLibsTable(libs) {
       '<td>' + updated + '</td>' +
       '<td><span class="mono" style="font-size:11px; color:#64748B;">' + ukey.substring(0, 14) + '...</span></td>' +
       '<td>' +
-        '<button class="btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="viewWireDetail(\'' + encodeURIComponent(ukey) + '\')">🔍 查看规格明细</button>' +
+        '<button class="btn-primary" style="padding: 4px 10px; font-size: 11px;" data-ukey="' + encodeURIComponent(ukey) + '" onclick="viewWireDetail(this.dataset.ukey)">🔍 查看规格明细</button>' +
       '</td>' +
     '</tr>';
   });
