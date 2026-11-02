@@ -10,8 +10,10 @@ Coil-Architect Pro - 自定义线材厂商数据库与规格编辑器 (Custom Wi
 """
 
 import os
+import json
 import math
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
 from PyQt6.QtCore import Qt, pyqtSignal
