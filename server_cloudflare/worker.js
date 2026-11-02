@@ -870,6 +870,28 @@ async function handleAdmin(path, request, env, url) {
     }
 
     // A. 仪表盘全景统计指标
+    // Wire Libraries Admin APIs
+    if (path === "/admin/api/wire_libraries" && request.method === "GET") {
+        try {
+            const rows = (await db.prepare("SELECT user_key, customer_name, machine_id, wire_count, updated_at, created_at FROM user_wire_libraries ORDER BY updated_at DESC").all()).results || [];
+            return jsonResponse({ success: true, count: rows.length, libraries: rows });
+        } catch (e) {
+            return jsonResponse({ success: false, error: e.message }, 500);
+        }
+    }
+
+    if (path === "/admin/api/wire_libraries/detail" && request.method === "GET") {
+        const userKey = url.searchParams.get("user_key") || "";
+        try {
+            const row = await db.prepare("SELECT * FROM user_wire_libraries WHERE user_key = ?").bind(userKey).first();
+            if (!row) return jsonResponse({ success: false, error: "Not found" }, 404);
+            const wires = JSON.parse(row.wires_json || "[]");
+            return jsonResponse({ success: true, library: { ...row, wires } });
+        } catch (e) {
+            return jsonResponse({ success: false, error: e.message }, 500);
+        }
+    }
+
     if (path === "/admin/api/stats" && request.method === "GET") {
         const totalDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices").first())?.c || 0;
         const activeDevices = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'ACTIVE' AND (license_expire = 'PERMANENT' OR remaining_days > 0)").first())?.c || 0;
@@ -880,6 +902,10 @@ async function handleAdmin(path, request, env, url) {
         const todaySyncs = (await db.prepare("SELECT COUNT(*) as c FROM devices WHERE last_sync_time >= date('now')").first())?.c || 0;
         const totalLicenses = (await db.prepare("SELECT COUNT(*) as c FROM licenses").first())?.c || 0;
         const totalReleases = (await db.prepare("SELECT COUNT(*) as c FROM releases").first())?.c || 0;
+        let totalWireLibs = 0;
+        try {
+            totalWireLibs = (await db.prepare("SELECT COUNT(*) as c FROM user_wire_libraries").first())?.c || 0;
+        } catch (_) {}
         const activeRelease = await db.prepare("SELECT * FROM releases WHERE is_active = 1 ORDER BY id DESC LIMIT 1").first();
 
         return jsonResponse({
@@ -891,7 +917,7 @@ async function handleAdmin(path, request, env, url) {
                 expiring_soon: expiringSoon,
                 today_syncs: todaySyncs,
                 total_licenses: totalLicenses,
-                total_releases: totalReleases,
+                total_releases: totalReleases, total_wire_libs: totalWireLibs,
                 latest_version: activeRelease ? activeRelease.version : "v1.1.0"
             }
         });
@@ -1975,6 +2001,7 @@ function renderDashboardPage() {
     <button class="nav-tab active" onclick="switchTab('devices')">💻 现场工位机监控台账</button>
     <button class="nav-tab" onclick="switchTab('licenses')">🔑 历史签发授权记录</button>
     <button class="nav-tab" onclick="switchTab('releases')">🚀 软件发版与 OTA 管理</button>
+  <button class="nav-tab" onclick="switchTab('wire_libraries')">📚 客户端个人线材库 (<span id="tab-wire-count">0</span>)</button>
   </div>
 
   <!-- TAB 1: 工位机台账 -->
@@ -2068,6 +2095,68 @@ function renderDashboardPage() {
           <tr><td colspan="6" style="text-align:center; padding: 30px;">正在读取发布记录...</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- TAB 5: 客户端个人线材库云端备份台账 -->
+  <div id="tab-wire_libraries" class="card-main" style="display:none;">
+    <div class="toolbar">
+      <div><b>各工位机与注册客户已备份的个人线材库台账 (独立隔离)</b></div>
+      <div style="display:flex; gap:10px;">
+        <input type="text" id="search-wire-lib" class="search-input" placeholder="搜索客户名 / 机器码 MID..." oninput="filterWireLibs()" />
+        <button class="btn-primary" onclick="loadWireLibraries()">🔄 刷新云端库</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>客户 / 授权主体</th>
+            <th>设备识别码 (MID)</th>
+            <th>规格档位数</th>
+            <th>云端最近备份时间</th>
+            <th>主键 Key</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="wire-lib-table-body">
+          <tr><td colspan="6" style="text-align:center; padding: 30px;">正在载入客户端线材库备份记录...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 弹窗 4: 查看客户端个人线材库规格明细 -->
+<div id="wireDetailModal" class="modal-overlay" onclick="closeWireDetailModal(event)">
+  <div class="modal-box" style="max-width: 900px; width: 92%;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h3 id="wire-modal-title">🔍 客户端个人线材库详情</h3>
+        <div id="wire-modal-sub" style="font-size:11px; color:#64748B; margin-top:2px;"></div>
+      </div>
+      <button class="modal-close" onclick="closeWireDetailModal()">&times;</button>
+    </div>
+    <div style="max-height: 480px; overflow-y: auto; margin-top: 12px;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #F1F5F9; font-size: 11px;">
+            <th style="padding: 8px;">厂商</th>
+            <th style="padding: 8px;">型号/品名</th>
+            <th style="padding: 8px; text-align:center;">裸径(mm)</th>
+            <th style="padding: 8px; text-align:center;">外径(mm)</th>
+            <th style="padding: 8px; text-align:right;">米阻(Ω/m)</th>
+            <th style="padding: 8px; text-align:right;">米重比(m/kg)</th>
+            <th style="padding: 8px; text-align:center;">击穿电压(V)</th>
+            <th style="padding: 8px; text-align:center;">铜导率(% IACS)</th>
+            <th style="padding: 8px;">备注说明</th>
+          </tr>
+        </thead>
+        <tbody id="wire-detail-tbody"></tbody>
+      </table>
+    </div>
+    <div style="display:flex; justify-content: flex-end; margin-top: 16px;">
+      <button class="btn-primary" onclick="closeWireDetailModal()">关闭</button>
     </div>
   </div>
 </div>
@@ -2217,7 +2306,10 @@ function switchTab(tab) {
   document.getElementById('tab-licenses').style.display = tab === 'licenses' ? 'block' : 'none';
   document.getElementById('tab-releases').style.display = tab === 'releases' ? 'block' : 'none';
   if(tab === 'licenses') loadLicenses();
+  document.getElementById('tab-wire_libraries').style.display = tab === 'wire_libraries' ? 'block' : 'none';
+  if(tab === 'licenses') loadLicenses();
   if(tab === 'releases') loadReleases();
+  if(tab === 'wire_libraries') loadWireLibraries();
 }
 
 async function loadStats() {
@@ -2976,6 +3068,116 @@ async function exportDbBackup() {
 async function doLogout() {
   await fetch('/admin/api/logout', { method: 'POST' });
   window.location.reload();
+}
+
+let _allWireLibs = [];
+
+async function loadWireLibraries() {
+  const tbody = document.getElementById('wire-lib-table-body');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">正在连接 Cloudflare D1 边缘数据库...</td></tr>';
+  try {
+    const res = await fetch('/admin/api/wire_libraries');
+    const data = await res.json();
+    if (!data.success) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding: 20px;">载入失败: ${data.error}</td></tr>`;
+      return;
+    }
+    _allWireLibs = data.libraries || [];
+    document.getElementById('tab-wire-count').innerText = _allWireLibs.length;
+    renderWireLibsTable(_allWireLibs);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding: 20px;">网络请求异常: ${e}</td></tr>`;
+  }
+}
+
+function renderWireLibsTable(libs) {
+  const tbody = document.getElementById('wire-lib-table-body');
+  if (libs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 30px; color:#64748B;">暂无客户端上传备份个人线材库</td></tr>';
+    return;
+  }
+  let html = '';
+  libs.forEach(item => {
+    const cust = item.customer_name || '未登记客户';
+    const mid = item.machine_id || '-';
+    const count = item.wire_count || 0;
+    const updated = (item.updated_at || '-').replace('T', ' ').substring(0, 19);
+    const ukey = item.user_key || '';
+    html += `<tr>
+      <td><b>${cust}</b></td>
+      <td><span class="mono">${mid.substring(0, 16)}...</span></td>
+      <td><span class="badge badge-info">${count} 档线规</span></td>
+      <td>${updated}</td>
+      <td><span class="mono" style="font-size:11px; color:#64748B;">${ukey.substring(0, 14)}...</span></td>
+      <td>
+        <button class="btn-primary" style="padding: 4px 10px; font-size: 11px;" onclick="viewWireDetail('${encodeURIComponent(ukey)}')">🔍 查看规格明细</button>
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+function filterWireLibs() {
+  const q = document.getElementById('search-wire-lib').value.toLowerCase().trim();
+  if (!q) {
+    renderWireLibsTable(_allWireLibs);
+    return;
+  }
+  const filtered = _allWireLibs.filter(it => 
+    (it.customer_name || '').toLowerCase().includes(q) ||
+    (it.machine_id || '').toLowerCase().includes(q) ||
+    (it.user_key || '').toLowerCase().includes(q)
+  );
+  renderWireLibsTable(filtered);
+}
+
+async function viewWireDetail(encodedUserKey) {
+  const userKey = decodeURIComponent(encodedUserKey);
+  const modal = document.getElementById('wireDetailModal');
+  const tbody = document.getElementById('wire-detail-tbody');
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">正在读取该客户端线材规格...</td></tr>';
+  modal.style.display = 'flex';
+
+  try {
+    const res = await fetch(`/admin/api/wire_libraries/detail?user_key=${encodeURIComponent(userKey)}`);
+    const data = await res.json();
+    if (!data.success) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:red; padding:20px;">读取失败: ${data.error}</td></tr>`;
+      return;
+    }
+    const lib = data.library;
+    document.getElementById('wire-modal-title').innerText = `🔍 客户端线材库: ${lib.customer_name || '未知客户'} (${lib.wire_count} 档)`;
+    document.getElementById('wire-modal-sub').innerText = `设备识别码: ${lib.machine_id} | 最近备份时间: ${lib.updated_at}`;
+
+    const wires = lib.wires || [];
+    if (wires.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">该客户端线材库为空</td></tr>';
+      return;
+    }
+    let html = '';
+    wires.forEach(w => {
+      html += `<tr style="border-bottom:1px solid #E2E8F0; font-size:12px;">
+        <td style="padding:6px 8px;"><b>${w.vendor || '-'}</b></td>
+        <td style="padding:6px 8px;">${w.model || '-'}</td>
+        <td style="padding:6px 8px; text-align:center;" class="mono">${Number(w.bare_dia||0).toFixed(4)}</td>
+        <td style="padding:6px 8px; text-align:center;" class="mono">${Number(w.max_od||0).toFixed(4)}</td>
+        <td style="padding:6px 8px; text-align:right;" class="mono">${Number(w.meter_resistance_ohm||0).toFixed(5)}</td>
+        <td style="padding:6px 8px; text-align:right;" class="mono">${Number(w.weight_m_per_kg||0).toFixed(1)}</td>
+        <td style="padding:6px 8px; text-align:center;">${Number(w.breakdown_voltage||0).toFixed(0)}</td>
+        <td style="padding:6px 8px; text-align:center;">${Number(w.copper_conductivity_iacs||100).toFixed(1)}%</td>
+        <td style="padding:6px 8px; color:#64748B; font-size:11px;">${w.note || '-'}</td>
+      </tr>`;
+    });
+    tbody.innerHTML = html;
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:red; padding:20px;">网络请求异常: ${e}</td></tr>`;
+  }
+}
+
+function closeWireDetailModal(e) {
+  if (!e || e.target.id === 'wireDetailModal' || e.target.classList.contains('modal-close') || e.target.tagName === 'BUTTON') {
+    document.getElementById('wireDetailModal').style.display = 'none';
+  }
 }
 
 window.onload = function() {
