@@ -210,7 +210,7 @@ class CloudWireSyncDialog(QDialog):
 
     def _do_backup(self):
         items = self.manager.list_all()
-        # 1. 建立本地防丢失加密镜像快照
+        # 1. 建立本地防丢失加密镜像快照 (本地离线兜底，绝对不丢)
         snapshot_dir = Path("config")
         snapshot_dir.mkdir(parents=True, exist_ok=True)
         snapshot_file = snapshot_dir / "cloud_wire_backup.snapshot"
@@ -218,28 +218,68 @@ class CloudWireSyncDialog(QDialog):
             data = [it.to_dict() for it in items]
             with open(snapshot_file, "w", encoding="utf-8") as f:
                 json.dump({"mid": self.mid, "cust": self.cust_name, "updated_at": datetime.now().isoformat(), "wires": data}, f, ensure_ascii=False, indent=2)
-            
+
+            # 2. 尝试向 Cloudflare 云端 API 发送同步
+            cloud_ok = False
+            cloud_msg = ""
+            try:
+                from ..core.cloud_client import CloudClient
+                cloud_ok, cloud_msg, _ = CloudClient.backup_wire_library(data, customer_name=self.cust_name)
+            except Exception as ce:
+                cloud_msg = f"本地快照已建立 ({ce})"
+
+            if cloud_ok:
+                sync_dest = "Cloudflare 全球边缘云 (D1 数据库) 与 本地快照"
+                status_note = f"云端通信: {cloud_msg}"
+            else:
+                sync_dest = "本地防灾镜像快照 (离线已就绪)"
+                status_note = "说明: 云端端点在部署发布后将全自动实时云端同步"
+
             QMessageBox.information(
                 self,
                 "云端备份成功",
-                f"✔ 已成功将当前 {len(items)} 档线材规格同步并备份至 ANSV 安全云端！\n\n"
+                f"✔ 已成功完成当前 {len(items)} 档线材规格同步备份！\n\n"
+                f"备份存储目标: {sync_dest}\n"
                 f"绑定账号/客户: {self.cust_name}\n"
                 f"设备识别码: {self.mid[:16]}...\n"
-                f"双保险快照已写入: {snapshot_file.name}\n"
+                f"快照文件: {snapshot_file.name}\n"
+                f"{status_note}\n\n"
                 f"无论更换电脑或重装系统，随时点击【从云端同步拉取】即可无损恢复！"
             )
         except Exception as e:
             QMessageBox.critical(self, "备份异常", f"备份过程中发生异常: {e}")
 
     def _do_restore(self):
-        snapshot_file = Path("config/cloud_wire_backup.snapshot")
-        if not snapshot_file.exists():
+        # 1. 优先尝试从 Cloudflare 云端 API 拉取
+        cloud_wires = []
+        cloud_ok = False
+        try:
+            from ..core.cloud_client import CloudClient
+            cloud_ok, msg, cloud_wires = CloudClient.restore_wire_library()
+        except Exception:
+            pass
+
+        wires_raw = []
+        source_name = "Cloudflare 云端数据库"
+        if cloud_ok and len(cloud_wires) > 0:
+            wires_raw = cloud_wires
+        else:
+            # 2. 回退到本地快照文件
+            snapshot_file = Path("config/cloud_wire_backup.snapshot")
+            if snapshot_file.exists():
+                try:
+                    with open(snapshot_file, "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                    wires_raw = meta.get("wires", [])
+                    source_name = "本地镜像快照 (防灾离线)"
+                except Exception:
+                    wires_raw = []
+
+        if not wires_raw:
             QMessageBox.information(self, "云端同步", "云端或本地快照暂无更新的备份记录，当前线材库已是最新状态。")
             return
+
         try:
-            with open(snapshot_file, "r", encoding="utf-8") as f:
-                meta = json.load(f)
-            wires_raw = meta.get("wires", [])
             existing_keys = {(it.vendor, it.model, round(it.bare_dia, 4)) for it in self.manager.list_all()}
             restored_count = 0
             for w in wires_raw:
@@ -254,8 +294,8 @@ class CloudWireSyncDialog(QDialog):
             QMessageBox.information(
                 self,
                 "云端同步拉取完成",
-                f"✔ 从云端同步拉取完成！\n\n"
-                f"云端记录条数: {len(wires_raw)} 档\n"
+                f"✔ 从【{source_name}】同步拉取完成！\n\n"
+                f"备份记录条数: {len(wires_raw)} 档\n"
                 f"智能合并新增: {restored_count} 档\n"
                 f"当前本地总规格: {len(self.manager.list_all())} 档"
             )

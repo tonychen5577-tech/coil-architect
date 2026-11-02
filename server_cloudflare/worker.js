@@ -281,7 +281,24 @@ async function ensureTables(db) {
     } catch (_) { }
 
     try {
+        // 5. user_wire_libraries 线材库云端备份与多端同步表
+    try {
+        await db.prepare(`
+            CREATE TABLE IF NOT EXISTS user_wire_libraries (
+                user_key VARCHAR(128) PRIMARY KEY,
+                customer_name VARCHAR(128) DEFAULT '-',
+                machine_id VARCHAR(64) DEFAULT '-',
+                wires_json TEXT NOT NULL,
+                wire_count INTEGER DEFAULT 0,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `).run();
+    } catch (_) { }
+
+    try {
         await db.prepare(`INSERT OR IGNORE INTO app_config (meta_key, meta_value) VALUES ('latest_version', 'v1.1.0')`).run();
+    } catch (_) { }
     } catch (_) { }
 
     _isDbInitialized = true;
@@ -682,6 +699,104 @@ async function handleClientApi(path, request, env) {
             changelog: release.changelog,
             is_mandatory: release.is_mandatory === 1
         });
+    }
+
+    // 4. 云端线材库备份 (/api/v1/wire_library/backup)
+    if (path === "/api/v1/wire_library/backup" && request.method === "POST") {
+        let body = {};
+        try {
+            body = await request.json();
+        } catch (_) {
+            return jsonResponse({ success: false, error: "Invalid JSON" }, 400);
+        }
+        const machineId = (body.machine_id || "").trim().toUpperCase();
+        const customerName = (body.customer_name || "-").trim();
+        const licenseToken = (body.license_token || "").trim();
+        const wires = Array.isArray(body.wires) ? body.wires : [];
+        const userKey = licenseToken || machineId;
+
+        if (!userKey) {
+            return jsonResponse({ success: false, error: "Missing user identification (machine_id or license_token)" }, 400);
+        }
+
+        const wiresJson = JSON.stringify(wires);
+        const wireCount = wires.length;
+
+        try {
+            await db.prepare(`
+                INSERT INTO user_wire_libraries (user_key, customer_name, machine_id, wires_json, wire_count, updated_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_key) DO UPDATE SET
+                    customer_name = excluded.customer_name,
+                    machine_id = excluded.machine_id,
+                    wires_json = excluded.wires_json,
+                    wire_count = excluded.wire_count,
+                    updated_at = CURRENT_TIMESTAMP
+            `).bind(userKey, customerName, machineId, wiresJson, wireCount).run();
+
+            return jsonResponse({
+                success: true,
+                message: "Wire library backed up to cloud successfully",
+                user_key: userKey,
+                count: wireCount,
+                updated_at: new Date().toISOString()
+            });
+        } catch (e) {
+            return jsonResponse({ success: false, error: e.message }, 500);
+        }
+    }
+
+    // 5. 云端线材库恢复与拉取 (/api/v1/wire_library/restore)
+    if ((path === "/api/v1/wire_library/restore" || path === "/api/v1/wire_library/pull") && (request.method === "POST" || request.method === "GET")) {
+        let userKey = "";
+        let machineId = "";
+        let licenseToken = "";
+
+        if (request.method === "POST") {
+            try {
+                const body = await request.json();
+                machineId = (body.machine_id || "").trim().toUpperCase();
+                licenseToken = (body.license_token || "").trim();
+            } catch (_) {}
+        } else {
+            const url = new URL(request.url);
+            machineId = (url.searchParams.get("machine_id") || "").trim().toUpperCase();
+            licenseToken = (url.searchParams.get("license_token") || "").trim();
+        }
+
+        userKey = licenseToken || machineId;
+        if (!userKey) {
+            return jsonResponse({ success: false, error: "Missing user identification" }, 400);
+        }
+
+        try {
+            let row = await db.prepare("SELECT * FROM user_wire_libraries WHERE user_key = ?").bind(userKey).first();
+            if (!row && machineId) {
+                row = await db.prepare("SELECT * FROM user_wire_libraries WHERE machine_id = ?").bind(machineId).first();
+            }
+
+            if (!row) {
+                return jsonResponse({
+                    success: true,
+                    exists: false,
+                    wires: [],
+                    wire_count: 0,
+                    message: "No cloud backup found for this account/machine"
+                });
+            }
+
+            const wires = JSON.parse(row.wires_json || "[]");
+            return jsonResponse({
+                success: true,
+                exists: true,
+                wires: wires,
+                wire_count: wires.length,
+                updated_at: row.updated_at,
+                customer_name: row.customer_name
+            });
+        } catch (e) {
+            return jsonResponse({ success: false, error: e.message }, 500);
+        }
     }
 
     return jsonResponse({ success: false, error: "API route not found" }, 404);

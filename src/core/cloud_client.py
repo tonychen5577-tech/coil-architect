@@ -769,6 +769,57 @@ class CloudClient:
         return False, "未能连通云端授权服务器，请检查网络连接或防火墙设置。", {}
 
     @classmethod
+    def backup_wire_library(cls, wires: list, customer_name: str = "") -> Tuple[bool, str, Dict[str, Any]]:
+        """向 Cloudflare 云端同步备份线材库数据 (D1 数据库)"""
+        from .license_manager import get_machine_code, LicenseManager
+        lm = LicenseManager()
+        is_auth, _, auth_data = lm.is_system_authorized()
+        token = lm.get_installed_license_token() or ""
+        mid = get_machine_code()
+
+        payload = {
+            "machine_id": mid,
+            "customer_name": customer_name or (auth_data.get("cust", "-") if auth_data else "-"),
+            "license_token": token,
+            "wires": wires,
+            "timestamp": int(time.time()),
+        }
+
+        for base_url in cls.get_api_urls():
+            api_url = f"{base_url}/api/v1/wire_library/backup"
+            res = _make_post_request(api_url, payload, timeout=6.0)
+            if res and res.get("success"):
+                return True, f"线材库已成功云端持久化备份 ({res.get('count', len(wires))} 档)", res
+
+        return False, "云端连接超时或未响应", {}
+
+    @classmethod
+    def restore_wire_library(cls) -> Tuple[bool, str, list]:
+        """从 Cloudflare 云端恢复拉取当前账号/设备的线材库数据"""
+        from .license_manager import get_machine_code, LicenseManager
+        lm = LicenseManager()
+        token = lm.get_installed_license_token() or ""
+        mid = get_machine_code()
+
+        payload = {
+            "machine_id": mid,
+            "license_token": token,
+            "timestamp": int(time.time()),
+        }
+
+        for base_url in cls.get_api_urls():
+            api_url = f"{base_url}/api/v1/wire_library/restore"
+            res = _make_post_request(api_url, payload, timeout=6.0)
+            if res and res.get("success"):
+                wires = res.get("wires", [])
+                if res.get("exists") and len(wires) > 0:
+                    return True, f"云端获取成功 (共 {len(wires)} 档)", wires
+                else:
+                    return True, "云端暂无更新记录", []
+
+        return False, "云端网络未连接或节点超时", []
+
+    @classmethod
     def trigger_heartbeat_now(cls):
         """立即唤醒守护线程执行一次同步"""
         cls._trigger_event.set()
