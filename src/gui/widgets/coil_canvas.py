@@ -540,7 +540,7 @@ class MicroPackingCanvas(QWidget):
             painter.drawText(rect_e_right, Qt.AlignmentFlag.AlignCenter, f"t (E)={phys_w:.2f}")
 
             # 总外轮廓横向尺寸标注 (ISO 129 延伸界线 + 闭合实心箭头)
-            painter.setPen(QPen(QColor("#64748B"), 1))
+            painter.setPen(QPen(QColor("#8888A8") if is_dark else QColor("#64748B"), 1))
             painter.drawLine(int(x_left_outer), int(origin_y + 1), int(x_left_outer), int(dim_y2 + 4))
             painter.drawLine(int(x_right_outer), int(origin_y + 1), int(x_right_outer), int(dim_y2 + 4))
 
@@ -553,7 +553,7 @@ class MicroPackingCanvas(QWidget):
 
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
-            painter.setPen(QColor("#0F172A"))
+            painter.setPen(QColor("#E8E8F0") if is_dark else QColor("#0F172A"))
             painter.drawText(
                 QRectF(10, dim_y2 + 2, w - 20, 14), 
                 Qt.AlignmentFlag.AlignCenter, 
@@ -564,7 +564,7 @@ class MicroPackingCanvas(QWidget):
             z_line_x = int(x_right_outer + 18)
             z_bottom = int(origin_y)
             z_top = int(origin_y - h_coil_px)
-            painter.setPen(QPen(QColor("#CBD5E1"), 1))
+            painter.setPen(QPen(QColor("#383852") if is_dark else QColor("#CBD5E1"), 1))
             painter.drawLine(int(x_right_outer + 2), z_bottom, z_line_x + 4, z_bottom)
             painter.drawLine(int(x_right_outer + 2), z_top, z_line_x + 4, z_top)
 
@@ -901,17 +901,17 @@ class MacroRacetrackCanvas(QWidget):
             painter.setBrush(QBrush(grad))
             painter.drawPath(coil_path)
 
-            # 底部专用无遮挡信息状态栏 (白色半透明底色，双行结构化排版，绝无重叠)
-            painter.fillRect(0, h - 34, w, 34, QColor(255, 255, 255, 240))
-            painter.setPen(QPen(QColor("#E2E8F0"), 1))
+            # 底部专用无遮挡信息状态栏 (双主题自适应底色，双行结构化排版，绝无重叠)
+            painter.fillRect(0, h - 34, w, 34, QColor(19, 19, 30, 245) if is_dark else QColor(255, 255, 255, 240))
+            painter.setPen(QPen(QColor("#262638") if is_dark else QColor("#E2E8F0"), 1))
             painter.drawLine(0, h - 34, w, h - 34)
 
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
-            painter.setPen(QColor("#0F172A"))
+            painter.setPen(QColor("#E8E8F0") if is_dark else QColor("#0F172A"))
             painter.drawText(12, h - 19, f"[Outer Envelope] Outer Dia OD: Φ {od_val:.3f} mm  |  Mean Dia Dm: Φ {self.outputs.mean_dia_mm:.3f} mm" if is_en else f"【外包络】外径 OD: Φ {od_val:.3f} mm  |  展开中径 Dm: Φ {self.outputs.mean_dia_mm:.3f} mm")
 
-            painter.setPen(QColor("#475569"))
+            painter.setPen(QColor("#8888A8") if is_dark else QColor("#475569"))
             font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
             painter.drawText(12, h - 6, f"[Inner Bore] Inner Dia ID: Φ {id_val:.2f} mm" if is_en else f"【内腔基准】内径 ID: Φ {id_val:.2f} mm")
@@ -1022,17 +1022,17 @@ class MacroRacetrackCanvas(QWidget):
             painter.setBrush(QBrush(grad_copper))
             painter.drawPath(coil_path)
 
-            # 底部专用无遮挡信息状态栏 (白色半透明底色，双行结构化排版，绝无重叠)
-            painter.fillRect(0, h - 34, w, 34, QColor(255, 255, 255, 240))
-            painter.setPen(QPen(QColor("#E2E8F0"), 1))
+            # 底部专用无遮挡信息状态栏 (双主题自适应底色，双行结构化排版，绝无重叠)
+            painter.fillRect(0, h - 34, w, 34, QColor(19, 19, 30, 245) if is_dark else QColor(255, 255, 255, 240))
+            painter.setPen(QPen(QColor("#262638") if is_dark else QColor("#E2E8F0"), 1))
             painter.drawLine(0, h - 34, w, h - 34)
 
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
-            painter.setPen(QColor("#0F172A"))
+            painter.setPen(QColor("#E8E8F0") if is_dark else QColor("#0F172A"))
             painter.drawText(12, h - 19, f"[Outer Envelope] Flat OD1: {od1:.3f} mm  |  Diagonal OD2: {od2:.3f} mm" if is_en else f"【外包络】对边 OD1: {od1:.3f} mm  |  对角 OD2: {od2:.3f} mm")
 
-            painter.setPen(QColor("#475569"))
+            painter.setPen(QColor("#8888A8") if is_dark else QColor("#475569"))
             font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
             painter.drawText(12, h - 6, f"[Inner Bore] ID1: {id1:.2f} | ID2: {id2:.2f} | Flat L1: {l1:.2f} | 45° Bevel L2: {l2:.2f} | R1: {r1:.2f} mm" if is_en else f"【内腔】ID1: {id1:.2f} | ID2: {id2:.2f} | 平直L1: {l1:.2f} | 45°斜边L2: {l2:.2f} | R1: {r1:.2f} mm")
@@ -1065,17 +1065,17 @@ class MacroRacetrackCanvas(QWidget):
             painter.setBrush(QBrush(grad_copper))
             painter.drawPath(coil_path)
 
-            # 底部专用无遮挡信息状态栏 (白色半透明底色，双行结构化排版，绝无重叠)
-            painter.fillRect(0, h - 34, w, 34, QColor(255, 255, 255, 240))
-            painter.setPen(QPen(QColor("#E2E8F0"), 1))
+            # 底部专用无遮挡信息状态栏 (双主题自适应底色，双行结构化排版，绝无重叠)
+            painter.fillRect(0, h - 34, w, 34, QColor(19, 19, 30, 245) if is_dark else QColor(255, 255, 255, 240))
+            painter.setPen(QPen(QColor("#262638") if is_dark else QColor("#E2E8F0"), 1))
             painter.drawLine(0, h - 34, w, h - 34)
 
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
-            painter.setPen(QColor("#0F172A"))
+            painter.setPen(QColor("#E8E8F0") if is_dark else QColor("#0F172A"))
             painter.drawText(12, h - 19, f"[Perimeter] Mean Turn Length MLT: {mlt:.3f} mm  |  Outer C_out: {c_out:.3f} mm" if is_en else f"【周长解析】中线周长 MLT: {mlt:.3f} mm  |  展开外周长 C_out: {c_out:.3f} mm")
 
-            painter.setPen(QColor("#475569"))
+            painter.setPen(QColor("#8888A8") if is_dark else QColor("#475569"))
             font_sub = QFont("Consolas", 7, QFont.Weight.Bold)
             painter.setFont(font_sub)
             painter.drawText(12, h - 6, f"[CAD Bore] Inner Perimeter C_in: {c_in:.3f} mm  |  Ref Envelope: {self.outputs.outer_len:.2f} × {self.outputs.outer_wid:.2f} mm" if is_en else f"【CAD内腔基准】展开内周长 C_in: {c_in:.3f} mm  |  参考外廓: {self.outputs.outer_len:.2f} × {self.outputs.outer_wid:.2f} mm")
@@ -1177,20 +1177,20 @@ class MacroRacetrackCanvas(QWidget):
 
                 painter.restore()
 
-            # 底部专用无遮挡信息状态栏 (白色半透明底色，双行结构化排版，绝无重叠)
-            painter.fillRect(0, h - 34, w, 34, QColor(255, 255, 255, 240))
-            painter.setPen(QPen(QColor("#E2E8F0"), 1))
+            # 底部专用无遮挡信息状态栏 (双主题自适应底色，双行结构化排版，绝无重叠)
+            painter.fillRect(0, h - 34, w, 34, QColor(19, 19, 30, 245) if is_dark else QColor(255, 255, 255, 240))
+            painter.setPen(QPen(QColor("#262638") if is_dark else QColor("#E2E8F0"), 1))
             painter.drawLine(0, h - 34, w, h - 34)
 
             font_dim = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_dim)
-            painter.setPen(QColor("#0F172A"))
+            painter.setPen(QColor("#E8E8F0") if is_dark else QColor("#0F172A"))
             if self.inputs.has_crossover_wire:
                 painter.drawText(12, h - 19, f"[Outer Envelope] Outer Length OL: {ol:.3f} mm  |  Outer Width OW: {ow:.3f} mm (incl. 60° Crossover +{self.outputs.delta_w_crossover:.3f}mm)" if is_en else f"【外包络】外长 OL: {ol:.3f} mm  |  外宽 OW: {ow:.3f} mm (含60°交叉线 +{self.outputs.delta_w_crossover:.3f}mm)")
             else:
                 painter.drawText(12, h - 19, f"[Outer Envelope] Outer Length OL: {ol:.3f} mm  |  Outer Width OW: {ow:.3f} mm" if is_en else f"【外包络】外长 OL: {ol:.3f} mm  |  外宽 OW: {ow:.3f} mm")
 
-            painter.setPen(QColor("#475569"))
+            painter.setPen(QColor("#8888A8") if is_dark else QColor("#475569"))
             font_sub = QFont("Consolas", 8, QFont.Weight.Bold)
             painter.setFont(font_sub)
             painter.drawText(12, h - 6, f"[Inner Bore] Inner Length IL: {il:.2f} mm  |  Inner Width IW: {iw:.2f} mm" if is_en else f"【内腔基准】内长 IL: {il:.2f} mm  |  内宽 IW: {iw:.2f} mm")
@@ -1321,7 +1321,7 @@ class MagnetSectionCanvas(QWidget):
         all_pass = z_pass and dim_pass
 
         # 1. 标题与药丸按钮
-        painter.setPen(QColor("#0F172A"))
+        painter.setPen(QColor("#38BDF8") if is_dark else QColor("#0F172A"))
         painter.setFont(QFont("Microsoft YaHei", 8, QFont.Weight.Bold))
         painter.drawText(QRectF(14, 8, 380, 22), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, view_title)
 
@@ -1336,18 +1336,33 @@ class MagnetSectionCanvas(QWidget):
                 t1 = ("● 对边剖面" if self.section_mode == "zx" else "○ 对边剖面") if c_type == CoilType.OCTAGONAL else ("● Z-X 长向" if self.section_mode == "zx" else "○ Z-X 长向")
                 t2 = ("● 对角剖面" if self.section_mode == "zy" else "○ 对角剖面") if c_type == CoilType.OCTAGONAL else ("● Z-Y 宽向" if self.section_mode == "zy" else "○ Z-Y 宽向")
 
-            painter.setPen(QPen(QColor("#0284C7") if self.section_mode == "zx" else QColor("#CBD5E1"), 1.2 if self.section_mode == "zx" else 1))
-            painter.setBrush(QBrush(QColor("#E0F2FE") if self.section_mode == "zx" else QColor("#F8FAFC")))
+            if is_dark:
+                b_zx = QColor("#0284C7") if self.section_mode == "zx" else QColor("#262638")
+                bg_zx = QColor("#0C4A6E") if self.section_mode == "zx" else QColor("#1A1A28")
+                fg_zx = QColor("#38BDF8") if self.section_mode == "zx" else QColor("#8888A8")
+                b_zy = QColor("#0284C7") if self.section_mode == "zy" else QColor("#262638")
+                bg_zy = QColor("#0C4A6E") if self.section_mode == "zy" else QColor("#1A1A28")
+                fg_zy = QColor("#38BDF8") if self.section_mode == "zy" else QColor("#8888A8")
+            else:
+                b_zx = QColor("#0284C7") if self.section_mode == "zx" else QColor("#CBD5E1")
+                bg_zx = QColor("#E0F2FE") if self.section_mode == "zx" else QColor("#F8FAFC")
+                fg_zx = QColor("#0284C7") if self.section_mode == "zx" else QColor("#64748B")
+                b_zy = QColor("#0284C7") if self.section_mode == "zy" else QColor("#CBD5E1")
+                bg_zy = QColor("#E0F2FE") if self.section_mode == "zy" else QColor("#F8FAFC")
+                fg_zy = QColor("#0284C7") if self.section_mode == "zy" else QColor("#64748B")
+
+            painter.setPen(QPen(b_zx, 1.2 if self.section_mode == "zx" else 1))
+            painter.setBrush(QBrush(bg_zx))
             painter.drawRoundedRect(pill_zx, 11, 11)
             painter.setFont(QFont("Microsoft YaHei", 7, QFont.Weight.Bold))
-            painter.setPen(QColor("#0284C7") if self.section_mode == "zx" else QColor("#64748B"))
+            painter.setPen(fg_zx)
             painter.drawText(pill_zx, Qt.AlignmentFlag.AlignCenter, t1)
 
-            painter.setPen(QPen(QColor("#0284C7") if self.section_mode == "zy" else QColor("#CBD5E1"), 1.2 if self.section_mode == "zy" else 1))
-            painter.setBrush(QBrush(QColor("#E0F2FE") if self.section_mode == "zy" else QColor("#F8FAFC")))
+            painter.setPen(QPen(b_zy, 1.2 if self.section_mode == "zy" else 1))
+            painter.setBrush(QBrush(bg_zy))
             painter.drawRoundedRect(pill_zy, 11, 11)
             painter.setFont(QFont("Microsoft YaHei", 7, QFont.Weight.Bold))
-            painter.setPen(QColor("#0284C7") if self.section_mode == "zy" else QColor("#64748B"))
+            painter.setPen(fg_zy)
             painter.drawText(pill_zy, Qt.AlignmentFlag.AlignCenter, t2)
         elif c_type == CoilType.CIRCULAR:
             pill_circ = QRectF(w - 145, 8, 130, 22)
@@ -1407,7 +1422,7 @@ class MagnetSectionCanvas(QWidget):
         painter.drawLine(int(x_base_left), int(base_y), int(x_base_right), int(base_y))
 
         # 地线小斜线 (阴影剖面线)
-        painter.setPen(QPen(QColor("#CBD5E1"), 1))
+        painter.setPen(QPen(QColor("#383852") if is_dark else QColor("#CBD5E1"), 1))
         hatch_step = 16
         for hx in range(int(x_base_left), int(x_base_right), hatch_step):
             painter.drawLine(hx, int(base_y), hx - 5, int(base_y + 5))
@@ -1661,8 +1676,8 @@ class MagnetSectionCanvas(QWidget):
 
         tw_out = metrics_in.horizontalAdvance(text_out)
         rect_text_out_bg = QRectF(cx - tw_out / 2.0 - 4, y_dim_out - th_in - 2, tw_out + 8, th_in)
-        painter.fillRect(rect_text_out_bg, QColor(255, 255, 255, 235))
-        painter.setPen(QColor("#0F172A"))
+        painter.fillRect(rect_text_out_bg, QColor(19, 19, 30, 245) if is_dark else QColor(255, 255, 255, 235))
+        painter.setPen(QColor("#E8E8F0") if is_dark else QColor("#0F172A"))
         painter.setFont(font_dim)
         painter.drawText(rect_text_out_bg, Qt.AlignmentFlag.AlignCenter, text_out)
 
@@ -1670,24 +1685,24 @@ class MagnetSectionCanvas(QWidget):
         if show_floating_badge:
             if not is_dfm_active:
                 badge_text = "ℹ DFM Limits Off (Free Parameter Mode: Optimize R20 & Turns)" if is_en else "ℹ DFM 模具卡限已关闭 (自由仿真设计模式: 专注于电阻与匝数寻优)"
-                b_color = QColor("#0284C7")
-                bg_color = QColor(240, 249, 255, 240)
+                b_color = QColor("#38BDF8") if is_dark else QColor("#0284C7")
+                bg_color = QColor(12, 74, 110, 240) if is_dark else QColor(240, 249, 255, 240)
             elif all_pass:
                 badge_text = (f"✓ DFM Clearance Passed (Z-Margin ΔZ: +{delta_z:.3f} mm  |  Lateral Δ: +{delta_dim:.3f} mm)" if is_en else f"✓ DFM 空间合格 (Z 向余量 ΔZ: +{delta_z:.3f} mm  |  侧向余量 Δ: +{delta_dim:.3f} mm)")
-                b_color = QColor("#059669")
-                bg_color = QColor(240, 253, 244, 240)
+                b_color = QColor("#4ADE80") if is_dark else QColor("#059669")
+                bg_color = QColor(6, 78, 59, 240) if is_dark else QColor(240, 253, 244, 240)
             elif not z_pass and not dim_pass:
                 badge_text = (f"🚨 Dual-Axis Interference! (Z Over {abs(delta_z):.3f} mm | Lateral Over {abs(delta_dim):.3f} mm)" if is_en else f"🚨 双向严重超差干涉! (Z向超出 {abs(delta_z):.3f} mm | 侧向超出 {abs(delta_dim):.3f} mm)")
-                b_color = QColor("#DC2626")
-                bg_color = QColor(254, 242, 242, 240)
+                b_color = QColor("#F87171") if is_dark else QColor("#DC2626")
+                bg_color = QColor(69, 10, 10, 240) if is_dark else QColor(254, 242, 242, 240)
             elif not z_pass:
                 badge_text = (f"🚨 Z-Height Exceeded: H {f_thk:.3f} mm > Max_Z {lim_z:.2f} mm (Over {abs(delta_z):.3f} mm)" if is_en else f"🚨 Z 向超差报警: 线圈高 {f_thk:.3f} mm > Max_Z {lim_z:.2f} mm (超出 {abs(delta_z):.3f} mm)")
-                b_color = QColor("#DC2626")
-                bg_color = QColor(254, 242, 242, 240)
+                b_color = QColor("#F87171") if is_dark else QColor("#DC2626")
+                bg_color = QColor(69, 10, 10, 240) if is_dark else QColor(254, 242, 242, 240)
             else:
                 badge_text = (f"🚨 Lateral Exceeded: {dim_out_name} {out_dim:.3f} mm > {dim_lim_name} {lim_dim:.2f} mm (Over {abs(delta_dim):.3f} mm)" if is_en else f"🚨 侧向超差报警: 线圈 {dim_out_name} {out_dim:.3f} mm > {dim_lim_name} {lim_dim:.2f} mm (超出 {abs(delta_dim):.3f} mm)")
-                b_color = QColor("#DC2626")
-                bg_color = QColor(254, 242, 242, 240)
+                b_color = QColor("#F87171") if is_dark else QColor("#DC2626")
+                bg_color = QColor(69, 10, 10, 240) if is_dark else QColor(254, 242, 242, 240)
 
             painter.setPen(QPen(b_color, 1.2))
             painter.setBrush(QBrush(bg_color))
@@ -1696,13 +1711,13 @@ class MagnetSectionCanvas(QWidget):
             painter.setFont(QFont("Microsoft YaHei", 7, QFont.Weight.Bold))
             painter.drawText(rect_badge, Qt.AlignmentFlag.AlignCenter, badge_text)
 
-        # 10. 底部专属卡片信息面板 (带高质感浅灰底框，独立封装于底边，100% 杜绝与上方尺寸线重合)
-        painter.setPen(QPen(QColor("#E2E8F0"), 1))
-        painter.setBrush(QBrush(QColor(248, 250, 252, 245)))
+        # 10. 底部专属卡片信息面板 (双主题高质感底框，独立封装于底边，100% 杜绝与上方尺寸线重合)
+        painter.setPen(QPen(QColor("#262638") if is_dark else QColor("#E2E8F0"), 1))
+        painter.setBrush(QBrush(QColor(19, 19, 30, 245) if is_dark else QColor(248, 250, 252, 245)))
         painter.drawRoundedRect(rect_bottom_card, 4, 4)
 
         painter.setFont(QFont("Microsoft YaHei", 7))
-        painter.setPen(QColor("#475569"))
+        painter.setPen(QColor("#8888A8") if is_dark else QColor("#475569"))
         if is_dfm_active:
             line1 = (f"Coil Height F: {f_thk:.3f} mm  |  Max_Z: {lim_z:.2f} mm (Margin ΔZ: {delta_z:+.3f} mm)  |  Build E: {e_env:.3f} mm" if is_en else f"线圈成型高度 F: {f_thk:.3f} mm  |  空间限高 Max_Z: {lim_z:.2f} mm (余量 ΔZ: {delta_z:+.3f} mm)  |  成型壁厚 E: {e_env:.3f} mm")
             line2 = (f"Inner Bore: {in_dim:.2f} mm  |  Outer Span: {out_dim:.3f} mm  |  Limit {dim_lim_name}: {lim_dim:.2f} mm (Margin Δ: {delta_dim:+.3f} mm)" if is_en else f"线圈内腔基准: {in_dim:.2f} mm  |  实际外廓: {out_dim:.3f} mm  |  空间上限 {dim_lim_name}: {lim_dim:.2f} mm (余量 Δ: {delta_dim:+.3f} mm)")

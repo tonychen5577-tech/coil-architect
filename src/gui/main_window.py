@@ -1361,6 +1361,145 @@ class MainWindow(QMainWindow):
                 }}
             """)
 
+        # 9. 刷新 DFM 状态芯片条 (彻底消除白色强光)
+        if hasattr(self, "dfm_strip") and hasattr(self.dfm_strip, "set_dark_mode"):
+            self.dfm_strip.set_dark_mode(is_dark)
+
+        # 10. 刷新方案对比抽屉 (彻底消除白色强光)
+        if hasattr(self, "comparison_drawer") and hasattr(self.comparison_drawer, "set_dark_mode"):
+            self.comparison_drawer.set_dark_mode(is_dark)
+
+        # 11. 刷新换层交叉线与模具限位压实复选框
+        if hasattr(self, "chk_crossover"):
+            c_cross = "#FBBF24" if is_dark else "#D97706"
+            self.chk_crossover.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_cross}; margin-top: 6px;")
+        if hasattr(self, "chk_mold_clamping"):
+            c_clamp = "#38BDF8" if is_dark else "#0284C7"
+            self.chk_mold_clamping.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_clamp}; margin-top: 4px;")
+
+        # 12. 刷新线材规格库标题与 3 颗出厂选型按钮
+        if hasattr(self, "lbl_wire_catalog"):
+            c_wcat = "#CBD5E1" if is_dark else "#334155"
+            self.lbl_wire_catalog.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_wcat}; margin-top: 4px;")
+        if hasattr(self, "btn_open_catalog"):
+            if is_dark:
+                self.btn_open_catalog.setStyleSheet("""
+                    QPushButton {
+                        background-color: #0C4A6E;
+                        border: 1px solid #0284C7;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #38BDF8;
+                    }
+                    QPushButton:hover {
+                        background-color: #075985;
+                        border-color: #38BDF8;
+                        color: #E0F2FE;
+                    }
+                """)
+            else:
+                self.btn_open_catalog.setStyleSheet("""
+                    QPushButton {
+                        background-color: #F0F9FF;
+                        border: 1px solid #0284C7;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #0284C7;
+                    }
+                    QPushButton:hover {
+                        background-color: #E0F2FE;
+                        border-color: #0369A1;
+                        color: #0369A1;
+                    }
+                """)
+        if hasattr(self, "btn_custom_wire"):
+            if is_dark:
+                self.btn_custom_wire.setStyleSheet("""
+                    QPushButton {
+                        background-color: #2E1065;
+                        border: 1px solid #7C3AED;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #C084FC;
+                    }
+                    QPushButton:hover {
+                        background-color: #3B0764;
+                        border-color: #A855F7;
+                        color: #E9D5FF;
+                    }
+                """)
+            else:
+                self.btn_custom_wire.setStyleSheet("""
+                    QPushButton {
+                        background-color: #FDF4FF;
+                        border: 1px solid #C084FC;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #9333EA;
+                    }
+                    QPushButton:hover {
+                        background-color: #F3E8FF;
+                        border-color: #A855F7;
+                        color: #7E22CE;
+                    }
+                """)
+        if hasattr(self, "btn_incoming_wire"):
+            if is_dark:
+                self.btn_incoming_wire.setStyleSheet("""
+                    QPushButton {
+                        background-color: #064E3B;
+                        border: 1px solid #10B981;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #4ADE80;
+                    }
+                    QPushButton:hover {
+                        background-color: #065F46;
+                        border-color: #34D399;
+                        color: #DCFCE7;
+                    }
+                """)
+            else:
+                self.btn_incoming_wire.setStyleSheet("""
+                    QPushButton {
+                        background-color: #F0FDF4;
+                        border: 1px solid #16A34A;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #16A34A;
+                    }
+                    QPushButton:hover {
+                        background-color: #DCFCE7;
+                        border-color: #15803D;
+                        color: #15803D;
+                    }
+                """)
+
+        # 13. 刷新其余左侧参数栏标签与复选框 (消除暗色字看不清)
+        c_lbl = "#CBD5E1" if is_dark else "#334155"
+        if hasattr(self, "lbl_wire_shape"):
+            self.lbl_wire_shape.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
+        if hasattr(self, "lbl_enamel"):
+            self.lbl_enamel.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl}; margin-top: 4px;")
+        if hasattr(self, "chk_self_bonding"):
+            c_sb = "#E8E8F0" if is_dark else "#475569"
+            self.chk_self_bonding.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_sb}; margin: 2px 0;")
+        if hasattr(self, "chk_dfm_enabled"):
+            c_dfm = "#38BDF8" if is_dark else "#0284C7"
+            self.chk_dfm_enabled.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {c_dfm}; margin-bottom: 4px;")
+
     def _create_top_toolbar(self) -> QWidget:
         bar = QFrame(self)
         bar.setObjectName("topToolbarFrame")

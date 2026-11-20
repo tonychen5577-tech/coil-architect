@@ -1,3 +1,4 @@
+from .styles import get_saved_theme, THEME_DARK
 # -*- coding: utf-8 -*-
 """
 Coil-Architect Pro - 自定义线材厂商数据库与规格编辑器 (Custom Wire Library & Editor)
@@ -835,12 +836,19 @@ class CustomWireLibraryDialog(QDialog):
         self.manager: CustomWireManager = get_custom_wire_manager()
         self.selected_item: Optional[CustomWireItem] = None
         self._initial_diameter = current_diameter
+        self.is_dark = (get_saved_theme() == THEME_DARK)
 
         self._setup_ui()
         self._reload_table_data()
 
     def _setup_ui(self):
         is_en = i18n.is_english()
+        is_dark = getattr(self, "is_dark", False)
+        if is_dark:
+            self.setStyleSheet("QDialog { background-color: #0A0A0F; color: #E8E8F0; }")
+        else:
+            self.setStyleSheet("QDialog { background-color: #FFFFFF; color: #0F172A; }")
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
@@ -852,9 +860,11 @@ class CustomWireLibraryDialog(QDialog):
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
         self.lbl_title = QLabel("📚 自定义线材厂商数据库 · 规格选型与管理")
-        self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1E3A8A;")
+        c_title = "#38BDF8" if is_dark else "#1E3A8A"
+        c_sub = "#8888A8" if is_dark else "#64748B"
+        self.lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {c_title};")
         self.lbl_sub = QLabel("支持自定义厂商、型号、国标米阻、击穿电压、伸长率与铜导率推导 · 自由调入仿真计算")
-        self.lbl_sub.setStyleSheet("font-size: 11px; color: #64748B;")
+        self.lbl_sub.setStyleSheet(f"font-size: 11px; color: {c_sub};")
         self.lbl_sync_status = QLabel("🟢 边缘云端全自动静默同步: 已激活 (增删改任何规格均自动静默备份至云端，免手动操作)")
         self.lbl_sync_status.setStyleSheet("font-size: 11px; font-weight: 600; color: #059669; margin-top: 2px;")
         title_box.addWidget(self.lbl_title)
@@ -1028,13 +1038,17 @@ class CustomWireLibraryDialog(QDialog):
 
         # 4. 底部说明与操作栏
         bottom_frame = QFrame()
-        bottom_frame.setStyleSheet("background-color: #F8FAFC; border-top: 1px solid #E2E8F0; border-radius: 4px;")
+        if is_dark:
+            bottom_frame.setStyleSheet("background-color: #13131E; border-top: 1px solid #262638; border-radius: 4px;")
+        else:
+            bottom_frame.setStyleSheet("background-color: #F8FAFC; border-top: 1px solid #E2E8F0; border-radius: 4px;")
         bottom_layout = QHBoxLayout(bottom_frame)
         bottom_layout.setContentsMargins(12, 10, 12, 10)
         bottom_layout.setSpacing(12)
 
         self.lbl_selected_info = QLabel("当前未选定线规 (点击行选择)")
-        self.lbl_selected_info.setStyleSheet("font-size: 12px; font-weight: 600; color: #0284C7;")
+        c_sel = "#38BDF8" if is_dark else "#0284C7"
+        self.lbl_selected_info.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {c_sel};")
         bottom_layout.addWidget(self.lbl_selected_info, 1)
 
         self.btn_cancel = QPushButton("取消" if not is_en else "Cancel")

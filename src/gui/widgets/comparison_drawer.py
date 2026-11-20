@@ -336,6 +336,7 @@ class ComparisonDrawer(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ComparisonDrawer")
+        self.is_dark_mode = False
         self.snapshots: List[SchemeSnapshot] = []
         self._curr_inputs: Optional[CoilInputs] = None
         self._curr_outputs: Optional[CoilOutputs] = None
@@ -632,6 +633,385 @@ class ComparisonDrawer(QFrame):
 
         # 默认收起
         self.content_container.setVisible(False)
+
+        # 应用主题样式
+        self._update_theme_style()
+
+    def set_dark_mode(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        self._update_theme_style()
+        self._rebuild_table_columns()
+
+    def _update_theme_style(self):
+        is_dark = getattr(self, "is_dark_mode", False)
+        if is_dark:
+            self.setStyleSheet('''
+                #ComparisonDrawer {
+                    background-color: #13131E;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                }
+            ''')
+            if hasattr(self, "header_frame"):
+                self.header_frame.setStyleSheet('''
+                    QFrame {
+                        background-color: #1A1A28;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                    }
+                ''')
+            if hasattr(self, "btn_toggle"):
+                self.btn_toggle.setStyleSheet('''
+                    QPushButton {
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #38BDF8;
+                        background: transparent;
+                        border: none;
+                        text-align: left;
+                        padding: 2px 4px;
+                    }
+                    QPushButton:hover {
+                        color: #7DD3FC;
+                    }
+                ''')
+            if hasattr(self, "lbl_count"):
+                self.lbl_count.setStyleSheet("font-size: 10px; font-weight: 600; color: #8888A8; background: transparent; border: none;")
+            if hasattr(self, "btn_capture"):
+                self.btn_capture.setStyleSheet('''
+                    QPushButton {
+                        background-color: #0284C7;
+                        color: #FFFFFF;
+                        font-size: 11px;
+                        font-weight: 700;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 4px 10px;
+                    }
+                    QPushButton:hover {
+                        background-color: #0369A1;
+                    }
+                    QPushButton:pressed {
+                        background-color: #075985;
+                    }
+                ''')
+            if hasattr(self, "btn_copy"):
+                self.btn_copy.setStyleSheet('''
+                    QPushButton {
+                        background-color: #1A1A28;
+                        color: #E8E8F0;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #262638;
+                        color: #38BDF8;
+                        border-color: #38BDF8;
+                    }
+                ''')
+            if hasattr(self, "btn_export"):
+                self.btn_export.setStyleSheet('''
+                    QPushButton {
+                        background-color: #064E3B;
+                        color: #4ADE80;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #10B981;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #065F46;
+                        border-color: #34D399;
+                    }
+                ''')
+            if hasattr(self, "btn_export_schemes"):
+                self.btn_export_schemes.setStyleSheet('''
+                    QPushButton {
+                        background-color: #064E3B;
+                        color: #4ADE80;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #10B981;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #065F46;
+                        border-color: #34D399;
+                    }
+                ''')
+            if hasattr(self, "btn_import_schemes"):
+                self.btn_import_schemes.setStyleSheet('''
+                    QPushButton {
+                        background-color: #0C4A6E;
+                        color: #38BDF8;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #0284C7;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #075985;
+                        border-color: #38BDF8;
+                    }
+                ''')
+            if hasattr(self, "btn_clear"):
+                self.btn_clear.setStyleSheet('''
+                    QPushButton {
+                        background-color: #450A0A;
+                        color: #F87171;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #EF4444;
+                        border-radius: 4px;
+                        padding: 3px 6px;
+                    }
+                    QPushButton:hover {
+                        background-color: #7F1D1D;
+                    }
+                ''')
+            if hasattr(self, "btn_popout"):
+                self.btn_popout.setStyleSheet('''
+                    QPushButton {
+                        background-color: #1A1A28;
+                        color: #FBBF24;
+                        font-size: 10px;
+                        font-weight: 700;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #262638;
+                        border-color: #FBBF24;
+                    }
+                ''')
+            if hasattr(self, "btn_fold"):
+                self.btn_fold.setStyleSheet('''
+                    QPushButton {
+                        background: transparent;
+                        border: none;
+                        color: #38BDF8;
+                        font-size: 10px;
+                        font-weight: 600;
+                        padding: 2px 4px;
+                    }
+                ''')
+            if hasattr(self, "table"):
+                self.table.setStyleSheet('''
+                    QTableWidget {
+                        background-color: #13131E;
+                        alternate-background-color: #1A1A28;
+                        gridline-color: #262638;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        color: #E8E8F0;
+                    }
+                    QHeaderView::section {
+                        background-color: #1A1A28;
+                        color: #8888A8;
+                        font-weight: 700;
+                        font-size: 11px;
+                        padding: 4px 6px;
+                        border: 1px solid #262638;
+                    }
+                    QTableWidget::item {
+                        padding: 3px 6px;
+                        color: #E8E8F0;
+                    }
+                ''')
+        else:
+            self.setStyleSheet('''
+                #ComparisonDrawer {
+                    background-color: #FFFFFF;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                }
+            ''')
+            if hasattr(self, "header_frame"):
+                self.header_frame.setStyleSheet('''
+                    QFrame {
+                        background-color: #F8FAFC;
+                        border: 1px solid #E2E8F0;
+                        border-radius: 4px;
+                    }
+                ''')
+            if hasattr(self, "btn_toggle"):
+                self.btn_toggle.setStyleSheet('''
+                    QPushButton {
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: #0F172A;
+                        background: transparent;
+                        border: none;
+                        text-align: left;
+                        padding: 2px 4px;
+                    }
+                    QPushButton:hover {
+                        color: #0284C7;
+                    }
+                ''')
+            if hasattr(self, "lbl_count"):
+                self.lbl_count.setStyleSheet("font-size: 10px; font-weight: 600; color: #64748B; background: transparent; border: none;")
+            if hasattr(self, "btn_capture"):
+                self.btn_capture.setStyleSheet('''
+                    QPushButton {
+                        background-color: #0284C7;
+                        color: #FFFFFF;
+                        font-size: 11px;
+                        font-weight: 700;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 4px 10px;
+                    }
+                    QPushButton:hover {
+                        background-color: #0369A1;
+                    }
+                    QPushButton:pressed {
+                        background-color: #075985;
+                    }
+                ''')
+            if hasattr(self, "btn_copy"):
+                self.btn_copy.setStyleSheet('''
+                    QPushButton {
+                        background-color: #FFFFFF;
+                        color: #334155;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #F1F5F9;
+                        color: #0284C7;
+                        border-color: #0284C7;
+                    }
+                ''')
+            if hasattr(self, "btn_export"):
+                self.btn_export.setStyleSheet('''
+                    QPushButton {
+                        background-color: #FFFFFF;
+                        color: #059669;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #A7F3D0;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #ECFDF5;
+                        color: #047857;
+                        border-color: #059669;
+                    }
+                ''')
+            if hasattr(self, "btn_export_schemes"):
+                self.btn_export_schemes.setStyleSheet('''
+                    QPushButton {
+                        background-color: #FFFFFF;
+                        color: #059669;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #A7F3D0;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #ECFDF5;
+                        color: #047857;
+                        border-color: #059669;
+                    }
+                ''')
+            if hasattr(self, "btn_import_schemes"):
+                self.btn_import_schemes.setStyleSheet('''
+                    QPushButton {
+                        background-color: #FFFFFF;
+                        color: #0284C7;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #BAE6FD;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #F0F9FF;
+                        color: #0369A1;
+                        border-color: #0284C7;
+                    }
+                ''')
+            if hasattr(self, "btn_clear"):
+                self.btn_clear.setStyleSheet('''
+                    QPushButton {
+                        background-color: #FFFFFF;
+                        color: #64748B;
+                        font-size: 10px;
+                        font-weight: 600;
+                        border: 1px solid #E2E8F0;
+                        border-radius: 4px;
+                        padding: 3px 6px;
+                    }
+                    QPushButton:hover {
+                        background-color: #FEE2E2;
+                        color: #DC2626;
+                        border-color: #FCA5A5;
+                    }
+                ''')
+            if hasattr(self, "btn_popout"):
+                self.btn_popout.setStyleSheet('''
+                    QPushButton {
+                        background-color: #EFF6FF;
+                        color: #1D4ED8;
+                        font-size: 10px;
+                        font-weight: 700;
+                        border: 1px solid #BFDBFE;
+                        border-radius: 4px;
+                        padding: 3px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #DBEAFE;
+                        border-color: #3B82F6;
+                    }
+                ''')
+            if hasattr(self, "btn_fold"):
+                self.btn_fold.setStyleSheet('''
+                    QPushButton {
+                        background: transparent;
+                        border: none;
+                        color: #0284C7;
+                        font-size: 10px;
+                        font-weight: 600;
+                        padding: 2px 4px;
+                    }
+                ''')
+            if hasattr(self, "table"):
+                self.table.setStyleSheet('''
+                    QTableWidget {
+                        background-color: #FFFFFF;
+                        alternate-background-color: #F8FAFC;
+                        gridline-color: #E2E8F0;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        color: #0F172A;
+                    }
+                    QHeaderView::section {
+                        background-color: #F1F5F9;
+                        color: #334155;
+                        font-weight: 700;
+                        font-size: 11px;
+                        padding: 4px 6px;
+                        border: 1px solid #E2E8F0;
+                    }
+                    QTableWidget::item {
+                        padding: 3px 6px;
+                    }
+                ''')
 
     ROW_I18N = {
         "绕线拓扑": "row_topology",

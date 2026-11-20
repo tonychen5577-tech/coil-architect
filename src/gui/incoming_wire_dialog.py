@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from ..core.models import EnamelGrade
 from ..core.i18n import i18n, t
 from .widgets.slider_spin_box import ClickableDoubleSpinBox
+from .styles import get_saved_theme, THEME_DARK
 
 
 @dataclass
@@ -69,6 +70,11 @@ class IncomingWireDialog(QDialog):
         self._init_enamel_grade = enamel_grade
 
         self._is_updating = False
+        self.is_dark = (get_saved_theme() == THEME_DARK)
+        if self.is_dark:
+            self.setStyleSheet("QDialog { background-color: #0A0A0F; color: #E8E8F0; }")
+        else:
+            self.setStyleSheet("QDialog { background-color: #FFFFFF; color: #0F172A; }")
         self._setup_ui()
         self._update_calculation_preview()
 
@@ -81,36 +87,42 @@ class IncomingWireDialog(QDialog):
         # 1. 顶部标题与说明
         top_box = QVBoxLayout()
         top_box.setSpacing(3)
+        is_dark = getattr(self, "is_dark", False)
         self.lbl_title = QLabel("⚡ 线材来料实测参数设定 (供应商进料指标直接导入)")
-        self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1E3A8A;")
+        c_title = "#38BDF8" if is_dark else "#1E3A8A"
+        c_sub = "#8888A8" if is_dark else "#64748B"
+        self.lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {c_title};")
         self.lbl_sub = QLabel(
             "直接输入供应商出厂检验单或实验室实测的【常温米阻 (Ω/m)】与【一公斤多少米 (m/kg)】，符合国家标准 GB/T 6109 计量基准。"
             if not is_en else
             "Enter incoming test report parameters (Ohm/m and m/kg, GB standard). Physics engine calculates resistance and weight directly."
         )
-        self.lbl_sub.setStyleSheet("font-size: 11px; color: #64748B;")
+        self.lbl_sub.setStyleSheet(f"font-size: 11px; color: {c_sub};")
         top_box.addWidget(self.lbl_title)
         top_box.addWidget(self.lbl_sub)
         layout.addLayout(top_box)
 
         # 2. 核心输入卡片
         grp_inputs = QGroupBox("来料实测核心参数输入" if not is_en else "Incoming Test Measurements")
-        grp_inputs.setStyleSheet("""
-            QGroupBox {
+        bg_grp = "#13131E" if is_dark else "#F8FAFC"
+        bdr_grp = "#262638" if is_dark else "#CBD5E1"
+        fg_grp = "#E8E8F0" if is_dark else "#0F172A"
+        grp_inputs.setStyleSheet(f"""
+            QGroupBox {{
                 font-size: 12px;
                 font-weight: 700;
-                color: #0F172A;
-                border: 1px solid #CBD5E1;
+                color: {fg_grp};
+                border: 1px solid {bdr_grp};
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 14px;
-                background-color: #F8FAFC;
-            }
-            QGroupBox::title {
+                background-color: {bg_grp};
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 12px;
                 padding: 0 4px;
-            }
+            }}
         """)
         grid = QGridLayout(grp_inputs)
         grid.setContentsMargins(14, 14, 14, 14)
@@ -256,21 +268,32 @@ class IncomingWireDialog(QDialog):
 
         # 4. 实时对账与推算看板
         self.preview_frame = QFrame()
-        self.preview_frame.setStyleSheet("""
-            QFrame {
-                background-color: #F0FDF4;
-                border: 1px solid #BBF7D0;
-                border-radius: 8px;
-            }
-        """)
+        if is_dark:
+            self.preview_frame.setStyleSheet("""
+                QFrame {
+                    background-color: #064E3B;
+                    border: 1px solid #10B981;
+                    border-radius: 8px;
+                }
+            """)
+        else:
+            self.preview_frame.setStyleSheet("""
+                QFrame {
+                    background-color: #F0FDF4;
+                    border: 1px solid #BBF7D0;
+                    border-radius: 8px;
+                }
+            """)
         prev_layout = QVBoxLayout(self.preview_frame)
         prev_layout.setContentsMargins(12, 10, 12, 10)
         prev_layout.setSpacing(4)
 
         self.lbl_preview_title = QLabel("📊 来料实测参数对账核算分析:" if not is_en else "📊 Measurement Reconciliation Analysis:")
-        self.lbl_preview_title.setStyleSheet("font-size: 11px; font-weight: 700; color: #166534;")
+        c_pt = "#4ADE80" if is_dark else "#166534"
+        c_pd = "#A7F3D0" if is_dark else "#15803D"
+        self.lbl_preview_title.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {c_pt};")
         self.lbl_preview_detail = QLabel()
-        self.lbl_preview_detail.setStyleSheet("font-size: 11px; color: #15803D;")
+        self.lbl_preview_detail.setStyleSheet(f"font-size: 11px; color: {c_pd};")
         self.lbl_preview_detail.setWordWrap(True)
 
         prev_layout.addWidget(self.lbl_preview_title)
@@ -285,20 +308,36 @@ class IncomingWireDialog(QDialog):
 
         self.btn_cancel = QPushButton("取消" if not is_en else "Cancel")
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #F1F5F9;
-                border: 1px solid #CBD5E1;
-                border-radius: 6px;
-                padding: 7px 18px;
-                font-size: 12px;
-                font-weight: 600;
-                color: #475569;
-            }
-            QPushButton:hover {
-                background-color: #E2E8F0;
-            }
-        """)
+        if is_dark:
+            self.btn_cancel.setStyleSheet("""
+                QPushButton {
+                    background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                    padding: 7px 18px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #E8E8F0;
+                }
+                QPushButton:hover {
+                    background-color: #262638;
+                }
+            """)
+        else:
+            self.btn_cancel.setStyleSheet("""
+                QPushButton {
+                    background-color: #F1F5F9;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                    padding: 7px 18px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #475569;
+                }
+                QPushButton:hover {
+                    background-color: #E2E8F0;
+                }
+            """)
         self.btn_cancel.clicked.connect(self.reject)
 
         self.btn_apply = QPushButton("✔ 确认并载入仿真" if not is_en else "✔ Apply to Simulation")

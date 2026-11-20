@@ -16,23 +16,12 @@ class DFMChip(QFrame):
         super().__init__(parent)
         self.name = name
         self.limit_str = default_limit
+        self.is_dark_mode = False
+        self._last_status = None
         self.setObjectName("DFMChip")
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setMinimumWidth(0)
         self.setFixedHeight(28)
-
-        self.setStyleSheet("""
-            #DFMChip {
-                background-color: #F8FAFC;
-                border: 1px solid #E2E8F0;
-                border-radius: 6px;
-            }
-            #DFMChip QLabel {
-                background: transparent;
-                border: none;
-                padding: 0px;
-            }
-        """)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 3, 6, 3)
@@ -53,25 +42,67 @@ class DFMChip(QFrame):
 
         layout.addWidget(self.dot)
         layout.addWidget(self.lbl_text)
-        layout.addStretch()  # 弹性空间置于最右侧，确保左侧图文紧凑左对齐
+        layout.addStretch()
+
+        self._update_chip_style()
+
+    def set_dark_mode(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        if self._last_status:
+            mode, args, kwargs = self._last_status
+            if mode == "setStatus":
+                self.setStatus(*args, **kwargs)
+            elif mode == "setAdaptive":
+                self.setAdaptiveStatus(*args)
+        else:
+            self._update_chip_style()
+
+    def _update_chip_style(self):
+        is_dark = getattr(self, "is_dark_mode", False)
+        bg = "#1A1A28" if is_dark else "#F8FAFC"
+        bdr = "#262638" if is_dark else "#E2E8F0"
+        fg = "#8888A8" if is_dark else "#64748B"
+        c_dot = "#8888A8" if is_dark else "#94A3B8"
+        if hasattr(self, "dot"):
+            self.dot.setStyleSheet(f"color: {c_dot}; font-size: 11px; background: transparent; border: none;")
+        self.setStyleSheet(f"""
+            #DFMChip {{
+                background-color: {bg};
+                border: 1px solid {bdr};
+                border-radius: 6px;
+            }}
+            #DFMChip QLabel {{
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }}
+        """)
+        if hasattr(self, "lbl_text"):
+            self.lbl_text.setStyleSheet(f"font-size: 10px; font-weight: 500; color: {fg}; background: transparent; border: none;")
 
     def setStatus(self, passed: bool, curr_val: float, limit_val: float, unit: str, enabled: bool = True):
+        self._last_status = ("setStatus", (passed, curr_val, limit_val, unit), {"enabled": enabled})
         is_en = i18n.is_english()
+        is_dark = getattr(self, "is_dark_mode", False)
         val_str = f"{curr_val:.3f}" if unit == "mm" else f"{curr_val:.2f}"
         if not enabled:
             self.dot.setText("○")
-            self.dot.setStyleSheet("color: #94A3B8; font-size: 11px; background: transparent; border: none;")
-            self.setStyleSheet("""
-                #DFMChip {
-                    background-color: #F8FAFC;
-                    border: 1px solid #E2E8F0;
+            c_dot = "#8888A8" if is_dark else "#94A3B8"
+            self.dot.setStyleSheet(f"color: {c_dot}; font-size: 11px; background: transparent; border: none;")
+            bg = "#1A1A28" if is_dark else "#F8FAFC"
+            bdr = "#262638" if is_dark else "#E2E8F0"
+            fg = "#8888A8" if is_dark else "#64748B"
+            self.setStyleSheet(f"""
+                #DFMChip {{
+                    background-color: {bg};
+                    border: 1px solid {bdr};
                     border-radius: 6px;
-                }
-                #DFMChip QLabel {
+                }}
+                #DFMChip QLabel {{
                     background: transparent;
                     border: none;
                     padding: 0px;
-                }
+                }}
             """)
             if is_en:
                 self.lbl_text.setText(f"{self.name}: {val_str}{unit} (Ref {limit_val:.2f})")
@@ -79,42 +110,50 @@ class DFMChip(QFrame):
             else:
                 self.lbl_text.setText(f"{self.name}: {val_str}{unit} (参考{limit_val:.2f})")
                 self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n参考空间: {limit_val:.2f} {unit}\n状态: 自由设计模式 (DFM 卡限未开启)")
-            self.lbl_text.setStyleSheet("font-size: 10px; font-weight: 500; color: #64748B; background: transparent; border: none;")
+            self.lbl_text.setStyleSheet(f"font-size: 10px; font-weight: 500; color: {fg}; background: transparent; border: none;")
         elif passed:
             self.dot.setText("●")
-            self.dot.setStyleSheet("color: #059669; font-size: 11px; background: transparent; border: none;")
-            self.setStyleSheet("""
-                #DFMChip {
-                    background-color: #F0FDF4;
-                    border: 1px solid #BBF7D0;
+            c_dot = "#10B981" if is_dark else "#059669"
+            self.dot.setStyleSheet(f"color: {c_dot}; font-size: 11px; background: transparent; border: none;")
+            bg = "#064E3B" if is_dark else "#F0FDF4"
+            bdr = "#10B981" if is_dark else "#BBF7D0"
+            fg = "#4ADE80" if is_dark else "#166534"
+            self.setStyleSheet(f"""
+                #DFMChip {{
+                    background-color: {bg};
+                    border: 1px solid {bdr};
                     border-radius: 6px;
-                }
-                #DFMChip QLabel {
+                }}
+                #DFMChip QLabel {{
                     background: transparent;
                     border: none;
                     padding: 0px;
-                }
+                }}
             """)
             self.lbl_text.setText(f"{self.name}: {val_str}{unit} (≤{limit_val:.2f})")
-            self.lbl_text.setStyleSheet("font-size: 10px; font-weight: 600; color: #166534; background: transparent; border: none;")
+            self.lbl_text.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {fg}; background: transparent; border: none;")
             if is_en:
                 self.setToolTip(f"[{self.name}]\nCurrent: {curr_val:.3f} {unit}\nMax Limit: {limit_val:.2f} {unit}\nMargin: {limit_val - curr_val:+.3f} {unit}\nStatus: Passed ✓")
             else:
                 self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n装配上限: {limit_val:.2f} {unit}\n余量: {limit_val - curr_val:+.3f} {unit}\n状态: 合格通过 ✓")
         else:
             self.dot.setText("✖")
-            self.dot.setStyleSheet("color: #DC2626; font-size: 11px; font-weight: bold; background: transparent; border: none;")
-            self.setStyleSheet("""
-                #DFMChip {
-                    background-color: #FEF2F2;
-                    border: 1px solid #FECACA;
+            c_dot = "#EF4444" if is_dark else "#DC2626"
+            self.dot.setStyleSheet(f"color: {c_dot}; font-size: 11px; font-weight: bold; background: transparent; border: none;")
+            bg = "#450A0A" if is_dark else "#FEF2F2"
+            bdr = "#EF4444" if is_dark else "#FECACA"
+            fg = "#F87171" if is_dark else "#991B1B"
+            self.setStyleSheet(f"""
+                #DFMChip {{
+                    background-color: {bg};
+                    border: 1px solid {bdr};
                     border-radius: 6px;
-                }
-                #DFMChip QLabel {
+                }}
+                #DFMChip QLabel {{
                     background: transparent;
                     border: none;
                     padding: 0px;
-                }
+                }}
             """)
             if is_en:
                 self.lbl_text.setText(f"{self.name} Over: {val_str}{unit} (Max {limit_val:.2f})")
@@ -122,25 +161,30 @@ class DFMChip(QFrame):
             else:
                 self.lbl_text.setText(f"{self.name}超标: {val_str}{unit} (限{limit_val:.2f})")
                 self.setToolTip(f"【{self.name}】\n当前值: {curr_val:.3f} {unit}\n卡控上限: {limit_val:.2f} {unit}\n超标量: {curr_val - limit_val:+.3f} {unit}\n状态: 🚨 严重超差，请调校参数！")
-            self.lbl_text.setStyleSheet("font-size: 10px; font-weight: 700; color: #991B1B; background: transparent; border: none;")
+            self.lbl_text.setStyleSheet(f"font-size: 10px; font-weight: 700; color: {fg}; background: transparent; border: none;")
 
     def setAdaptiveStatus(self, curr_val: float, recommend_envelope: float, unit: str):
         """Z-LRA 专用：自适应免卡控状态展示 (提示线圈占位与线圈距磁轭 0.58mm 推荐总净空)"""
+        self._last_status = ("setAdaptive", (curr_val, recommend_envelope, unit), {})
         is_en = i18n.is_english()
+        is_dark = getattr(self, "is_dark_mode", False)
         val_str = f"{curr_val:.3f}" if unit == "mm" else f"{curr_val:.2f}"
         self.dot.setText("●")
-        self.dot.setStyleSheet("color: #0284C7; font-size: 11px; background: transparent; border: none;")
-        self.setStyleSheet("""
-            #DFMChip {
-                background-color: #F0F9FF;
-                border: 1px solid #BAE6FD;
+        c_dot = "#38BDF8" if is_dark else "#0284C7"
+        self.dot.setStyleSheet(f"color: {c_dot}; font-size: 11px; background: transparent; border: none;")
+        bg = "#0C4A6E" if is_dark else "#F0F9FF"
+        bdr = "#0284C7" if is_dark else "#BAE6FD"
+        self.setStyleSheet(f"""
+            #DFMChip {{
+                background-color: {bg};
+                border: 1px solid {bdr};
                 border-radius: 6px;
-            }
-            #DFMChip QLabel {
+            }}
+            #DFMChip QLabel {{
                 background: transparent;
                 border: none;
                 padding: 0px;
-            }
+            }}
         """)
         if is_en:
             self.lbl_text.setText(f"{self.name}: {val_str}{unit} (Rec ≥{recommend_envelope:.2f})")
@@ -165,17 +209,11 @@ class DFMStatusStrip(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("DFMStatusStrip")
+        self.is_dark_mode = False
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setMinimumWidth(0)
         self.setMinimumHeight(66)
-        self.setStyleSheet("""
-            QFrame#DFMStatusStrip {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 8px;
-                padding: 6px 12px;
-            }
-        """)
+        self._update_theme_style()
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 8, 10, 8)
@@ -238,6 +276,72 @@ class DFMStatusStrip(QFrame):
         chips_layout.addWidget(self.chip_hipot)
 
         main_layout.addLayout(chips_layout)
+
+
+    def set_dark_mode(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        self._update_theme_style()
+        for chip in [getattr(self, c, None) for c in ("chip_x", "chip_y", "chip_z", "chip_v", "chip_t", "chip_hipot")]:
+            if chip and hasattr(chip, "set_dark_mode"):
+                chip.set_dark_mode(is_dark)
+
+    def _update_theme_style(self):
+        is_dark = getattr(self, "is_dark_mode", False)
+        if is_dark:
+            self.setStyleSheet("""
+                QFrame#DFMStatusStrip {
+                    background-color: #13131E;
+                    border: 1px solid #262638;
+                    border-radius: 8px;
+                    padding: 6px 12px;
+                }
+            """)
+            if hasattr(self, "title_lbl"):
+                self.title_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #38BDF8;")
+            if hasattr(self, "btn_cfg"):
+                self.btn_cfg.setStyleSheet("""
+                    QPushButton {
+                        background-color: #1A1A28;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                        color: #38BDF8;
+                        font-size: 11px;
+                        font-weight: 600;
+                        padding: 2px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #262638;
+                        border-color: #38BDF8;
+                        color: #38BDF8;
+                    }
+                """)
+        else:
+            self.setStyleSheet("""
+                QFrame#DFMStatusStrip {
+                    background-color: #FFFFFF;
+                    border: 1px solid #E2E8F0;
+                    border-radius: 8px;
+                    padding: 6px 12px;
+                }
+            """)
+            if hasattr(self, "title_lbl"):
+                self.title_lbl.setStyleSheet("font-size: 12px; font-weight: 700; color: #0284C7;")
+            if hasattr(self, "btn_cfg"):
+                self.btn_cfg.setStyleSheet("""
+                    QPushButton {
+                        background-color: #F8FAFC;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        color: #0284C7;
+                        font-size: 11px;
+                        font-weight: 600;
+                        padding: 2px 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #E0F2FE;
+                        border-color: #0284C7;
+                    }
+                """)
 
     def retranslate_ui(self):
         """动态多语言刷新"""

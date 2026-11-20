@@ -25,6 +25,7 @@ from ..core.wire_catalog import (
     WireCatalogItem, get_huaye_copper_wires, get_huaye_ccaw_wires
 )
 from ..core.i18n import i18n, t
+from .styles import get_saved_theme, THEME_DARK
 
 
 class WireCatalogDialog(QDialog):
@@ -54,6 +55,12 @@ class WireCatalogDialog(QDialog):
         self._load_catalog_data()
 
     def _setup_ui(self):
+        is_dark = getattr(self, "is_dark", False)
+        if is_dark:
+            self.setStyleSheet("QDialog { background-color: #0A0A0F; color: #E8E8F0; }")
+        else:
+            self.setStyleSheet("QDialog { background-color: #FFFFFF; color: #0F172A; }")
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
@@ -78,9 +85,11 @@ class WireCatalogDialog(QDialog):
         title_box.setSpacing(2)
 
         self.lbl_title = QLabel("湖北中科华冶 · 漆包线出厂技术规格库")
-        self.lbl_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #1B365D;")
+        c_title = "#38BDF8" if is_dark else "#1B365D"
+        c_sub = "#8888A8" if is_dark else "#64748B"
+        self.lbl_title.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {c_title};")
         self.lbl_sub = QLabel("标准出厂参数直接导入 · 自动绑定线径、外径、千米电阻与线密度 · 其他非材料库尺寸需咨询华冶定制")
-        self.lbl_sub.setStyleSheet("font-size: 11px; color: #64748B;")
+        self.lbl_sub.setStyleSheet(f"font-size: 11px; color: {c_sub};")
         title_box.addWidget(self.lbl_title)
         title_box.addWidget(self.lbl_sub)
         top_bar.addLayout(title_box)
@@ -92,8 +101,9 @@ class WireCatalogDialog(QDialog):
         
         self.rb_copper = QRadioButton("纯铜标准系列 (69档 · 1/58.5)")
         self.rb_ccaw = QRadioButton("15% 铜包铝轻量化 (79档 · 0.02525)")
-        self.rb_copper.setStyleSheet("font-size: 12px; font-weight: 600; color: #1E293B;")
-        self.rb_ccaw.setStyleSheet("font-size: 12px; font-weight: 600; color: #1E293B;")
+        c_rb = "#E8E8F0" if is_dark else "#1E293B"
+        self.rb_copper.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {c_rb};")
+        self.rb_ccaw.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {c_rb};")
 
         self.btn_group = QButtonGroup(self)
         self.btn_group.addButton(self.rb_copper, 1)
@@ -114,13 +124,22 @@ class WireCatalogDialog(QDialog):
 
         # 华冶定制说明提示条 (明确说明无氧纯铜定制机制)
         tip_frame = QFrame()
-        tip_frame.setStyleSheet("""
-            QFrame {
-                background-color: #FFFBEB;
-                border: 1px solid #FDE68A;
-                border-radius: 6px;
-            }
-        """)
+        if is_dark:
+            tip_frame.setStyleSheet("""
+                QFrame {
+                    background-color: #1E1B4B;
+                    border: 1px solid #4338CA;
+                    border-radius: 6px;
+                }
+            """)
+        else:
+            tip_frame.setStyleSheet("""
+                QFrame {
+                    background-color: #FFFBEB;
+                    border: 1px solid #FDE68A;
+                    border-radius: 6px;
+                }
+            """)
         tip_layout = QHBoxLayout(tip_frame)
         tip_layout.setContentsMargins(10, 8, 10, 8)
         tip_layout.setSpacing(6)
@@ -132,7 +151,8 @@ class WireCatalogDialog(QDialog):
             "💡 Material & Custom Notice: Huaye standard wires use measured pure copper (rho=0.017094, 1/58.5). For lower DCR, customers can customize high-purity annealed OFC copper (rho=0.016949, 1/59.0) with identical die outer diameters, reducing coil resistance by ~0.85% (can be seamlessly switched via the material dropdown on the main UI). Other non-catalog sizes are available via custom orders."
         )
         self.lbl_tip_notice = QLabel(notice_text)
-        self.lbl_tip_notice.setStyleSheet("font-size: 11px; font-weight: 600; color: #B45309;")
+        c_notice = "#C7D2FE" if is_dark else "#B45309"
+        self.lbl_tip_notice.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_notice};")
         self.lbl_tip_notice.setWordWrap(True)
         tip_layout.addWidget(self.lbl_tip_notice)
         layout.addWidget(tip_frame)
@@ -141,44 +161,78 @@ class WireCatalogDialog(QDialog):
         search_box = QHBoxLayout()
         self.txt_search = QLineEdit()
         self.txt_search.setPlaceholderText("🔍 输入线径快速过滤 (例如: 0.080, 0.15, 0.35)...")
-        self.txt_search.setStyleSheet("""
-            QLineEdit {
-                background-color: #FFFFFF;
-                border: 1px solid #CBD5E1;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 12px;
-                color: #1E293B;
-            }
-            QLineEdit:focus {
-                border-color: #0284C7;
-            }
-        """)
+        if is_dark:
+            self.txt_search.setStyleSheet("""
+                QLineEdit {
+                    background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    font-size: 12px;
+                    color: #E8E8F0;
+                }
+                QLineEdit:focus {
+                    border-color: #38BDF8;
+                }
+            """)
+        else:
+            self.txt_search.setStyleSheet("""
+                QLineEdit {
+                    background-color: #FFFFFF;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    font-size: 12px;
+                    color: #1E293B;
+                }
+                QLineEdit:focus {
+                    border-color: #0284C7;
+                }
+            """)
         self.txt_search.textChanged.connect(self._on_search_text_changed)
         search_box.addWidget(self.txt_search)
 
         self.lbl_count = QLabel("共 69 档规格")
-        self.lbl_count.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B; padding-left: 8px;")
+        c_count = "#8888A8" if is_dark else "#64748B"
+        self.lbl_count.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_count}; padding-left: 8px;")
         search_box.addWidget(self.lbl_count)
 
         self.btn_open_custom = QPushButton("📚 自定义厂商线材库..." if not i18n.is_english() else "📚 Custom Catalog...")
         self.btn_open_custom.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_open_custom.setStyleSheet("""
-            QPushButton {
-                background-color: #FDF4FF;
-                border: 1px solid #C084FC;
-                border-radius: 6px;
-                padding: 5px 12px;
-                font-size: 11px;
-                font-weight: 700;
-                color: #9333EA;
-            }
-            QPushButton:hover {
-                background-color: #F3E8FF;
-                border-color: #A855F7;
-                color: #7E22CE;
-            }
-        """)
+        if is_dark:
+            self.btn_open_custom.setStyleSheet("""
+                QPushButton {
+                    background-color: #2E1065;
+                    border: 1px solid #7C3AED;
+                    border-radius: 6px;
+                    padding: 5px 12px;
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #C084FC;
+                }
+                QPushButton:hover {
+                    background-color: #3B0764;
+                    border-color: #A855F7;
+                    color: #E9D5FF;
+                }
+            """)
+        else:
+            self.btn_open_custom.setStyleSheet("""
+                QPushButton {
+                    background-color: #FDF4FF;
+                    border: 1px solid #C084FC;
+                    border-radius: 6px;
+                    padding: 5px 12px;
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #9333EA;
+                }
+                QPushButton:hover {
+                    background-color: #F3E8FF;
+                    border-color: #A855F7;
+                    color: #7E22CE;
+                }
+            """)
         self.btn_open_custom.clicked.connect(self._open_custom_catalog)
         search_box.addWidget(self.btn_open_custom)
 
@@ -198,33 +252,66 @@ class WireCatalogDialog(QDialog):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.setStyleSheet("""
-            QTableWidget {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 6px;
-                gridline-color: #F1F5F9;
-                font-size: 12px;
-                color: #1E293B;
-            }
-            QTableWidget::item {
-                padding: 6px 12px;
-            }
-            QTableWidget::item:selected {
-                background-color: #E0F2FE;
-                color: #0369A1;
-                font-weight: 700;
-            }
-            QHeaderView::section {
-                background-color: #F8FAFC;
-                border: none;
-                border-bottom: 2px solid #E2E8F0;
-                color: #475569;
-                font-weight: 700;
-                padding: 8px 10px;
-                font-size: 11px;
-            }
-        """)
+        if is_dark:
+            self.table.setStyleSheet("""
+                QTableWidget {
+                    background-color: #13131E;
+                    alternate-background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                    gridline-color: #262638;
+                    font-size: 12px;
+                    color: #E8E8F0;
+                }
+                QTableWidget::item {
+                    padding: 6px 12px;
+                    color: #E8E8F0;
+                }
+                QTableWidget::item:selected {
+                    background-color: #0C4A6E;
+                    color: #38BDF8;
+                    font-weight: 700;
+                }
+                QHeaderView::section {
+                    background-color: #1A1A28;
+                    border: none;
+                    border-bottom: 2px solid #262638;
+                    color: #8888A8;
+                    font-weight: 700;
+                    padding: 8px 10px;
+                    font-size: 11px;
+                }
+            """)
+        else:
+            self.table.setStyleSheet("""
+                QTableWidget {
+                    background-color: #FFFFFF;
+                    alternate-background-color: #F8FAFC;
+                    border: 1px solid #E2E8F0;
+                    border-radius: 6px;
+                    gridline-color: #F1F5F9;
+                    font-size: 12px;
+                    color: #1E293B;
+                }
+                QTableWidget::item {
+                    padding: 6px 12px;
+                    color: #1E293B;
+                }
+                QTableWidget::item:selected {
+                    background-color: #E0F2FE;
+                    color: #0369A1;
+                    font-weight: 700;
+                }
+                QHeaderView::section {
+                    background-color: #F8FAFC;
+                    border: none;
+                    border-bottom: 2px solid #E2E8F0;
+                    color: #475569;
+                    font-weight: 700;
+                    padding: 8px 10px;
+                    font-size: 11px;
+                }
+            """)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
