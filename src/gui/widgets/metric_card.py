@@ -60,13 +60,50 @@ class MetricCard(QFrame):
 
         layout.addLayout(val_layout)
 
+        self.is_dark = False
+        self._default_accent_color = accent_color
         self._update_style()
 
         if tooltip:
             self.setToolTip(tooltip)
 
+    def set_dark_mode(self, is_dark: bool):
+        """动态切换深/浅色模式 (对齐 ansv.net 纯正深色卡片)"""
+        self.is_dark = is_dark
+        if is_dark:
+            self.bg_color = "#13131E"
+            self.border_color = "#262638"
+        else:
+            self.bg_color = "#FFFFFF"
+            self.border_color = "#E2E8F0"
+        self._update_style()
+
     def _update_style(self):
         """统一在卡片容器级注入严格作用域 QSS，杜绝子标签无选择器内联样式污染 QTipLabel 导致黑底与字号突变"""
+        is_dark = getattr(self, "is_dark", False)
+        title_color = "#8888A8" if is_dark else "#64748B"
+        unit_color = "#8888A8" if is_dark else "#475569"
+        hover_bg = "#1A1A28" if is_dark else "#F8FAFC"
+        hover_border = "#38BDF8" if is_dark else "#0284C7"
+        
+        # 优化深色模式下的默认深色强调色对比度
+        val_color = getattr(self, "accent_color", "#0F172A")
+        if is_dark:
+            if val_color in ["#0F172A", "#1E293B", "#334155"]:
+                val_color = "#E8E8F0"
+            elif val_color == "#D97706":  # 琥珀黄明亮化
+                val_color = "#F59E0B"
+            elif val_color == "#DC2626":  # 珊瑚红明亮化
+                val_color = "#EF4444"
+            elif val_color == "#7C3AED":  # 紫色明亮化 (对齐 ansv.net 极光紫)
+                val_color = "#A78BFA"
+        else:
+            val_color = getattr(self, "_default_accent_color", val_color)
+
+        tooltip_bg = "#1A1A28" if is_dark else "#FFFFFF"
+        tooltip_text = "#E8E8F0" if is_dark else "#0F172A"
+        tooltip_border = "#7C6AF7" if is_dark else "#0284C7"
+
         self.setStyleSheet(f"""
             QFrame#MetricCard {{
                 background-color: {self.bg_color};
@@ -74,13 +111,13 @@ class MetricCard(QFrame):
                 border-radius: 8px;
             }}
             QFrame#MetricCard:hover {{
-                border: 1px solid #0284C7;
-                background-color: #F8FAFC;
+                border: 1px solid {hover_border};
+                background-color: {hover_bg};
             }}
             QLabel#metricCardTitle {{
                 font-size: 11px;
                 font-weight: 600;
-                color: #64748B;
+                color: {title_color};
                 background: transparent;
                 border: none;
                 padding: 0px;
@@ -88,7 +125,7 @@ class MetricCard(QFrame):
             QLabel#metricCardVal {{
                 font-size: 18px;
                 font-weight: 700;
-                color: {self.accent_color};
+                color: {val_color};
                 font-family: 'Consolas', 'Courier New', monospace;
                 background: transparent;
                 border: none;
@@ -97,15 +134,15 @@ class MetricCard(QFrame):
             QLabel#metricCardUnit {{
                 font-size: 12px;
                 font-weight: 600;
-                color: #475569;
+                color: {unit_color};
                 background: transparent;
                 border: none;
                 padding: 0px;
             }}
             QToolTip {{
-                background-color: #FFFFFF;
-                color: #0F172A;
-                border: 1px solid #0284C7;
+                background-color: {tooltip_bg};
+                color: {tooltip_text};
+                border: 1px solid {tooltip_border};
                 border-radius: 5px;
                 padding: 6px 10px;
                 font-size: 11px;

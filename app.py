@@ -22,7 +22,7 @@ from PyQt6.QtCore import Qt
 from src.version import APP_NAME, APP_TITLE, APP_VERSION
 from src.utils.logger import setup_logging, install_crash_hook, get_logger
 from src.core.single_instance import SingleInstanceChecker
-from src.gui.styles import apply_light_theme
+from src.gui.styles import apply_current_theme, get_saved_theme
 from src.gui.icon_helper import get_app_icon, set_windows_app_user_model_id, apply_window_icon_to_hwnd
 from src.gui.splash_screen import SplashScreen
 from src.core.i18n import i18n
@@ -49,8 +49,8 @@ def main():
     app.setApplicationName(APP_NAME)
     app.setWindowIcon(get_app_icon())
 
-    # 4. 强制设置纯白工业测控浅色主题 (Fusion 调色板，免疫系统深色模式污染)
-    apply_light_theme(app)
+    # 4. 设置工程工业主题 (默认极简浅色，支持一键切换与持久化 ANSV 黑曜石深色)
+    apply_current_theme(app)
 
     # 5. 全局安装防滚轮误触过滤器 (规范 04.一)
     app.installEventFilter(GlobalNoWheelChangeFilter(app))

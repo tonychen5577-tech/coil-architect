@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 from ..core.models import CoilInputs, CoilOutputs, WindingMode, CoilType, WireShape, WireCatalogType, EnamelGrade, WindingDirection
 from ..core.wire_catalog import WireCatalogItem, CustomWireItem, get_huaye_copper_wires, get_huaye_ccaw_wires, find_wire_by_diameter
 from ..core.physics_engine import CoilPhysicsEngine, get_enamel_thickness_and_bdv
-from .styles import LIGHT_INDUSTRIAL_QSS
+from .styles import LIGHT_INDUSTRIAL_QSS, DARK_INDUSTRIAL_QSS, apply_theme, get_saved_theme, save_theme, THEME_DARK, THEME_LIGHT
 from .widgets.slider_spin_box import FloatSliderBox, IntSliderBox
 from .widgets.metric_card import MetricCard
 from .widgets.dfm_indicator import DFMStatusStrip
@@ -150,10 +150,13 @@ class MainWindow(QMainWindow):
         self.signal_cloud_status.connect(self._on_cloud_status_received)
         self.signal_remote_command.connect(self._on_remote_command_received)
 
-        # 加载 Clean White 工业样式
-        self.setStyleSheet(LIGHT_INDUSTRIAL_QSS)
+        # 加载当前保存的主题 (浅色/深色)
+        self.current_theme = get_saved_theme()
+        is_dark = (self.current_theme == THEME_DARK)
+        self.setStyleSheet(DARK_INDUSTRIAL_QSS if is_dark else LIGHT_INDUSTRIAL_QSS)
 
         self._init_ui()
+        self._update_theme_ui(is_dark)
         self._load_preset(self.combo_presets.itemText(0))
         self.run_simulation()
 
@@ -579,6 +582,7 @@ class MainWindow(QMainWindow):
         # 5. 子组件刷新
         if hasattr(self, "canvas_widget") and hasattr(self.canvas_widget, "retranslate_ui"):
             self.canvas_widget.retranslate_ui()
+        self._update_theme_ui(getattr(self, "current_theme", THEME_LIGHT) == THEME_DARK)
         if hasattr(self, "dfm_strip") and hasattr(self.dfm_strip, "retranslate_ui"):
             self.dfm_strip.retranslate_ui()
         if hasattr(self, "comparison_drawer") and hasattr(self.comparison_drawer, "retranslate_ui"):
@@ -1219,6 +1223,144 @@ class MainWindow(QMainWindow):
         dlg = AboutDialog(self)
         dlg.exec()
 
+
+    def _toggle_theme(self):
+        """深色/浅色工业主题一键切换 (对齐 ansv.net 官方设计系统)"""
+        new_theme = THEME_LIGHT if getattr(self, "current_theme", THEME_LIGHT) == THEME_DARK else THEME_DARK
+        self.current_theme = new_theme
+        save_theme(new_theme)
+
+        # 应用应用级主题调色板与 QSS
+        app = QApplication.instance()
+        apply_theme(app, new_theme)
+
+        is_dark = (new_theme == THEME_DARK)
+        self.setStyleSheet(DARK_INDUSTRIAL_QSS if is_dark else LIGHT_INDUSTRIAL_QSS)
+        self._update_theme_ui(is_dark)
+
+        tip_msg = "已切换为 ANSV 黑曜石深空工业深色主题 (对齐 ansv.net)" if is_dark else "已切换为纯白高对比工业浅色主题"
+        if hasattr(self, "status_bar"):
+            self.status_bar.showMessage(tip_msg, 3000)
+
+    def _update_theme_ui(self, is_dark: bool):
+        """刷新窗口各区域局部样式与矢量画布配色"""
+        is_en = i18n.is_english()
+
+        # 1. 刷新切换按钮文案与提示
+        if hasattr(self, "btn_theme_toggle"):
+            if is_dark:
+                self.btn_theme_toggle.setText("☀️ Light" if is_en else "☀️ 浅色")
+                self.btn_theme_toggle.setToolTip("切换到浅色模式 (纯白工业测控风格) / Switch to Light Theme")
+            else:
+                self.btn_theme_toggle.setText("🌙 Dark" if is_en else "🌙 深色")
+                self.btn_theme_toggle.setToolTip("切换到深色模式 (ansv.net 黑曜石深空风格) / Switch to Dark Theme")
+
+        # 2. 刷新顶部工具栏框架背景
+        if hasattr(self, "top_toolbar") and self.top_toolbar:
+            if is_dark:
+                self.top_toolbar.setStyleSheet("""
+                    #topToolbarFrame {
+                        background-color: #13131E;
+                        border: 1px solid #262638;
+                        border-radius: 8px;
+                    }
+                """)
+            else:
+                self.top_toolbar.setStyleSheet("""
+                    #topToolbarFrame {
+                        background-color: #FFFFFF;
+                        border: 1px solid #E2E8F0;
+                        border-radius: 8px;
+                    }
+                """)
+
+        # 3. 刷新仿真总线框架背景
+        if hasattr(self, "twin_frame") and self.twin_frame:
+            if is_dark:
+                self.twin_frame.setStyleSheet("""
+                    #twinBusFrame {
+                        background-color: #13131E;
+                        border: 1px solid #262638;
+                        border-radius: 8px;
+                    }
+                """)
+            else:
+                self.twin_frame.setStyleSheet("""
+                    #twinBusFrame {
+                        background-color: #FFFFFF;
+                        border: 1px solid #E2E8F0;
+                        border-radius: 8px;
+                    }
+                """)
+
+        # 4. 刷新顶部品牌 Logo 标题与标签
+        if hasattr(self, "lbl_brand"):
+            c_accent = "#38BDF8" if is_dark else "#0284C7"
+            c_text = "#CBD5E1" if is_dark else "#475569"
+            c_amp = "#8888A8" if is_dark else "#94A3B8"
+            self.lbl_brand.setText(
+                f"<span style='color:{c_accent}; font-weight:900; font-size:13px;'>A</span><span style='color:{c_text}; font-weight:600; font-size:11px;'>ctuator </span>"
+                f"<span style='color:{c_accent}; font-weight:900; font-size:13px;'>N</span><span style='color:{c_text}; font-weight:600; font-size:11px;'>umerical </span>"
+                f"<span style='color:{c_accent}; font-weight:900; font-size:13px;'>S</span><span style='color:{c_text}; font-weight:600; font-size:11px;'>imulation </span>"
+                f"<span style='color:{c_amp}; font-weight:600; font-size:11px;'>&amp; </span>"
+                f"<span style='color:{c_accent}; font-weight:900; font-size:13px;'>V</span><span style='color:{c_text}; font-weight:600; font-size:11px;'>alidation</span>"
+            )
+        if hasattr(self, "lbl_sub"):
+            self.lbl_sub.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {'#8888A8' if is_dark else '#64748B'}; line-height: 1.1; background: transparent; border: none;")
+        if hasattr(self, "lbl_proj"):
+            self.lbl_proj.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {'#E8E8F0' if is_dark else '#1E293B'};")
+        if hasattr(self, "lbl_preset"):
+            self.lbl_preset.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {'#8888A8' if is_dark else '#475569'};")
+
+        # 5. 刷新 2D/3D 画布容器
+        if hasattr(self, "canvas_widget") and hasattr(self.canvas_widget, "set_dark_mode"):
+            self.canvas_widget.set_dark_mode(is_dark)
+
+        # 6. 刷新所有 MetricCard
+        from .widgets.metric_card import MetricCard
+        for card in self.findChildren(MetricCard):
+            card.set_dark_mode(is_dark)
+
+        # 7. 刷新所有滑块输入框
+        from .widgets.slider_spin_box import FloatSliderBox, IntSliderBox
+        for box in self.findChildren(FloatSliderBox):
+            box.set_dark_mode(is_dark)
+        for box in self.findChildren(IntSliderBox):
+            box.set_dark_mode(is_dark)
+
+        # 8. 刷新线材选择卡片
+        if hasattr(self, "lbl_catalog_selected"):
+            text = self.lbl_catalog_selected.text()
+            if "已锁定" in text or "Locked" in text:
+                if "来料" in text or "Incoming" in text:
+                    c_txt = "#4ADE80" if is_dark else "#15803D"
+                    c_bg = "#064E3B" if is_dark else "#F0FDF4"
+                    c_bdr = "#10B981" if is_dark else "#BBF7D0"
+                elif any(v in text for v in ["益利", "华冶", "恒亚", "精微", "Elektrisola", "Huaye"]):
+                    c_txt = "#C084FC" if is_dark else "#7E22CE"
+                    c_bg = "#2E1065" if is_dark else "#FAF5FF"
+                    c_bdr = "#7C3AED" if is_dark else "#E9D5FF"
+                else:
+                    c_txt = "#38BDF8" if is_dark else "#0369A1"
+                    c_bg = "#0C4A6E" if is_dark else "#F0F9FF"
+                    c_bdr = "#0284C7" if is_dark else "#BAE6FD"
+            else:
+                c_txt = "#8888A8" if is_dark else "#475569"
+                c_bg = "#1A1A28" if is_dark else "#F8FAFC"
+                c_bdr = "#262638" if is_dark else "#CBD5E1"
+
+            self.lbl_catalog_selected.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: {c_txt};
+                    background-color: {c_bg};
+                    border: 1px solid {c_bdr};
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                }}
+            """)
+
     def _create_top_toolbar(self) -> QWidget:
         bar = QFrame(self)
         bar.setObjectName("topToolbarFrame")
@@ -1397,6 +1539,16 @@ class MainWindow(QMainWindow):
         self.combo_lang.currentIndexChanged.connect(self._on_language_selector_changed)
         layout.addWidget(self.combo_lang)
 
+        # 9. 深色/浅色模式一键切换按钮 (对齐 ansv.net 官方黑曜石科技风格)
+        self.btn_theme_toggle = QPushButton()
+        self.btn_theme_toggle.setObjectName("btnThemeToggle")
+        self.btn_theme_toggle.setFixedWidth(78)
+        self.btn_theme_toggle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.btn_theme_toggle.setStyleSheet("padding: 4px 6px; font-size: 11px; font-weight: 600;")
+        self.btn_theme_toggle.clicked.connect(self._toggle_theme)
+        layout.addWidget(self.btn_theme_toggle)
+
+        self.top_toolbar = bar
         return bar
 
     def _refresh_license_status(self):
@@ -2181,6 +2333,7 @@ class MainWindow(QMainWindow):
         # 1. 仿真计算结果 (16 宫格卡片)
         twin_frame = QFrame()
         twin_frame.setObjectName("twinBusFrame")
+        self.twin_frame = twin_frame
         twin_frame.setStyleSheet("""
             #twinBusFrame {
                 background-color: #FFFFFF;

@@ -144,8 +144,13 @@ class MicroPackingCanvas(QWidget):
         self.inputs = CoilInputs()
         self.outputs = CoilOutputs()
         self.view_mode = "zx"  # "zx": Z-X长向剖面; "zy": Z-Y宽向剖面; "single": 单侧放大
+        self.is_dark_mode = False
         self.setMinimumSize(320, 220)
         self.setMouseTracking(True)
+
+    def set_dark_mode(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        self.update()
 
     def updateData(self, inputs: CoilInputs, outputs: CoilOutputs):
         self.inputs = inputs
@@ -177,8 +182,11 @@ class MicroPackingCanvas(QWidget):
         h = self.height()
 
         # 背景与圆角边框
-        painter.fillRect(0, 0, w, h, QColor("#FFFFFF"))
-        painter.setPen(QPen(QColor("#E2E8F0"), 1))
+        is_dark = getattr(self, "is_dark_mode", False)
+        bg_col = QColor("#0A0A0F") if is_dark else QColor("#FFFFFF")
+        border_col = QColor("#262638") if is_dark else QColor("#E2E8F0")
+        painter.fillRect(0, 0, w, h, bg_col)
+        painter.setPen(QPen(border_col, 1))
         painter.drawRoundedRect(0, 0, w - 1, h - 1, 8, 8)
 
         # 1. 简洁标题与右上角 3 档药丸按钮
@@ -199,8 +207,10 @@ class MicroPackingCanvas(QWidget):
         # 3档切换药丸
         pill_w = 210
         pill_rect = QRectF(w - pill_w - 14, 8, pill_w, 24)
-        painter.setPen(QPen(QColor("#CBD5E1"), 1))
-        painter.setBrush(QBrush(QColor("#F8FAFC")))
+        pill_border = QColor("#383852") if is_dark else QColor("#CBD5E1")
+        pill_bg = QColor("#161622") if is_dark else QColor("#F8FAFC")
+        painter.setPen(QPen(pill_border, 1))
+        painter.setBrush(QBrush(pill_bg))
         painter.drawRoundedRect(pill_rect, 12, 12)
 
         font_pill = QFont("Microsoft YaHei", 7, QFont.Weight.Bold)
@@ -749,7 +759,12 @@ class MacroRacetrackCanvas(QWidget):
         super().__init__(parent)
         self.inputs = CoilInputs()
         self.outputs = CoilOutputs()
+        self.is_dark_mode = False
         self.setMinimumSize(280, 190)
+
+    def set_dark_mode(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        self.update()
 
     def updateData(self, inputs: CoilInputs, outputs: CoilOutputs):
         self.inputs = inputs
@@ -763,7 +778,9 @@ class MacroRacetrackCanvas(QWidget):
         w = self.width()
         h = self.height()
 
-        painter.fillRect(0, 0, w, h, QColor("#FFFFFF"))
+        is_dark = getattr(self, "is_dark_mode", False)
+        bg_col = QColor("#0A0A0F") if is_dark else QColor("#FFFFFF")
+        painter.fillRect(0, 0, w, h, bg_col)
 
         il = self.inputs.inner_len
         iw = self.inputs.inner_wid
@@ -1199,8 +1216,13 @@ class MagnetSectionCanvas(QWidget):
         super().__init__(parent)
         self.inputs = CoilInputs()
         self.outputs = CoilOutputs()
+        self.is_dark_mode = False
         self.section_mode = "zy"  # "zx": Z-X长向截面; "zy": Z-Y宽向截面 (跑道型默认宽向剖切，关键配合方向)
         self.setMinimumSize(280, 200)
+
+    def set_dark_mode(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        self.update()
 
     def updateData(self, inputs: CoilInputs, outputs: CoilOutputs):
         self.inputs = inputs
@@ -1228,8 +1250,11 @@ class MagnetSectionCanvas(QWidget):
         w = self.width()
         h = self.height()
 
-        painter.fillRect(0, 0, w, h, QColor("#FFFFFF"))
-        painter.setPen(QPen(QColor("#E2E8F0"), 1))
+        is_dark = getattr(self, "is_dark_mode", False)
+        bg_col = QColor("#0A0A0F") if is_dark else QColor("#FFFFFF")
+        border_col = QColor("#262638") if is_dark else QColor("#E2E8F0")
+        painter.fillRect(0, 0, w, h, bg_col)
+        painter.setPen(QPen(border_col, 1))
         painter.drawRoundedRect(0, 0, w - 1, h - 1, 8, 8)
 
         c_type = self.inputs.coil_type
@@ -1707,7 +1732,12 @@ class IsometricCoilCanvas(QWidget):
         super().__init__(parent)
         self.inputs = CoilInputs()
         self.outputs = CoilOutputs()
+        self.is_dark_mode = False
         self.setMinimumSize(280, 200)
+
+    def set_dark_mode(self, is_dark: bool):
+        self.is_dark_mode = is_dark
+        self.update()
 
     def updateData(self, inputs: CoilInputs, outputs: CoilOutputs):
         self.inputs = inputs
@@ -1721,8 +1751,11 @@ class IsometricCoilCanvas(QWidget):
         w = self.width()
         h = self.height()
 
-        painter.fillRect(0, 0, w, h, QColor("#FFFFFF"))
-        painter.setPen(QPen(QColor("#E2E8F0"), 1))
+        is_dark = getattr(self, "is_dark_mode", False)
+        bg_col = QColor("#0A0A0F") if is_dark else QColor("#FFFFFF")
+        border_col = QColor("#262638") if is_dark else QColor("#E2E8F0")
+        painter.fillRect(0, 0, w, h, bg_col)
+        painter.setPen(QPen(border_col, 1))
         painter.drawRoundedRect(0, 0, w - 1, h - 1, 8, 8)
 
         # 尺寸提取
@@ -1769,7 +1802,8 @@ class IsometricCoilCanvas(QWidget):
 
         is_en = i18n.is_english()
         # 1. 标题与状态指示药丸
-        painter.setPen(QColor("#0284C7"))
+        c_title = QColor("#38BDF8") if is_dark else QColor("#0284C7")
+        painter.setPen(c_title)
         font_title = QFont("Segoe UI", 9, QFont.Weight.Bold)
         painter.setFont(font_title)
         painter.drawText(14, 22, "3D Isometric View (Y-Space Assembly Cage)" if is_en else "3D 空间立体斜视 (Y-Space 空间装配笼)")
@@ -2210,6 +2244,14 @@ class CoilDualCanvasWidget(QFrame):
         self.tab_macro.addTab(self.isometric_canvas, "3D 空间斜视 (Y-Space)")
 
         layout.addWidget(self.tab_macro, 1)
+
+    def set_dark_mode(self, is_dark: bool):
+        """动态通知所有子画布刷新深/浅色模式"""
+        self.is_dark_mode = is_dark
+        self.micro_canvas.set_dark_mode(is_dark)
+        self.racetrack_canvas.set_dark_mode(is_dark)
+        self.magnet_canvas.set_dark_mode(is_dark)
+        self.isometric_canvas.set_dark_mode(is_dark)
 
     def retranslate_ui(self):
         """动态多语言重载选项卡标题与全部矢量画布重绘"""

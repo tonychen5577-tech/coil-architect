@@ -145,12 +145,12 @@ class FloatSliderBox(QWidget):
         layout.setContentsMargins(0, 4, 0, 4)
         layout.setSpacing(2)
 
+        self.is_dark = False
         # 标题行：左标题 + 右单位
         header_layout = QHBoxLayout()
         self.lbl_title = QLabel(title)
-        self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
         self.lbl_unit = QLabel(unit)
-        self.lbl_unit.setStyleSheet("font-size: 11px; color: #94A3B8;")
+        self._update_label_colors()
         header_layout.addWidget(self.lbl_title)
         header_layout.addStretch()
         header_layout.addWidget(self.lbl_unit)
@@ -259,18 +259,30 @@ class FloatSliderBox(QWidget):
         elif self.spin.value() > max_val:
             self.setValue(max_val)
 
+    def set_dark_mode(self, is_dark: bool):
+        """动态适配深浅色模式标签文字"""
+        self.is_dark = is_dark
+        self._update_label_colors()
+
+    def _update_label_colors(self):
+        is_dark = getattr(self, "is_dark", False)
+        enabled = self.isEnabled()
+        if enabled:
+            title_color = "#E8E8F0" if is_dark else "#334155"
+            unit_color = "#8888A8" if is_dark else "#94A3B8"
+        else:
+            title_color = "#64748B" if is_dark else "#94A3B8"
+            unit_color = "#475569" if is_dark else "#CBD5E1"
+        self.lbl_title.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {title_color};")
+        self.lbl_unit.setStyleSheet(f"font-size: 11px; color: {unit_color};")
+
     def setEnabled(self, enabled: bool):
         super().setEnabled(enabled)
         self.lbl_title.setEnabled(enabled)
         self.lbl_unit.setEnabled(enabled)
         self.slider.setEnabled(enabled)
         self.spin.setEnabled(enabled)
-        if enabled:
-            self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
-            self.lbl_unit.setStyleSheet("font-size: 11px; color: #94A3B8;")
-        else:
-            self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 600; color: #94A3B8;")
-            self.lbl_unit.setStyleSheet("font-size: 11px; color: #CBD5E1;")
+        self._update_label_colors()
 
 
 class IntSliderBox(QWidget):
@@ -294,12 +306,12 @@ class IntSliderBox(QWidget):
         layout.setContentsMargins(0, 4, 0, 4)
         layout.setSpacing(2)
 
+        self.is_dark = False
         # 标题行
         header_layout = QHBoxLayout()
         self.lbl_title = QLabel(title)
-        self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
         self.lbl_unit = QLabel(unit)
-        self.lbl_unit.setStyleSheet("font-size: 11px; color: #94A3B8;")
+        self._update_label_colors()
         header_layout.addWidget(self.lbl_title)
         header_layout.addStretch()
         header_layout.addWidget(self.lbl_unit)
@@ -383,15 +395,27 @@ class IntSliderBox(QWidget):
         if self.spin.value() > max_val:
             self.setValue(max_val)
 
+    def set_dark_mode(self, is_dark: bool):
+        """动态适配深浅色模式标签文字"""
+        self.is_dark = is_dark
+        self._update_label_colors()
+
+    def _update_label_colors(self):
+        is_dark = getattr(self, "is_dark", False)
+        enabled = self.isEnabled()
+        if enabled:
+            title_color = "#E8E8F0" if is_dark else "#334155"
+            unit_color = "#8888A8" if is_dark else "#94A3B8"
+        else:
+            title_color = "#64748B" if is_dark else "#94A3B8"
+            unit_color = "#475569" if is_dark else "#CBD5E1"
+        self.lbl_title.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {title_color};")
+        self.lbl_unit.setStyleSheet(f"font-size: 11px; color: {unit_color};")
+
     def setEnabled(self, enabled: bool):
         super().setEnabled(enabled)
         self.lbl_title.setEnabled(enabled)
         self.lbl_unit.setEnabled(enabled)
         self.slider.setEnabled(enabled)
         self.spin.setEnabled(enabled)
-        if enabled:
-            self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
-            self.lbl_unit.setStyleSheet("font-size: 11px; color: #94A3B8;")
-        else:
-            self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 600; color: #94A3B8;")
-            self.lbl_unit.setStyleSheet("font-size: 11px; color: #CBD5E1;")
+        self._update_label_colors()
