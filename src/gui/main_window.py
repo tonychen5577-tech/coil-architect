@@ -1312,6 +1312,116 @@ class MainWindow(QMainWindow):
         if hasattr(self, "lbl_preset"):
             self.lbl_preset.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {'#8888A8' if is_dark else '#475569'};")
 
+        # 4.1 刷新顶部项目代号输入框与下拉框配色 (彻底解决白底反光)
+        if hasattr(self, "txt_project_name"):
+            if is_dark:
+                self.txt_project_name.setStyleSheet("""
+                    QLineEdit {
+                        background-color: #1A1A28;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                        padding: 3px 6px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: #E8E8F0;
+                    }
+                    QLineEdit:focus {
+                        border-color: #38BDF8;
+                        background-color: #262638;
+                    }
+                """)
+            else:
+                self.txt_project_name.setStyleSheet("""
+                    QLineEdit {
+                        background-color: #FFFFFF;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        padding: 3px 6px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: #0F172A;
+                    }
+                    QLineEdit:focus {
+                        border-color: #0284C7;
+                        background-color: #F8FAFC;
+                    }
+                """)
+
+        if hasattr(self, "combo_presets"):
+            if is_dark:
+                self.combo_presets.setStyleSheet("""
+                    QComboBox {
+                        background-color: #1A1A28;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                        padding: 2px 6px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: #E8E8F0;
+                    }
+                    QComboBox QAbstractItemView {
+                        background-color: #13131E;
+                        color: #E8E8F0;
+                        selection-background-color: #0C4A6E;
+                        selection-color: #38BDF8;
+                    }
+                """)
+            else:
+                self.combo_presets.setStyleSheet("""
+                    QComboBox {
+                        background-color: #F8FAFC;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        padding: 2px 6px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: #0F172A;
+                    }
+                """)
+
+        if hasattr(self, "combo_lang"):
+            if is_dark:
+                self.combo_lang.setStyleSheet("""
+                    QComboBox {
+                        background-color: #1A1A28;
+                        border: 1px solid #262638;
+                        border-radius: 4px;
+                        padding: 2px 6px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: #E8E8F0;
+                    }
+                    QComboBox QAbstractItemView {
+                        background-color: #13131E;
+                        color: #E8E8F0;
+                        selection-background-color: #0C4A6E;
+                        selection-color: #38BDF8;
+                    }
+                """)
+            else:
+                self.combo_lang.setStyleSheet("""
+                    QComboBox {
+                        background-color: #F8FAFC;
+                        border: 1px solid #CBD5E1;
+                        border-radius: 4px;
+                        padding: 2px 6px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: #0F172A;
+                    }
+                """)
+
+        top_btn_style = f"padding: 4px 6px; font-size: 11px; font-weight: 600; background-color: {'#1A1A28' if is_dark else '#F8FAFC'}; color: {'#E8E8F0' if is_dark else '#0F172A'}; border: 1px solid {'#262638' if is_dark else '#CBD5E1'}; border-radius: 4px;"
+        if hasattr(self, "btn_open"):
+            self.btn_open.setStyleSheet(top_btn_style)
+        if hasattr(self, "btn_save"):
+            self.btn_save.setStyleSheet(top_btn_style)
+        if hasattr(self, "btn_about"):
+            self.btn_about.setStyleSheet(top_btn_style)
+        if hasattr(self, "btn_theme_toggle"):
+            self.btn_theme_toggle.setStyleSheet(top_btn_style)
+        self._refresh_license_status()
+
         # 5. 刷新 2D/3D 画布容器
         if hasattr(self, "canvas_widget") and hasattr(self.canvas_widget, "set_dark_mode"):
             self.canvas_widget.set_dark_mode(is_dark)
@@ -1487,18 +1597,69 @@ class MainWindow(QMainWindow):
                     }
                 """)
 
-        # 13. 刷新其余左侧参数栏标签与复选框 (消除暗色字看不清)
-        c_lbl = "#CBD5E1" if is_dark else "#334155"
+        # 13. 刷新其余左侧参数栏标签与复选框 (彻底消除暗色字看不清)
+        c_lbl = "#E8E8F0" if is_dark else "#334155"
+        if hasattr(self, "lbl_type"):
+            self.lbl_type.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl}; margin-top: 2px;")
+        if hasattr(self, "lbl_mode"):
+            self.lbl_mode.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl}; margin-top: 4px;")
         if hasattr(self, "lbl_wire_shape"):
             self.lbl_wire_shape.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
+        if hasattr(self, "lbl_flat_winding_dir"):
+            self.lbl_flat_winding_dir.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl}; margin-top: 4px;")
         if hasattr(self, "lbl_enamel"):
             self.lbl_enamel.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl}; margin-top: 4px;")
+        if hasattr(self, "lbl_rho"):
+            self.lbl_rho.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl}; margin-top: 4px;")
+        if hasattr(self, "lbl_env"):
+            self.lbl_env.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl}; margin-top: 2px;")
+        if hasattr(self, "lbl_temp_class"):
+            self.lbl_temp_class.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         if hasattr(self, "chk_self_bonding"):
             c_sb = "#E8E8F0" if is_dark else "#475569"
             self.chk_self_bonding.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_sb}; margin: 2px 0;")
         if hasattr(self, "chk_dfm_enabled"):
             c_dfm = "#38BDF8" if is_dark else "#0284C7"
             self.chk_dfm_enabled.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {c_dfm}; margin-bottom: 4px;")
+
+        # 14. 刷新左侧所有核心下拉选择框配色
+        if is_dark:
+            left_combo_style = """
+                QComboBox {
+                    background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 4px;
+                    padding: 2px 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #E8E8F0;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #13131E;
+                    color: #E8E8F0;
+                    selection-background-color: #0C4A6E;
+                    selection-color: #38BDF8;
+                }
+            """
+        else:
+            left_combo_style = """
+                QComboBox {
+                    background-color: #F8FAFC;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 4px;
+                    padding: 2px 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #0F172A;
+                }
+            """
+        for c_name in [
+            "combo_coil_type", "combo_mode", "combo_wire_shape",
+            "combo_flat_winding_dir", "combo_enamel", "combo_copper_grade",
+            "combo_thermal_env", "combo_temp_class"
+        ]:
+            if hasattr(self, c_name):
+                getattr(self, c_name).setStyleSheet(left_combo_style)
 
     def _create_top_toolbar(self) -> QWidget:
         bar = QFrame(self)
@@ -1701,27 +1862,45 @@ class MainWindow(QMainWindow):
             return
 
         is_en = i18n.is_english()
+        is_dark = (get_saved_theme() == THEME_DARK)
         if auth_ok:
             is_trial = lic_data.get("is_trial", False) if lic_data else False
             if is_trial:
                 days_left = lic_data.get("days_left", 7)
                 exp_date = lic_data.get("exp_date", "")
                 self.btn_license.setText(t("btn_license_trial", "⏱️ 试用期剩 {days} 天", days=days_left))
-                self.btn_license.setStyleSheet("""
-                    QPushButton {
-                        background-color: #F0F9FF;
-                        color: #0284C7;
-                        border: 1px solid #BAE6FD;
-                        border-radius: 4px;
-                        padding: 3px 6px;
-                        font-size: 11px;
-                        font-weight: 700;
-                    }
-                    QPushButton:hover {
-                        background-color: #E0F2FE;
-                        border-color: #38BDF8;
-                    }
-                """)
+                if is_dark:
+                    self.btn_license.setStyleSheet("""
+                        QPushButton {
+                            background-color: #0C4A6E;
+                            color: #38BDF8;
+                            border: 1px solid #0284C7;
+                            border-radius: 4px;
+                            padding: 3px 6px;
+                            font-size: 11px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover {
+                            background-color: #075985;
+                            border-color: #38BDF8;
+                        }
+                    """)
+                else:
+                    self.btn_license.setStyleSheet("""
+                        QPushButton {
+                            background-color: #F0F9FF;
+                            color: #0284C7;
+                            border: 1px solid #BAE6FD;
+                            border-radius: 4px;
+                            padding: 3px 6px;
+                            font-size: 11px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover {
+                            background-color: #E0F2FE;
+                            border-color: #38BDF8;
+                        }
+                    """)
                 if is_en:
                     self.btn_license.setToolTip(
                         f"7-Day Full-Feature Trial Active | {days_left} Days Left\n"
@@ -1749,21 +1928,38 @@ class MainWindow(QMainWindow):
                     if exp_date in ("永久有效", "PERMANENT"):
                         exp_date = "Permanent"
                 self.btn_license.setText(t("btn_license_commercial", "🛡️ 商业授权 ({type})", type=lic_type))
-                self.btn_license.setStyleSheet("""
-                    QPushButton {
-                        background-color: #ECFDF5;
-                        color: #059669;
-                        border: 1px solid #A7F3D0;
-                        border-radius: 4px;
-                        padding: 3px 6px;
-                        font-size: 11px;
-                        font-weight: 700;
-                    }
-                    QPushButton:hover {
-                        background-color: #D1FAE5;
-                        border-color: #6EE7B7;
-                    }
-                """)
+                if is_dark:
+                    self.btn_license.setStyleSheet("""
+                        QPushButton {
+                            background-color: #064E3B;
+                            color: #4ADE80;
+                            border: 1px solid #10B981;
+                            border-radius: 4px;
+                            padding: 3px 6px;
+                            font-size: 11px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover {
+                            background-color: #065F46;
+                            border-color: #34D399;
+                        }
+                    """)
+                else:
+                    self.btn_license.setStyleSheet("""
+                        QPushButton {
+                            background-color: #ECFDF5;
+                            color: #059669;
+                            border: 1px solid #A7F3D0;
+                            border-radius: 4px;
+                            padding: 3px 6px;
+                            font-size: 11px;
+                            font-weight: 700;
+                        }
+                        QPushButton:hover {
+                            background-color: #D1FAE5;
+                            border-color: #6EE7B7;
+                        }
+                    """)
                 if is_en:
                     self.btn_license.setToolTip(f"Commercial License Active | Tier: {lic_type}\nValid Until: {exp_date}\nClick to view license certificate details")
                 else:
@@ -1772,21 +1968,37 @@ class MainWindow(QMainWindow):
             is_trial_expired = lic_data.get("is_trial", False) if lic_data else False
             btn_txt = t("btn_license_expired", "⚠️ 试用已到期") if is_trial_expired else t("btn_license_unauthorized", "⚠️ 未激活 (点击激活)")
             self.btn_license.setText(btn_txt)
-            self.btn_license.setStyleSheet("""
-                QPushButton {
-                    background-color: #FEF3C7;
-                    color: #B45309;
-                    border: 1px solid #FCD34D;
-                    border-radius: 4px;
-                    padding: 3px 6px;
-                    font-size: 11px;
-                    font-weight: 700;
-                }
-                QPushButton:hover {
-                    background-color: #FDE68A;
-                    border-color: #F59E0B;
-                }
-            """)
+            if is_dark:
+                self.btn_license.setStyleSheet("""
+                    QPushButton {
+                        background-color: #450A0A;
+                        color: #F87171;
+                        border: 1px solid #EF4444;
+                        border-radius: 4px;
+                        padding: 3px 6px;
+                        font-size: 11px;
+                        font-weight: 700;
+                    }
+                    QPushButton:hover {
+                        background-color: #7F1D1D;
+                    }
+                """)
+            else:
+                self.btn_license.setStyleSheet("""
+                    QPushButton {
+                        background-color: #FEF3C7;
+                        color: #B45309;
+                        border: 1px solid #FCD34D;
+                        border-radius: 4px;
+                        padding: 3px 6px;
+                        font-size: 11px;
+                        font-weight: 700;
+                    }
+                    QPushButton:hover {
+                        background-color: #FDE68A;
+                        border-color: #F59E0B;
+                    }
+                """)
             if is_en:
                 self.btn_license.setToolTip("Currently in unactivated evaluation mode.\nClick to enter a license token and unlock all parameter tuning, comparison & export features.")
             else:

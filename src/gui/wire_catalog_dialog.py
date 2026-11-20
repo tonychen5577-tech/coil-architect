@@ -50,6 +50,7 @@ class WireCatalogDialog(QDialog):
         self._initial_diameter = current_diameter
         self._initial_is_ccaw = is_ccaw
         self._initial_material_type = 2 if is_ccaw else 1
+        self.is_dark = (get_saved_theme() == THEME_DARK)
 
         self._setup_ui()
         self._load_catalog_data()
@@ -327,39 +328,63 @@ class WireCatalogDialog(QDialog):
 
         # 4. 底部说明与操作栏
         bottom_frame = QFrame()
-        bottom_frame.setStyleSheet("background-color: #F8FAFC; border-top: 1px solid #E2E8F0; border-radius: 4px;")
+        if is_dark:
+            bottom_frame.setStyleSheet("background-color: #13131E; border-top: 1px solid #262638; border-radius: 4px;")
+        else:
+            bottom_frame.setStyleSheet("background-color: #F8FAFC; border-top: 1px solid #E2E8F0; border-radius: 4px;")
         bottom_layout = QHBoxLayout(bottom_frame)
         bottom_layout.setContentsMargins(12, 10, 12, 10)
         bottom_layout.setSpacing(12)
 
         self.lbl_selected_info = QLabel("当前未选定线规 (点击行选择)")
-        self.lbl_selected_info.setStyleSheet("font-size: 12px; font-weight: 600; color: #0284C7;")
+        c_sel = "#38BDF8" if is_dark else "#0284C7"
+        self.lbl_selected_info.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {c_sel};")
         bottom_layout.addWidget(self.lbl_selected_info, 1)
 
         self.btn_cancel = QPushButton("取消")
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #F1F5F9;
-                border: 1px solid #CBD5E1;
-                border-radius: 6px;
-                padding: 6px 16px;
-                font-size: 12px;
-                font-weight: 600;
-                color: #475569;
-            }
-            QPushButton:hover {
-                background-color: #E2E8F0;
-            }
-        """)
+        if is_dark:
+            self.btn_cancel.setStyleSheet("""
+                QPushButton {
+                    background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                    padding: 6px 16px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #E8E8F0;
+                }
+                QPushButton:hover {
+                    background-color: #262638;
+                    border-color: #38BDF8;
+                }
+            """)
+        else:
+            self.btn_cancel.setStyleSheet("""
+                QPushButton {
+                    background-color: #F1F5F9;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                    padding: 6px 16px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: #475569;
+                }
+                QPushButton:hover {
+                    background-color: #E2E8F0;
+                }
+            """)
         self.btn_cancel.clicked.connect(self.reject)
         bottom_layout.addWidget(self.btn_cancel)
 
         self.btn_confirm = QPushButton("✔ 载入所选华冶规格")
         self.btn_confirm.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_confirm.setEnabled(False)
-        self.btn_confirm.setStyleSheet("""
-            QPushButton {
+        dis_bg = "#1A1A28" if is_dark else "#CBD5E1"
+        dis_bdr = "#262638" if is_dark else "#CBD5E1"
+        dis_fg = "#64748B" if is_dark else "#94A3B8"
+        self.btn_confirm.setStyleSheet(f"""
+            QPushButton {{
                 background-color: #0284C7;
                 border: 1px solid #0284C7;
                 border-radius: 6px;
@@ -367,15 +392,15 @@ class WireCatalogDialog(QDialog):
                 font-size: 12px;
                 font-weight: 700;
                 color: #FFFFFF;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: #0369A1;
-            }
-            QPushButton:disabled {
-                background-color: #CBD5E1;
-                border-color: #CBD5E1;
-                color: #94A3B8;
-            }
+            }}
+            QPushButton:disabled {{
+                background-color: {dis_bg};
+                border-color: {dis_bdr};
+                color: {dis_fg};
+            }}
         """)
         self.btn_confirm.clicked.connect(self._on_confirm_clicked)
         bottom_layout.addWidget(self.btn_confirm)

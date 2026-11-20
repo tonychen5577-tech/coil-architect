@@ -129,9 +129,15 @@ class IncomingWireDialog(QDialog):
         grid.setHorizontalSpacing(14)
         grid.setVerticalSpacing(10)
 
+        c_lbl = "#E8E8F0" if is_dark else "#334155"
+        c_lbl_sub = "#8888A8" if is_dark else "#64748B"
+        c_input_bg = "#1A1A28" if is_dark else "#FFFFFF"
+        c_input_bdr = "#262638" if is_dark else "#CBD5E1"
+        c_input_fg = "#E8E8F0" if is_dark else "#0F172A"
+
         # 2.1 常温实测米阻 (Ω/m) 与 千米阻值 (Ω/km)
         lbl_rm = QLabel("实测常温米阻 (Ω/m):" if not is_en else "Measured Res (Ω/m):")
-        lbl_rm.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        lbl_rm.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         self.sb_rm = ClickableDoubleSpinBox()
         self.sb_rm.setRange(0.00001, 50000.0)
         self.sb_rm.setDecimals(5)
@@ -140,7 +146,7 @@ class IncomingWireDialog(QDialog):
         self.sb_rm.valueChanged.connect(self._on_rm_changed)
 
         lbl_km_res = QLabel("等效千米阻值 (Ω/km):" if not is_en else "Equiv Res (Ω/km):")
-        lbl_km_res.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748B;")
+        lbl_km_res.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl_sub};")
         self.sb_km_res = ClickableDoubleSpinBox()
         self.sb_km_res.setRange(0.1, 50000000.0)
         self.sb_km_res.setDecimals(1)
@@ -155,7 +161,7 @@ class IncomingWireDialog(QDialog):
 
         # 2.2 一公斤多少米 (km/kg) 与 米重 (g/m)
         lbl_km_kg = QLabel("一公斤多少米 (m/kg · 国标):" if not is_en else "Wire Yield (m/kg GB):")
-        lbl_km_kg.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        lbl_km_kg.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         self.sb_km_kg = ClickableDoubleSpinBox()
         self.sb_km_kg.setRange(0.01, 20000.0)
         self.sb_km_kg.setDecimals(3)
@@ -163,8 +169,9 @@ class IncomingWireDialog(QDialog):
         self.sb_km_kg.setValue(self._init_km_kg if self._init_km_kg > 0 else 70.620)
         self.sb_km_kg.valueChanged.connect(self._on_km_kg_changed)
 
+        c_g_m = "#38BDF8" if is_dark else "#0284C7"
         self.lbl_g_per_m = QLabel("裸导体米重: -- g/m" if not is_en else "Linear mass: -- g/m")
-        self.lbl_g_per_m.setStyleSheet("font-size: 11px; color: #0284C7; font-weight: 600;")
+        self.lbl_g_per_m.setStyleSheet(f"font-size: 11px; color: {c_g_m}; font-weight: 600;")
 
         grid.addWidget(lbl_km_kg, 1, 0)
         grid.addWidget(self.sb_km_kg, 1, 1)
@@ -172,7 +179,7 @@ class IncomingWireDialog(QDialog):
 
         # 2.3 实测漆包外径 D 与 裸线径 d
         lbl_od = QLabel("实测漆包外径 D (mm):" if not is_en else "Outer Diameter D (mm):")
-        lbl_od.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        lbl_od.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         self.sb_od = ClickableDoubleSpinBox()
         self.sb_od.setRange(0.012, 5.000)
         self.sb_od.setDecimals(4)
@@ -181,7 +188,7 @@ class IncomingWireDialog(QDialog):
         self.sb_od.valueChanged.connect(self._on_geometry_changed)
 
         lbl_bare = QLabel("公称导体裸径 d (mm):" if not is_en else "Bare Diameter d (mm):")
-        lbl_bare.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        lbl_bare.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         self.sb_bare = ClickableDoubleSpinBox()
         self.sb_bare.setRange(0.010, 4.000)
         self.sb_bare.setDecimals(4)
@@ -197,20 +204,36 @@ class IncomingWireDialog(QDialog):
         # 智能反算辅助按钮
         btn_calc_d = QPushButton("📐 依米阻自动推算裸径" if not is_en else "📐 Infer bare d from Res")
         btn_calc_d.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_calc_d.setStyleSheet("""
-            QPushButton {
-                background-color: #E0F2FE;
-                border: 1px solid #7DD3FC;
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 11px;
-                font-weight: 600;
-                color: #0369A1;
-            }
-            QPushButton:hover {
-                background-color: #BAE6FD;
-            }
-        """)
+        if is_dark:
+            btn_calc_d.setStyleSheet("""
+                QPushButton {
+                    background-color: #0C4A6E;
+                    border: 1px solid #0284C7;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #38BDF8;
+                }
+                QPushButton:hover {
+                    background-color: #075985;
+                }
+            """)
+        else:
+            btn_calc_d.setStyleSheet("""
+                QPushButton {
+                    background-color: #E0F2FE;
+                    border: 1px solid #7DD3FC;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #0369A1;
+                }
+                QPushButton:hover {
+                    background-color: #BAE6FD;
+                }
+            """)
         btn_calc_d.clicked.connect(self._auto_infer_bare_dia)
         grid.addWidget(btn_calc_d, 3, 2, 1, 2)
 
@@ -225,7 +248,7 @@ class IncomingWireDialog(QDialog):
         mat_layout.setVerticalSpacing(8)
 
         lbl_mat = QLabel("导体材质基准:" if not is_en else "Conductor Material:")
-        lbl_mat.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        lbl_mat.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         self.combo_material = QComboBox()
         self.combo_material.addItem("纯铜 (华冶实测 1/58.5 · ρ=0.017094)", (0.01709402, 8.90, "纯铜"))
         self.combo_material.addItem("无氧纯铜 (高纯退火态 1/59.0 · ρ=0.016949)", (0.01694915, 8.90, "无氧纯铜"))
@@ -237,7 +260,7 @@ class IncomingWireDialog(QDialog):
         mat_layout.addWidget(self.combo_material, 0, 1, 1, 2)
 
         lbl_grade = QLabel("漆膜绝缘等级:" if not is_en else "Enamel Grade:")
-        lbl_grade.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        lbl_grade.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         self.combo_enamel = QComboBox()
         self.combo_enamel.addItem("常规标准自粘 (漆膜+胶厚 +0.010mm · +0.01 标配)", EnamelGrade.SB_010)
         self.combo_enamel.addItem("薄胶复合自粘 (漆膜+胶厚 +0.008mm)", EnamelGrade.SB_008)
@@ -257,7 +280,7 @@ class IncomingWireDialog(QDialog):
 
         self.chk_sb = QCheckBox("复合热风/酒精自粘胶层 (Self-Bonding)" if not is_en else "Composite Self-Bonding Coat")
         self.chk_sb.setChecked(self._init_has_sb)
-        self.chk_sb.setStyleSheet("font-size: 11px; font-weight: 600; color: #334155;")
+        self.chk_sb.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {c_lbl};")
         self.chk_sb.toggled.connect(self._update_calculation_preview)
 
         mat_layout.addWidget(lbl_grade, 1, 0)

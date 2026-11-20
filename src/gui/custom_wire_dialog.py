@@ -53,11 +53,18 @@ class CloudWireSyncDialog(QDialog):
         self.is_authorized, self.auth_msg, self.auth_data = self.lm.is_system_authorized()
         self.mid = get_machine_code()
         self.cust_name = self.auth_data.get("cust", "未登记用户") if self.auth_data else "未登记用户"
+        self.is_dark = (get_saved_theme() == THEME_DARK)
 
         self._setup_ui()
 
     def _setup_ui(self):
         is_en = i18n.is_english()
+        is_dark = getattr(self, "is_dark", False)
+        if is_dark:
+            self.setStyleSheet("QDialog { background-color: #0A0A0F; color: #E8E8F0; }")
+        else:
+            self.setStyleSheet("QDialog { background-color: #FFFFFF; color: #0F172A; }")
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
@@ -65,29 +72,34 @@ class CloudWireSyncDialog(QDialog):
         # 顶部标题
         header_box = QHBoxLayout()
         lbl_head = QLabel("☁️ 线材库云端保存与防丢失服务" if not is_en else "☁️ Cloud Wire Backup & Sync")
-        lbl_head.setStyleSheet("font-size: 16px; font-weight: 700; color: #0369A1;")
+        c_head = "#38BDF8" if is_dark else "#0369A1"
+        lbl_head.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {c_head};")
         header_box.addWidget(lbl_head)
         header_box.addStretch()
         layout.addLayout(header_box)
 
+        bg_grp = "#13131E" if is_dark else "#F8FAFC"
+        bdr_grp = "#262638" if is_dark else "#CBD5E1"
+        fg_grp = "#E8E8F0" if is_dark else "#1E293B"
+
         # 账号与授权状态卡片
         grp_status = QGroupBox("当前授权与云端账号绑定状态" if not is_en else "License & Cloud Account Status")
-        grp_status.setStyleSheet("""
-            QGroupBox {
+        grp_status.setStyleSheet(f"""
+            QGroupBox {{
                 font-size: 12px;
                 font-weight: 700;
-                color: #1E293B;
-                border: 1px solid #CBD5E1;
+                color: {fg_grp};
+                border: 1px solid {bdr_grp};
                 border-radius: 8px;
                 margin-top: 10px;
                 padding-top: 14px;
-                background-color: #F8FAFC;
-            }
-            QGroupBox::title {
+                background-color: {bg_grp};
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 12px;
                 padding: 0 4px;
-            }
+            }}
         """)
         v_stat = QVBoxLayout(grp_status)
         v_stat.setContentsMargins(14, 12, 14, 12)
@@ -331,12 +343,19 @@ class CustomWireEditorDialog(QDialog):
 
         self._is_updating = False
         self._active_derivation_mode = 1  # 1: IACS -> Rm, 2: Rm -> IACS
+        self.is_dark = (get_saved_theme() == THEME_DARK)
 
         self._setup_ui()
         self._populate_initial_data()
 
     def _setup_ui(self):
         is_en = i18n.is_english()
+        is_dark = getattr(self, "is_dark", False)
+        if is_dark:
+            self.setStyleSheet("QDialog { background-color: #0A0A0F; color: #E8E8F0; }")
+        else:
+            self.setStyleSheet("QDialog { background-color: #FFFFFF; color: #0F172A; }")
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
@@ -345,7 +364,8 @@ class CustomWireEditorDialog(QDialog):
         header_box = QHBoxLayout()
         header_box.setSpacing(8)
         lbl_head = QLabel("⚡ 自定义线材规格参数设定" if not is_en else "⚡ Custom Wire Specification Editor")
-        lbl_head.setStyleSheet("font-size: 15px; font-weight: 700; color: #1E3A8A;")
+        c_head = "#38BDF8" if is_dark else "#1E3A8A"
+        lbl_head.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {c_head};")
         header_box.addWidget(lbl_head)
         header_box.addStretch()
         layout.addLayout(header_box)
@@ -635,38 +655,50 @@ class CustomWireEditorDialog(QDialog):
         layout.addLayout(btn_box)
 
     def _group_box_qss(self) -> str:
-        return """
-            QGroupBox {
+        is_dark = getattr(self, "is_dark", False)
+        bg = "#13131E" if is_dark else "#F8FAFC"
+        bdr = "#262638" if is_dark else "#CBD5E1"
+        fg = "#E8E8F0" if is_dark else "#0F172A"
+        return f"""
+            QGroupBox {{
                 font-size: 12px;
                 font-weight: 700;
-                color: #0F172A;
-                border: 1px solid #CBD5E1;
+                color: {fg};
+                border: 1px solid {bdr};
                 border-radius: 8px;
                 margin-top: 8px;
                 padding-top: 6px;
-                background-color: #F8FAFC;
-            }
-            QGroupBox::title {
+                background-color: {bg};
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 4px;
-            }
+            }}
         """
 
     def _input_field_qss(self) -> str:
-        return """
-            QLineEdit, QComboBox, QDoubleSpinBox {
-                background-color: #FFFFFF;
-                border: 1px solid #CBD5E1;
+        is_dark = getattr(self, "is_dark", False)
+        bg = "#1A1A28" if is_dark else "#FFFFFF"
+        bdr = "#262638" if is_dark else "#CBD5E1"
+        fg = "#E8E8F0" if is_dark else "#1E293B"
+        return f"""
+            QLineEdit, QComboBox, QDoubleSpinBox {{
+                background-color: {bg};
+                border: 1px solid {bdr};
                 border-radius: 5px;
                 padding: 3px 6px;
                 min-height: 24px;
                 font-size: 12px;
-                color: #1E293B;
-            }
-            QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus {
-                border-color: #0284C7;
-            }
+                color: {fg};
+            }}
+            QLineEdit:focus, QComboBox:focus, QDoubleSpinBox:focus {{
+                border-color: #38BDF8;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {bg};
+                color: {fg};
+            }}
         """
 
     def _populate_initial_data(self):
@@ -876,40 +908,53 @@ class CustomWireLibraryDialog(QDialog):
         # 操作快捷按钮组
         self.btn_add = QPushButton("➕ 新增规格" if not is_en else "➕ Add Wire")
         self.btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add.setStyleSheet(self._action_btn_qss(bg="#0284C7", fg="#FFFFFF", hover="#0369A1"))
+        self.btn_add.setStyleSheet(self._action_btn_qss(bg="#0284C7", fg="#FFFFFF", hover="#0369A1", border="#0284C7"))
         self.btn_add.clicked.connect(self._on_add_clicked)
+
+        if is_dark:
+            edit_bg, edit_fg, edit_hov, edit_bdr = "#1A1A28", "#E8E8F0", "#262638", "#262638"
+            del_bg, del_fg, del_hov, del_bdr = "#450A0A", "#F87171", "#7F1D1D", "#EF4444"
+            exp_bg, exp_fg, exp_hov, exp_bdr = "#064E3B", "#4ADE80", "#065F46", "#10B981"
+            sync_bg, sync_fg, sync_hov, sync_bdr = "#0C4A6E", "#38BDF8", "#075985", "#0284C7"
+            rst_bg, rst_fg, rst_hov, rst_bdr = "#1A1A28", "#8888A8", "#262638", "#262638"
+        else:
+            edit_bg, edit_fg, edit_hov, edit_bdr = "#F1F5F9", "#334155", "#E2E8F0", "#CBD5E1"
+            del_bg, del_fg, del_hov, del_bdr = "#FEF2F2", "#DC2626", "#FEE2E2", "#FCA5A5"
+            exp_bg, exp_fg, exp_hov, exp_bdr = "#F8FAFC", "#475569", "#F1F5F9", "#CBD5E1"
+            sync_bg, sync_fg, sync_hov, sync_bdr = "#EFF6FF", "#0284C7", "#DBEAFE", "#BAE6FD"
+            rst_bg, rst_fg, rst_hov, rst_bdr = "#F8FAFC", "#64748B", "#F1F5F9", "#CBD5E1"
 
         self.btn_edit = QPushButton("✏️ 编辑" if not is_en else "✏️ Edit")
         self.btn_edit.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_edit.setStyleSheet(self._action_btn_qss(bg="#F1F5F9", fg="#334155", hover="#E2E8F0"))
+        self.btn_edit.setStyleSheet(self._action_btn_qss(bg=edit_bg, fg=edit_fg, hover=edit_hov, border=edit_bdr))
         self.btn_edit.clicked.connect(self._on_edit_clicked)
 
         self.btn_clone = QPushButton("📋 克隆" if not is_en else "📋 Clone")
         self.btn_clone.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_clone.setStyleSheet(self._action_btn_qss(bg="#F1F5F9", fg="#334155", hover="#E2E8F0"))
+        self.btn_clone.setStyleSheet(self._action_btn_qss(bg=edit_bg, fg=edit_fg, hover=edit_hov, border=edit_bdr))
         self.btn_clone.clicked.connect(self._on_clone_clicked)
 
         self.btn_delete = QPushButton("🗑️ 删除" if not is_en else "🗑️ Delete")
         self.btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_delete.setStyleSheet(self._action_btn_qss(bg="#FEF2F2", fg="#DC2626", hover="#FEE2E2"))
+        self.btn_delete.setStyleSheet(self._action_btn_qss(bg=del_bg, fg=del_fg, hover=del_hov, border=del_bdr))
         self.btn_delete.clicked.connect(self._on_delete_clicked)
 
         self.btn_import = QPushButton("📥 导入" if not is_en else "📥 Import")
-        self.btn_import.setStyleSheet(self._action_btn_qss(bg="#F8FAFC", fg="#475569", hover="#F1F5F9"))
+        self.btn_import.setStyleSheet(self._action_btn_qss(bg=edit_bg, fg=edit_fg, hover=edit_hov, border=edit_bdr))
         self.btn_import.clicked.connect(self._on_import_clicked)
 
         self.btn_export = QPushButton("📤 导出" if not is_en else "📤 Export")
-        self.btn_export.setStyleSheet(self._action_btn_qss(bg="#F8FAFC", fg="#475569", hover="#F1F5F9"))
+        self.btn_export.setStyleSheet(self._action_btn_qss(bg=exp_bg, fg=exp_fg, hover=exp_hov, border=exp_bdr))
         self.btn_export.clicked.connect(self._on_export_clicked)
 
         self.btn_cloud_sync = QPushButton("☁️ 云端同步与防丢失" if not is_en else "☁️ Cloud Sync")
         self.btn_cloud_sync.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_cloud_sync.setStyleSheet(self._action_btn_qss(bg="#EFF6FF", fg="#0284C7", hover="#DBEAFE"))
+        self.btn_cloud_sync.setStyleSheet(self._action_btn_qss(bg=sync_bg, fg=sync_fg, hover=sync_hov, border=sync_bdr))
         self.btn_cloud_sync.clicked.connect(self._on_cloud_sync_clicked)
 
         self.btn_reset_presets = QPushButton("🔄 重置预设" if not is_en else "🔄 Reset Presets")
         self.btn_reset_presets.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_reset_presets.setStyleSheet(self._action_btn_qss(bg="#F8FAFC", fg="#64748B", hover="#F1F5F9"))
+        self.btn_reset_presets.setStyleSheet(self._action_btn_qss(bg=rst_bg, fg=rst_fg, hover=rst_hov, border=rst_bdr))
         self.btn_reset_presets.clicked.connect(self._on_reset_presets_clicked)
 
         top_bar.addWidget(self.btn_add)
@@ -929,33 +974,62 @@ class CustomWireLibraryDialog(QDialog):
 
         self.txt_search = QLineEdit()
         self.txt_search.setPlaceholderText("🔍 快速搜索厂商、型号、规格或线径 (例如: 华冶, 1UEW, 0.080)...")
-        self.txt_search.setStyleSheet("""
-            QLineEdit {
-                background-color: #FFFFFF;
-                border: 1px solid #CBD5E1;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-size: 12px;
-                color: #1E293B;
-            }
-            QLineEdit:focus {
-                border-color: #0284C7;
-            }
-        """)
-        self.txt_search.textChanged.connect(self._apply_filter)
-        search_box.addWidget(self.txt_search, 2)
-
-        self.combo_vendor_filter = QComboBox()
-        self.combo_vendor_filter.setStyleSheet("""
-            QComboBox {
-                background-color: #FFFFFF;
-                border: 1px solid #CBD5E1;
-                border-radius: 6px;
-                padding: 6px 10px;
-                font-size: 12px;
-                color: #1E293B;
-            }
-        """)
+        if is_dark:
+            self.txt_search.setStyleSheet("""
+                QLineEdit {
+                    background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    font-size: 12px;
+                    color: #E8E8F0;
+                }
+                QLineEdit:focus {
+                    border-color: #38BDF8;
+                }
+            """)
+            self.combo_vendor_filter = QComboBox()
+            self.combo_vendor_filter.setStyleSheet("""
+                QComboBox {
+                    background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                    font-size: 12px;
+                    color: #E8E8F0;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #13131E;
+                    color: #E8E8F0;
+                    selection-background-color: #0C4A6E;
+                    selection-color: #38BDF8;
+                }
+            """)
+        else:
+            self.txt_search.setStyleSheet("""
+                QLineEdit {
+                    background-color: #FFFFFF;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    font-size: 12px;
+                    color: #1E293B;
+                }
+                QLineEdit:focus {
+                    border-color: #0284C7;
+                }
+            """)
+            self.combo_vendor_filter = QComboBox()
+            self.combo_vendor_filter.setStyleSheet("""
+                QComboBox {
+                    background-color: #FFFFFF;
+                    border: 1px solid #CBD5E1;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                    font-size: 12px;
+                    color: #1E293B;
+                }
+            """)
         self.combo_vendor_filter.currentIndexChanged.connect(self._apply_filter)
         search_box.addWidget(self.combo_vendor_filter, 1)
 
@@ -984,33 +1058,66 @@ class CustomWireLibraryDialog(QDialog):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
-        self.table.setStyleSheet("""
-            QTableWidget {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 6px;
-                gridline-color: #F1F5F9;
-                font-size: 12px;
-                color: #1E293B;
-            }
-            QTableWidget::item {
-                padding: 6px 10px;
-            }
-            QTableWidget::item:selected {
-                background-color: #E0F2FE;
-                color: #0369A1;
-                font-weight: 700;
-            }
-            QHeaderView::section {
-                background-color: #F8FAFC;
-                border: none;
-                border-bottom: 2px solid #E2E8F0;
-                color: #475569;
-                font-weight: 700;
-                padding: 8px 8px;
-                font-size: 11px;
-            }
-        """)
+        if is_dark:
+            self.table.setStyleSheet("""
+                QTableWidget {
+                    background-color: #13131E;
+                    alternate-background-color: #1A1A28;
+                    border: 1px solid #262638;
+                    border-radius: 6px;
+                    gridline-color: #262638;
+                    font-size: 12px;
+                    color: #E8E8F0;
+                }
+                QTableWidget::item {
+                    padding: 6px 10px;
+                    color: #E8E8F0;
+                }
+                QTableWidget::item:selected {
+                    background-color: #0C4A6E;
+                    color: #38BDF8;
+                    font-weight: 700;
+                }
+                QHeaderView::section {
+                    background-color: #1A1A28;
+                    border: none;
+                    border-bottom: 2px solid #262638;
+                    color: #8888A8;
+                    font-weight: 700;
+                    padding: 8px 8px;
+                    font-size: 11px;
+                }
+            """)
+        else:
+            self.table.setStyleSheet("""
+                QTableWidget {
+                    background-color: #FFFFFF;
+                    alternate-background-color: #F8FAFC;
+                    border: 1px solid #E2E8F0;
+                    border-radius: 6px;
+                    gridline-color: #F1F5F9;
+                    font-size: 12px;
+                    color: #1E293B;
+                }
+                QTableWidget::item {
+                    padding: 6px 10px;
+                    color: #1E293B;
+                }
+                QTableWidget::item:selected {
+                    background-color: #E0F2FE;
+                    color: #0369A1;
+                    font-weight: 700;
+                }
+                QHeaderView::section {
+                    background-color: #F8FAFC;
+                    border: none;
+                    border-bottom: 2px solid #E2E8F0;
+                    color: #475569;
+                    font-weight: 700;
+                    padding: 8px 8px;
+                    font-size: 11px;
+                }
+            """)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
@@ -1053,7 +1160,11 @@ class CustomWireLibraryDialog(QDialog):
 
         self.btn_cancel = QPushButton("取消" if not is_en else "Cancel")
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_cancel.setStyleSheet(self._action_btn_qss(bg="#F1F5F9", fg="#475569", hover="#E2E8F0"))
+        c_bg_c = "#1A1A28" if is_dark else "#F1F5F9"
+        c_fg_c = "#E8E8F0" if is_dark else "#475569"
+        c_hov_c = "#262638" if is_dark else "#E2E8F0"
+        c_bdr_c = "#262638" if is_dark else "#CBD5E1"
+        self.btn_cancel.setStyleSheet(self._action_btn_qss(bg=c_bg_c, fg=c_fg_c, hover=c_hov_c, border=c_bdr_c))
         self.btn_cancel.clicked.connect(self.reject)
         bottom_layout.addWidget(self.btn_cancel)
 
@@ -1084,11 +1195,13 @@ class CustomWireLibraryDialog(QDialog):
 
         layout.addWidget(bottom_frame)
 
-    def _action_btn_qss(self, bg: str, fg: str, hover: str) -> str:
+    def _action_btn_qss(self, bg: str, fg: str, hover: str, border: str = "") -> str:
+        is_dark = getattr(self, "is_dark", False)
+        bdr = border if border else ("#262638" if is_dark else "#CBD5E1")
         return f"""
             QPushButton {{
                 background-color: {bg};
-                border: 1px solid #CBD5E1;
+                border: 1px solid {bdr};
                 border-radius: 6px;
                 padding: 6px 12px;
                 font-size: 11px;
